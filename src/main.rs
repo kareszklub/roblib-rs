@@ -47,7 +47,7 @@ async fn main() -> std::io::Result<()> {
     logger::init_log();
     info!("Starting server");
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
             .wrap(
                 DefaultHeaders::new()
@@ -60,7 +60,7 @@ async fn main() -> std::io::Result<()> {
             .service(ws_index)
             .service(cmd_index)
     })
-    .bind("::1:8080")?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }
