@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate log;
 
-mod cmd;
-mod logger;
 mod robot;
+mod utils;
 mod ws;
 
-use crate::cmd::Cmd;
+use crate::utils::exec_str;
 use actix_web::{
     get,
     middleware::DefaultHeaders,
@@ -15,6 +14,7 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
+use roblib_shared::logger;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -38,13 +38,13 @@ async fn ws_index(req: HttpRequest, stream: Payload) -> Result<HttpResponse, Err
 /// for anything more complicated, use websockets
 #[post("/cmd/{cmd}")]
 async fn cmd_index(req_body: String, cmd: web::Path<String>) -> impl Responder {
-    let res = Cmd::exec_str(&format!("{} {}", cmd, req_body));
+    let res = exec_str(&format!("{} {}", cmd, req_body));
     HttpResponse::Ok().body(res)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    logger::init_log();
+    logger::init_log(Some("actix_web=info,roblib_server=info"));
     info!("Starting server");
 
     HttpServer::new(move || {

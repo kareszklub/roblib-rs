@@ -1,4 +1,4 @@
-use crate::cmd::Cmd;
+use crate::utils::exec_str;
 use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
 use actix_web_actors::ws::{self as ws_actix, Message, WebsocketContext};
 use std::time::{Duration, Instant};
@@ -31,7 +31,7 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
                 ctx.pong(&msg);
             }
             Ok(Message::Pong(_)) => self.hb = Instant::now(),
-            Ok(Message::Text(text)) => ctx.text(Cmd::exec_str(&text)),
+            Ok(Message::Text(text)) => ctx.text(exec_str(&text)),
             Ok(Message::Binary(_)) => ctx.text("binary data not supported"),
             Ok(Message::Close(reason)) => {
                 ctx.close(reason);

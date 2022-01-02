@@ -1,11 +1,12 @@
+use actix_web::middleware;
 use env_logger::fmt::Color;
 use log::Level;
 use std::{env, io::Write};
 
 /// custom `log` format
-pub fn init_log() {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "actix_web=info,roblib_rs=info");
+pub fn init_log(default_level: Option<&str>) {
+    if default_level.is_some() && env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", default_level.unwrap());
     }
 
     env_logger::Builder::from_default_env()
@@ -31,7 +32,7 @@ pub fn init_log() {
 }
 
 /// custom `actix-web` logger format
-pub fn actix_log() -> actix_web::middleware::Logger {
-    actix_web::middleware::Logger::new("%{METHOD}xi %U %s %Dms %{r}a %{User-Agent}i")
+pub fn actix_log() -> middleware::Logger {
+    middleware::Logger::new("%{METHOD}xi %U %s %Dms %{r}a %{User-Agent}i")
         .custom_request_replace("METHOD", |req| req.method().to_string())
 }

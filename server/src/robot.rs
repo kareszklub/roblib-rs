@@ -2,6 +2,8 @@
 // just some placeholder code to test the server.
 // actual robot code is coming soon.
 
+use roblib_shared::cmd::SensorData;
+
 pub fn move_robot(left: i8, right: i8) {
     info!("Moving robot: {}:{}", left, right);
 }
@@ -18,7 +20,6 @@ pub fn servo_absolute(degree: f32) {
     info!("Servo absolute: {}", degree);
 }
 
-pub type SensorData = [i32; 4];
 pub fn track_sensor() -> SensorData {
     info!("Track sensor");
     [0, 0, 0, 0]
