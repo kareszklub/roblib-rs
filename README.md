@@ -1,6 +1,6 @@
 # roblib
 
-#### _a remove library for a dank engine._
+#### _a remote library for a dank engine._
 
 this repo contains the new roblib server written in rust as well as a client
 library also written in rust.
