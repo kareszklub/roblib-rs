@@ -1307,6 +1307,7 @@ dependencies = [
  "actix-web",
  "actix-web-actors",
  "env_logger",
+ "lazy_static",
  "log",
  "roblib-shared",
  "rppal",
