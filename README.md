@@ -11,7 +11,7 @@ library also written in rust.
 
 ## server api
 
-the server commuinicates via standard websockets. the initial websocket endpoint
+the server communicates via standard websockets. the initial websocket endpoint
 is `/ws`
 
 the commands are plain text and have a format of:
