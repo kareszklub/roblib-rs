@@ -7,7 +7,10 @@ mod robot;
 mod utils;
 mod ws;
 
-use crate::utils::exec_str;
+use crate::{
+    robot::{init_robot, Robot},
+    utils::exec_str,
+};
 use actix_web::{
     get,
     middleware::DefaultHeaders,
@@ -17,6 +20,15 @@ use actix_web::{
 };
 use actix_web_actors::ws::start as ws_start;
 use roblib_shared::logger;
+use rppal::gpio::Error as GpioError;
+
+lazy_static! {
+    static ref ROBOT: (Robot, Option<GpioError>) = init_robot();
+}
+
+struct AppState {
+    robot: &'static Robot,
+}
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -31,16 +43,24 @@ async fn echo(req_body: String) -> impl Responder {
 /// websocket endpoint
 /// will attempt to upgrade to websocket connection
 #[get("/ws")]
-async fn ws_index(req: HttpRequest, stream: Payload) -> Result<HttpResponse, Error> {
-    let res = ws_start(ws::WebSocket::new(), &req, stream);
+async fn ws_index(
+    data: web::Data<AppState>,
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
+    let res = ws_start(ws::WebSocket::new(data.robot.clone()), &req, stream);
     res
 }
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
 #[post("/cmd/{cmd}")]
-async fn cmd_index(req_body: String, cmd: web::Path<String>) -> impl Responder {
-    let res = exec_str(&format!("{} {}", cmd, req_body));
+async fn cmd_index(
+    data: web::Data<AppState>,
+    req_body: String,
+    cmd: web::Path<String>,
+) -> impl Responder {
+    let res = exec_str(&format!("{} {}", cmd, req_body), &data.robot);
     HttpResponse::Ok().body(res)
 }
 
@@ -49,8 +69,17 @@ async fn main() -> std::io::Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=info"));
     info!("Starting server");
 
+    if let Some(err) = &ROBOT.1 {
+        info!("Failed to initialize GPIO: {}", err);
+        info!("Server launching in test mode");
+    } else {
+        info!("GPIO operational");
+        info!("Server launching in production mode");
+    }
+
     HttpServer::new(move || {
         App::new()
+            .data(AppState { robot: &ROBOT.0 })
             .wrap(
                 DefaultHeaders::new()
                     .header("Server", "roblib-rs")
