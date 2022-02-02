@@ -26,6 +26,8 @@ lazy_static! {
     static ref ROBOT: (Robot, Option<GpioError>) = init_robot();
 }
 
+const DEFAULT_PORT: u16 = 8080;
+
 struct AppState {
     robot: &'static Robot,
 }
@@ -67,7 +69,13 @@ async fn cmd_index(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=info"));
-    info!("Starting server");
+
+    let port: u16 = match std::env::args().collect::<Vec<String>>().get(2) {
+        Some(s) => s.parse().expect("port must be a valid number"),
+        None => DEFAULT_PORT,
+    };
+
+    info!("Starting server on port {}", &port);
 
     if let Some(err) = &ROBOT.1 {
         info!("Failed to initialize GPIO: {}", err);
@@ -91,7 +99,7 @@ async fn main() -> std::io::Result<()> {
             .service(ws_index)
             .service(cmd_index)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }
