@@ -70,7 +70,7 @@ async fn cmd_index(
 async fn main() -> std::io::Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=info"));
 
-    let port: u16 = match std::env::args().collect::<Vec<String>>().get(2) {
+    let port: u16 = match std::env::args().collect::<Vec<String>>().get(1) {
         Some(s) => s.parse().expect("port must be a valid number"),
         None => DEFAULT_PORT,
     };
