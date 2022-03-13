@@ -12,6 +12,7 @@ use awc::{
     BoxedSocket, Client,
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
+use roblib_shared::cmd::get_time;
 use std::convert::TryInto;
 use std::{fmt::Debug, result::Result as StdResult};
 
@@ -24,6 +25,7 @@ pub enum RobotError {
     WsClientError(WsClientError),
     ProtocolError(ProtocolError),
     UnsupportedFrameType(String),
+    InvalidResponse(String),
 }
 impl From<WsClientError> for RobotError {
     fn from(err: WsClientError) -> Self {
@@ -40,9 +42,8 @@ impl Debug for RobotError {
         match self {
             RobotError::WsClientError(err) => write!(f, "WsClientError: {}", err),
             RobotError::ProtocolError(err) => write!(f, "ProtocolError: {}", err),
-            RobotError::UnsupportedFrameType(fr) => {
-                write!(f, "UnsupportedFrameType: {}", fr)
-            }
+            RobotError::UnsupportedFrameType(fr) => write!(f, "UnsupportedFrameType: {}", fr),
+            RobotError::InvalidResponse(r) => write!(f, "InvalidResponse: {}", r),
         }
     }
 }
@@ -119,5 +120,16 @@ impl Robot {
             });
         debug!("R {:?}", d);
         Ok(d)
+    }
+    pub async fn measure_latency(&mut self) -> StdResult<f64, RobotError> {
+        let now = get_time();
+        let s = format!("z {}", now);
+        debug!("S: {}", s);
+        let r = self.send(&s).await?;
+        debug!("R {}", &r);
+        match r.parse() {
+            Ok(x) => Ok(x),
+            Err(_) => Err(RobotError::InvalidResponse(r)),
+        }
     }
 }

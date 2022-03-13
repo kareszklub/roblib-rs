@@ -1,5 +1,5 @@
 use crate::robot::Robot;
-use roblib_shared::cmd::Cmd;
+use roblib_shared::cmd::{get_time, Cmd};
 use std::str::FromStr;
 
 pub fn exec(cmd: &Cmd, robot: &Robot) -> String {
@@ -8,6 +8,7 @@ pub fn exec(cmd: &Cmd, robot: &Robot) -> String {
             let res = robot.track_sensor();
             format!("{},{},{},{}", res[0], res[1], res[2], res[3])
         }
+        Cmd::MeasureLatency(t) => format!("{:.3}", get_time() - t),
         _ => {
             match cmd {
                 // commands that don't have a return type
