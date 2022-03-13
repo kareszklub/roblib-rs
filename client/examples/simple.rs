@@ -3,7 +3,7 @@ use std::{thread::sleep, time::Duration};
 
 #[actix_web::main]
 async fn main() -> Result {
-    let mut robot = Robot::connect("ws://localhost:8080/ws").await?;
+    let mut robot = Robot::connect("ws://localhost:1111/ws").await?;
     robot.led((true, false, true)).await?;
 
     robot.move_robot(10, 10).await?;

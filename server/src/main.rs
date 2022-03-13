@@ -26,7 +26,7 @@ lazy_static! {
     static ref ROBOT: (Robot, Option<GpioError>) = init_robot();
 }
 
-const DEFAULT_PORT: u16 = 8080;
+const DEFAULT_PORT: u16 = 1111;
 
 struct AppState {
     robot: &'static Robot,
