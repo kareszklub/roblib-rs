@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const NO_OF_RUNS: u8 = 25;
+const NO_OF_RUNS: u64 = 100;
 const WAIT_MS: u64 = 100;
 
 #[actix_web::main]

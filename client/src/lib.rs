@@ -1,11 +1,9 @@
-// TODO: handle pings
-// right now we can't handle a connection for more than 5 seconds
-
 #[macro_use]
 extern crate log;
 
 use actix_codec::Framed;
-use actix_http::ws::{Frame, ProtocolError};
+use actix_http::ws::{CloseReason, Frame, ProtocolError};
+use actix_web::web::Bytes;
 use awc::{
     error::WsClientError,
     ws::{Codec, Message},
@@ -25,6 +23,7 @@ pub enum RobotError {
     WsClientError(WsClientError),
     ProtocolError(ProtocolError),
     UnsupportedFrameType(String),
+    SocketClosed(Option<CloseReason>),
     InvalidResponse(String),
 }
 impl From<WsClientError> for RobotError {
@@ -43,6 +42,7 @@ impl Debug for RobotError {
             RobotError::WsClientError(err) => write!(f, "WsClientError: {}", err),
             RobotError::ProtocolError(err) => write!(f, "ProtocolError: {}", err),
             RobotError::UnsupportedFrameType(fr) => write!(f, "UnsupportedFrameType: {}", fr),
+            RobotError::SocketClosed(cr) => write!(f, "SocketClosed: {:?}", cr),
             RobotError::InvalidResponse(r) => write!(f, "InvalidResponse: {}", r),
         }
     }
@@ -65,16 +65,32 @@ impl Robot {
     async fn send(&mut self, cmd: &str) -> StdResult<String, RobotError> {
         self.ws.send(Message::Text(cmd.to_string())).await?;
 
-        return match self.ws.next().await.unwrap()? {
-            Frame::Binary(_) => Err(RobotError::UnsupportedFrameType("binary".to_string())),
-            Frame::Continuation(_) => {
-                Err(RobotError::UnsupportedFrameType("continuation".to_string()))
+        while let Some(Ok(msg)) = self.ws.next().await {
+            match msg {
+                Frame::Text(b) => return Ok(String::from_utf8(b.to_vec()).unwrap()),
+                Frame::Binary(_) => {
+                    return Err(RobotError::UnsupportedFrameType("binary".to_string()))
+                }
+                Frame::Continuation(_) => {
+                    return Err(RobotError::UnsupportedFrameType("continuation".to_string()))
+                }
+                Frame::Ping(_) => {
+                    self.ws.send(Message::Pong(Bytes::new())).await?;
+                    trace!("ping");
+                    continue;
+                }
+                Frame::Pong(_) => {
+                    trace!("pong");
+                    continue;
+                }
+                Frame::Close(reason) => {
+                    self.ws.close().await?;
+                    return Err(RobotError::SocketClosed(reason));
+                }
             }
-            Frame::Ping(_) => todo!("ping"), // TODO
-            Frame::Pong(_) => todo!("pong"),
-            Frame::Close(_) => todo!("close"),
-            Frame::Text(b) => Ok(String::from_utf8(b.to_vec()).unwrap()),
-        };
+        }
+
+        unreachable!("should have received a message");
     }
 
     pub async fn disconnect(&mut self) -> StdResult<(), RobotError> {
