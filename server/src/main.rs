@@ -20,7 +20,7 @@ use actix_web::{
 };
 use actix_web_actors::ws::start as ws_start;
 use roblib_shared::logger;
-use rppal::gpio::Error as GpioError;
+use roland::Error as GpioError;
 
 lazy_static! {
     static ref ROBOT: (Robot, Option<GpioError>) = init_robot();

@@ -1,9 +1,7 @@
-use rppal::gpio::{Error, Gpio};
+pub mod constants;
+use crate::constants::*;
 
-const LED_R: u8 = 22;
-const LED_G: u8 = 27;
-const LED_B: u8 = 24;
-
+pub use rppal::gpio::{Error, Gpio};
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub fn try_init(gpio: &Gpio) -> Result<()> {
@@ -19,6 +17,11 @@ pub fn led(gpio: &Gpio, r: bool, g: bool, b: bool) -> Result<()> {
     let mut pin_r = gpio.get(LED_R)?.into_output();
     let mut pin_g = gpio.get(LED_G)?.into_output();
     let mut pin_b = gpio.get(LED_B)?.into_output();
+
+    // don't reset the pins when these variables go out of scope
+    pin_r.set_reset_on_drop(false);
+    pin_g.set_reset_on_drop(false);
+    pin_b.set_reset_on_drop(false);
 
     if r {
         pin_r.set_high();
@@ -38,3 +41,5 @@ pub fn led(gpio: &Gpio, r: bool, g: bool, b: bool) -> Result<()> {
 
     Ok(())
 }
+
+// TODO
