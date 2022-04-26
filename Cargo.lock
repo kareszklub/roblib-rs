@@ -331,6 +331,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.57"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
+
+[[package]]
 name = "async-trait"
 version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1293,6 +1299,7 @@ dependencies = [
  "actix-codec",
  "actix-http",
  "actix-web",
+ "anyhow",
  "awc",
  "futures-util",
  "log",
@@ -1310,6 +1317,7 @@ dependencies = [
  "lazy_static",
  "log",
  "roblib-shared",
+ "roland",
  "rppal",
 ]
 
@@ -1320,6 +1328,14 @@ dependencies = [
  "actix-web",
  "env_logger",
  "log",
+]
+
+[[package]]
+name = "roland"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "rppal",
 ]
 
 [[package]]

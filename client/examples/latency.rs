@@ -1,4 +1,4 @@
-use roblib_client::{Result, Robot};
+use roblib_client::{ws::Robot, Result};
 use std::{
     env::args,
     thread::sleep,
@@ -10,7 +10,7 @@ const WAIT_MS: u64 = 100;
 
 #[actix_web::main]
 async fn main() -> Result {
-    roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
+    // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
     let ip = std::env::args().nth(1).unwrap_or("localhost:1111".into());
     let mut robot = Robot::connect(&format!("ws://{}/ws", ip)).await?;

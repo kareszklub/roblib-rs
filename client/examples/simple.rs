@@ -1,8 +1,8 @@
-use roblib_client::{Result, Robot};
+use roblib_client::{ws::Robot, Result};
 use std::{thread::sleep, time::Duration};
 
 #[actix_web::main]
-async fn main() -> Result {
+async fn main() -> Result<()> {
     let mut robot = Robot::connect("ws://localhost:1111/ws").await?;
     robot.led((true, false, true)).await?;
 

@@ -56,13 +56,9 @@ async fn ws_index(
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
-#[post("/cmd/{cmd}")]
-async fn cmd_index(
-    data: web::Data<AppState>,
-    req_body: String,
-    cmd: web::Path<String>,
-) -> impl Responder {
-    let res = exec_str(&format!("{} {}", cmd, req_body), &data.robot);
+#[post("/cmd")]
+async fn cmd_index(data: web::Data<AppState>, req_body: String) -> impl Responder {
+    let res = exec_str(&req_body, &data.robot);
     HttpResponse::Ok().body(res)
 }
 
