@@ -9,7 +9,7 @@ const NO_OF_RUNS: usize = 25;
 const WAIT_MS: u64 = 100;
 
 #[actix_web::main]
-async fn main() -> Result {
+async fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
     let ip = std::env::args().nth(1).unwrap_or("localhost:1111".into());
@@ -54,8 +54,8 @@ async fn main() -> Result {
     let avg = sum / v.len() as f64;
     let dur = Instant::now().duration_since(start).as_millis() as f64 / 1000f64;
     println!(
-        "Results:\n{:?}\nRuns: {}\nTime elapsed: {}s\nMin: {}ms\nMax: {}ms\nAverage: {:.3}ms",
-        v, runs, dur, min, max, avg
+        "Results:\n{v:?}\nRuns: {runs}\nTime elapsed: {dur}s\nMin: {min:.3}ms\nMax: {max:.3}ms\nAverage: {avg:.3}ms",
+        v=v.iter().map(|n|format!("{n:.3}").parse().unwrap()).collect::<Vec<f64>>()
     );
 
     Ok(())

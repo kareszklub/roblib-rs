@@ -18,7 +18,7 @@ pub enum Cmd {
     /// b
     Buzzer(f32),
     /// z
-    MeasureLatency(f64),
+    GetTime,
 }
 
 pub type ParseResult = Result<Cmd, ParseError>;
@@ -103,21 +103,7 @@ impl FromStr for Cmd {
                         Err(_) => Err(ParseError::InvalidArg(args[0].to_string())),
                     }
                 }
-                "z" => {
-                    let args = iter.collect::<Vec<_>>();
-                    let len = args.len();
-                    if len < 1 {
-                        return Err(ParseError::MissingArg);
-                    }
-                    if len > 1 {
-                        return Err(ParseError::InvalidSyntax);
-                    }
-                    let time = args[0].parse();
-                    match time {
-                        Ok(t) => Ok(Cmd::MeasureLatency(t)),
-                        Err(_) => Err(ParseError::InvalidArg(args[0].to_string())),
-                    }
-                }
+                "z" => Ok(Cmd::GetTime),
 
                 _ => Err(ParseError::InvalidCommand(cmd.to_string())),
             };

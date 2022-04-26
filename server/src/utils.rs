@@ -8,7 +8,7 @@ pub fn exec(cmd: &Cmd, robot: &Robot) -> String {
             let res = robot.track_sensor();
             format!("{},{},{},{}", res[0], res[1], res[2], res[3])
         }
-        Cmd::MeasureLatency(t) => format!("{:.3}", get_time() - t),
+        Cmd::GetTime => format!("{:.3}", get_time()),
         _ => {
             match cmd {
                 // commands that don't have a return type

@@ -8,7 +8,7 @@ use awc::{
     BoxedSocket, Client,
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use roblib_shared::cmd::{self, get_time};
+use roblib_shared::cmd::{get_time, SensorData};
 use std::fmt::Debug;
 
 type WsConnection = Framed<BoxedSocket, Codec>;
@@ -95,7 +95,7 @@ impl Robot {
         debug!("S: {}", s);
         self.send(&s).await
     }
-    pub async fn get_sensor_data(&mut self) -> Result<cmd::SensorData> {
+    pub async fn get_sensor_data(&mut self) -> Result<SensorData> {
         debug!("S: t");
         let d = self
             .send("t")
@@ -112,13 +112,9 @@ impl Robot {
     }
     pub async fn measure_latency(&mut self) -> Result<f64> {
         let now = get_time();
-        let s = format!("z {}", now);
-        debug!("S: {}", s);
-        let r = self.send(&s).await?;
+        debug!("S: ");
+        let r = self.send("z").await?;
         debug!("R {}", &r);
-        match r.parse() {
-            Ok(x) => Ok(x),
-            Err(_) => Err(anyhow!("invalid response: {r:?}")),
-        }
+        Ok(get_time() - now)
     }
 }
