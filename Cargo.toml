@@ -1,2 +1,5 @@
 [workspace]
 members = ["server", "client", "lib", "roland"]
+
+[profile.release]
+strip = true
