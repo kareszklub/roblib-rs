@@ -1,74 +1,100 @@
-use actix_codec::Framed;
-use actix_http::ws::{CloseReason, Frame, ProtocolError};
+use actix_http::ws::Frame;
+use actix_rt::{spawn, task::JoinHandle};
 use actix_web::web::Bytes;
 use anyhow::{anyhow, Result};
-use awc::{
-    error::WsClientError,
-    ws::{Codec, Message},
-    BoxedSocket, Client,
+use awc::{ws::Message, Client};
+use futures::{
+    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    SinkExt,
 };
-use futures_util::{sink::SinkExt, stream::StreamExt};
+use futures_util::stream::StreamExt;
 use roblib_shared::cmd::{get_time, SensorData};
-use std::fmt::Debug;
-
-type WsConnection = Framed<BoxedSocket, Codec>;
-
-#[derive(Debug)]
-pub enum RobotError {
-    WsClientError(WsClientError),
-    ProtocolError(ProtocolError),
-    UnsupportedFrameType(String),
-    SocketClosed(Option<CloseReason>),
-    InvalidResponse(String),
-}
 
 pub struct Robot {
-    ws: WsConnection,
+    tx: UnboundedSender<Message>,
+    rx: UnboundedReceiver<String>,
+    sender: JoinHandle<()>,
+    receiver: JoinHandle<()>,
 }
 
 impl Robot {
-    fn new(ws: WsConnection) -> Self {
-        Self { ws }
-    }
-
     pub async fn connect(addr: &str) -> Result<Self> {
         let (_, ws) = match Client::new().ws(addr).connect().await {
             Ok(x) => x,
             Err(_) => return Err(anyhow!("failed to connect")),
         };
-        Ok(Self::new(ws))
+
+        // twx: websocket sender, rwx: websocket receiver (tasks)
+        let (mut twx, mut rwx) = ws.split();
+        // tx_t: send message to server, rx_t: recaive messages to be send (sender task)
+        let (tx_t, mut rx_t) = mpsc::unbounded::<Message>();
+        // tx_r: send messages to be received (receiver task), rx_r: receive messages
+        let (mut tx_r, rx_r) = mpsc::unbounded::<String>();
+
+        let tx_ref = tx_t.clone();
+
+        // sender task
+        let sender = spawn(async move {
+            while let Some(msg) = rx_t.next().await {
+                if let Err(_) = twx.send(msg).await {
+                    break;
+                }
+            }
+        });
+
+        // receiver task
+        let receiver = spawn(async move {
+            let mut tx = tx_ref;
+            while let Some(Ok(msg)) = rwx.next().await {
+                match msg {
+                    Frame::Text(b) => {
+                        tx_r.send(String::from_utf8(b.to_vec()).unwrap())
+                            .await
+                            .unwrap();
+                    }
+                    Frame::Binary(_) => {
+                        error!("received binary frame");
+                    }
+                    Frame::Continuation(_) => {
+                        error!("received continuation frame");
+                    }
+                    Frame::Ping(_) => {
+                        tx.send(Message::Pong(Bytes::new())).await.unwrap();
+                        trace!("ping");
+                    }
+                    Frame::Pong(_) => {
+                        trace!("pong");
+                    }
+                    Frame::Close(reason) => {
+                        // self.ws.close().await?;
+                        error!("socket closed: {reason:?}");
+                    }
+                }
+            }
+        });
+
+        Ok(Self {
+            tx: tx_t,
+            rx: rx_r,
+            sender,
+            receiver,
+        })
     }
 
     async fn send(&mut self, cmd: &str) -> Result<String> {
-        self.ws.send(Message::Text(cmd.to_string())).await?;
-
-        while let Some(Ok(msg)) = self.ws.next().await {
-            match msg {
-                Frame::Text(b) => return Ok(String::from_utf8(b.to_vec()).unwrap()),
-                Frame::Binary(_) => return Err(anyhow!("received binary frame")),
-                Frame::Continuation(_) => return Err(anyhow!("received continuation frame")),
-                Frame::Ping(_) => {
-                    self.ws.send(Message::Pong(Bytes::new())).await?;
-                    trace!("ping");
-                    continue;
-                }
-                Frame::Pong(_) => {
-                    trace!("pong");
-                    continue;
-                }
-                Frame::Close(reason) => {
-                    self.ws.close().await?;
-                    return Err(anyhow!("socket closed: {reason:?}"));
-                }
-            }
-        }
-
-        unreachable!("should have received a message");
+        self.tx.send(Message::Text(cmd.into())).await?;
+        Ok(self.rx.next().await.ok_or(anyhow!("no message received"))?)
     }
 
     pub async fn disconnect(&mut self) -> Result<()> {
-        info!("disconnecting");
-        Ok(self.ws.close().await?)
+        debug!("disconnecting");
+
+        self.tx.send(Message::Close(None)).await?;
+        self.sender.abort();
+        self.receiver.abort();
+
+        info!("disconnected");
+        Ok(())
     }
 
     pub async fn move_robot(&mut self, left: i8, right: i8) -> Result<String> {
@@ -111,10 +137,10 @@ impl Robot {
         Ok(d)
     }
     pub async fn measure_latency(&mut self) -> Result<f64> {
-        let now = get_time();
+        let start = get_time();
         debug!("S: ");
         let r = self.send("z").await?;
         debug!("R {}", &r);
-        Ok(get_time() - now)
+        Ok(get_time() - start)
     }
 }
