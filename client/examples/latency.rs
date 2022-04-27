@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     for _ in 0..runs {
         let r = robot.measure_latency().await?;
         v.push(r);
-        sleep(Duration::from_millis(wait_ms));
+        sleep(Duration::from_millis(wait_ms)).await;
     }
     let sum = v.iter().sum::<f64>();
     let min = v
