@@ -1,5 +1,5 @@
-use roblib_client::{logger, ws::Robot, Result};
-use std::{thread::sleep, time::Duration};
+use roblib_client::{logger, sleep, ws::Robot, Result};
+use std::time::Duration;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -10,7 +10,7 @@ async fn main() -> Result<()> {
 
     robot.move_robot(10, 10).await?;
 
-    sleep(Duration::from_secs(15));
+    sleep(Duration::from_secs(15)).await;
 
     robot.stop_robot().await?;
 

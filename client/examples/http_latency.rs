@@ -1,4 +1,4 @@
-use roblib_client::{sleep, ws::Robot, Result};
+use roblib_client::{http::Robot, sleep, Result};
 use std::{
     env::args,
     time::{Duration, Instant},
@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
     let ip = std::env::args().nth(1).unwrap_or("localhost:1111".into());
-    let mut robot = Robot::connect(&format!("ws://{}/ws", ip)).await?;
+    let robot = Robot::new(&format!("http://{ip}"));
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     for _ in 0..runs {
         let r = robot.measure_latency().await?;
         v.push(r);
-        sleep(Duration::from_millis(wait_ms));
+        sleep(Duration::from_millis(wait_ms)).await;
     }
     let sum = v.iter().sum::<f64>();
     let min = v
