@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 roblib-shared = { path = "../lib" }
 roland = { path = "../roland" }
-actix = "0.10" # kept at 0.10 because later versions break websockets
-actix-web = "3.3.3"
-actix-web-actors = "3.0.0"
+actix = "0.13.0"
+actix-web = "4.0"
+actix-web-actors = "4.1"
 env_logger = "0.9.0"
 log = "0.4.14"
 lazy_static = "1.4.0"

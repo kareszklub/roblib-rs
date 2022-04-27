@@ -83,11 +83,11 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .data(AppState { robot: &ROBOT.0 })
+            .app_data(web::Data::new(AppState { robot: &ROBOT.0 }))
             .wrap(
                 DefaultHeaders::new()
-                    .header("Server", "roblib-rs")
-                    .header("X-Version", env!("CARGO_PKG_VERSION")),
+                    .add(("Server", "roblib-rs"))
+                    .add(("X-Version", env!("CARGO_PKG_VERSION"))),
             )
             .wrap(logger::actix_log())
             .service(hello)
