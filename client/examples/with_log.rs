@@ -1,7 +1,7 @@
 use roblib_client::{logger, sleep, ws::Robot, Result};
 use std::time::Duration;
 
-#[actix_web::main]
+#[roblib_client::main]
 async fn main() -> Result<()> {
     logger::init_log(Some("roblib_client=debug"));
 

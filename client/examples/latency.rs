@@ -7,7 +7,7 @@ use std::{
 const NO_OF_RUNS: usize = 25;
 const WAIT_MS: u64 = 100;
 
-#[actix_web::main]
+#[roblib_client::main]
 async fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 

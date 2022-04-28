@@ -1,7 +1,7 @@
 use roblib_client::{sleep, ws::Robot, Result};
 use std::time::Duration;
 
-#[actix_web::main]
+#[roblib_client::main]
 async fn main() -> Result<()> {
     let mut robot = Robot::connect("ws://localhost:1111/ws").await?;
     robot.led((true, false, true)).await?;
