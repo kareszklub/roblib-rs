@@ -1,5 +1,4 @@
 use roblib_shared::cmd::SensorData;
-use roland::{constants::*, Error as GpioError, Gpio};
 
 /// A trait specifying all the functions of the robot.
 pub trait RobotTrait {
@@ -20,53 +19,94 @@ impl Clone for Robot {
     }
 }
 
-/// This implementation is used when running on the actual robot.
-#[derive(Clone)]
-pub struct RealRobot {
-    gpio: Gpio,
+#[cfg(unix)]
+mod unix {
+    pub use roland::Error;
+    use roland::{constants::*, Gpio};
+
+    /// This implementation is used when running on the actual robot.
+    #[derive(Clone)]
+    pub struct RealRobot {
+        gpio: Gpio,
+    }
+    impl RealRobot {
+        /// attempts to initialize the robot, will return none if anyhting fails
+        pub fn new() -> Result<RealRobot, GpioError> {
+            let gpio = Gpio::new()?;
+
+            // will attempt to initialize all the pins just to see if they work
+            gpio.get(LED_R)?;
+            gpio.get(LED_G)?;
+            gpio.get(LED_B)?;
+
+            Ok(RealRobot { gpio })
+        }
+    }
+    impl RobotTrait for RealRobot {
+        fn led(&self, r: bool, g: bool, b: bool) {
+            info!("LED: {}:{}:{}", r, g, b);
+
+            roland::led(&self.gpio, r, g, b).expect("failed to initialize led pins")
+        }
+
+        // TODO: implement
+        fn move_robot(&self, left: i8, right: i8) {
+            info!("Moving robot: {}:{}", left, right);
+        }
+        fn stop_robot(&self) {
+            info!("Stopping robot");
+        }
+        fn servo_absolute(&self, degree: f32) {
+            info!("Servo absolute: {}", degree);
+        }
+        fn track_sensor(&self) -> SensorData {
+            info!("Track sensor");
+            [0, 1, 2, 3]
+        }
+        fn buzzer(&self, pw: f32) {
+            info!("Buzzer: {}", pw);
+        }
+
+        fn box_clone(&self) -> Robot {
+            Box::new(self.clone())
+        }
+    }
+
+    /// this function should be called when wanting to interact with the robot,
+    /// as it ensures the proper variant is used.
+    pub fn init_robot() -> (Robot, Option<GpioError>) {
+        match RealRobot::new() {
+            Ok(robot) => (Box::new(robot), None),
+            Err(e) => (Box::new(MockRobot::new()), Some(e)),
+        }
+    }
 }
-impl RealRobot {
-    /// attempts to initialize the robot, will return none if anyhting fails
-    pub fn new() -> Result<RealRobot, GpioError> {
-        let gpio = Gpio::new()?;
+#[cfg(unix)]
+pub use unix::*;
 
-        // will attempt to initialize all the pins just to see if they work
-        gpio.get(LED_R)?;
-        gpio.get(LED_G)?;
-        gpio.get(LED_B)?;
+#[cfg(not(unix))]
+mod other {
+    use super::{MockRobot, Robot};
 
-        Ok(RealRobot { gpio })
+    #[derive(Debug)]
+    pub enum Error {
+        OsNotSupported,
+    }
+    impl std::error::Error for Error {}
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "{:?}", self)
+        }
+    }
+
+    /// this function should be called when wanting to interact with the robot,
+    /// as it ensures the proper variant is used.
+    pub fn init_robot() -> (Robot, Option<Error>) {
+        (Box::new(MockRobot::new()), Some(Error::OsNotSupported))
     }
 }
-impl RobotTrait for RealRobot {
-    fn led(&self, r: bool, g: bool, b: bool) {
-        info!("LED: {}:{}:{}", r, g, b);
-
-        roland::led(&self.gpio, r, g, b).expect("failed to initialize led pins")
-    }
-
-    // TODO: implement
-    fn move_robot(&self, left: i8, right: i8) {
-        info!("Moving robot: {}:{}", left, right);
-    }
-    fn stop_robot(&self) {
-        info!("Stopping robot");
-    }
-    fn servo_absolute(&self, degree: f32) {
-        info!("Servo absolute: {}", degree);
-    }
-    fn track_sensor(&self) -> SensorData {
-        info!("Track sensor");
-        [0, 1, 2, 3]
-    }
-    fn buzzer(&self, pw: f32) {
-        info!("Buzzer: {}", pw);
-    }
-
-    fn box_clone(&self) -> Robot {
-        Box::new(self.clone())
-    }
-}
+#[cfg(not(unix))]
+pub use other::*;
 
 /// This implementation is used to simpulate the robot.
 /// This allows the program to run without calling any IO code and causing it to crash on a normal pc.
@@ -100,14 +140,5 @@ impl RobotTrait for MockRobot {
 
     fn box_clone(&self) -> Robot {
         Box::new(self.clone())
-    }
-}
-
-/// this function should be called when wanting to interact with the robot,
-/// as it ensures the proper variant is used.
-pub fn init_robot() -> (Robot, Option<GpioError>) {
-    match RealRobot::new() {
-        Ok(robot) => (Box::new(robot), None),
-        Err(e) => (Box::new(MockRobot::new()), Some(e)),
     }
 }

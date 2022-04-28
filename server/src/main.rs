@@ -8,7 +8,7 @@ mod utils;
 mod ws;
 
 use crate::{
-    robot::{init_robot, Robot},
+    robot::{init_robot, Error as RobotError, Robot},
     utils::exec_str,
 };
 use actix_web::{
@@ -20,10 +20,9 @@ use actix_web::{
 };
 use actix_web_actors::ws::start as ws_start;
 use roblib_shared::logger;
-use roland::Error as GpioError;
 
 lazy_static! {
-    static ref ROBOT: (Robot, Option<GpioError>) = init_robot();
+    static ref ROBOT: (Robot, Option<RobotError>) = init_robot();
 }
 
 const DEFAULT_PORT: u16 = 1111;
