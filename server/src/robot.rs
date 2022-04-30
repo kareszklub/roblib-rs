@@ -21,8 +21,13 @@ impl Clone for Robot {
 
 #[cfg(unix)]
 mod unix {
-    pub use roland::Error;
-    use roland::{constants::*, Gpio};
+    use super::{MockRobot, Robot, RobotTrait};
+    use roblib_shared::cmd::SensorData;
+    pub use roland::gpio::Error;
+    use roland::{
+        constants::*,
+        gpio::{led, Gpio},
+    };
 
     /// This implementation is used when running on the actual robot.
     #[derive(Clone)]
@@ -31,7 +36,7 @@ mod unix {
     }
     impl RealRobot {
         /// attempts to initialize the robot, will return none if anyhting fails
-        pub fn new() -> Result<RealRobot, GpioError> {
+        pub fn new() -> Result<RealRobot, Error> {
             let gpio = Gpio::new()?;
 
             // will attempt to initialize all the pins just to see if they work
@@ -46,7 +51,7 @@ mod unix {
         fn led(&self, r: bool, g: bool, b: bool) {
             info!("LED: {}:{}:{}", r, g, b);
 
-            roland::led(&self.gpio, r, g, b).expect("failed to initialize led pins")
+            led(&self.gpio, r, g, b).expect("failed to initialize led pins")
         }
 
         // TODO: implement
@@ -74,7 +79,7 @@ mod unix {
 
     /// this function should be called when wanting to interact with the robot,
     /// as it ensures the proper variant is used.
-    pub fn init_robot() -> (Robot, Option<GpioError>) {
+    pub fn init_robot() -> (Robot, Option<Error>) {
         match RealRobot::new() {
             Ok(robot) => (Box::new(robot), None),
             Err(e) => (Box::new(MockRobot::new()), Some(e)),

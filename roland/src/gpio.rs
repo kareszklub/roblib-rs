@@ -1,3 +1,4 @@
+use crate::constants::*;
 pub use rppal::gpio::{Error, Gpio};
 pub type Result<T> = std::result::Result<T, Error>;
 
