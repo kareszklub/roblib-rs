@@ -143,11 +143,9 @@ impl std::error::Error for ParseError {}
 pub type SensorData = [i32; 4];
 
 pub fn get_time() -> f64 {
-    let t = SystemTime::now()
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time went backwards")
         .as_micros() as f64
-        / 1000f64;
-    // dbg!(t);
-    t
+        / 1000f64
 }

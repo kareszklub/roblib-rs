@@ -5,8 +5,10 @@ use std::{env, io::Write};
 
 /// custom `log` format
 pub fn init_log(default_level: Option<&str>) {
-    if default_level.is_some() && env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", default_level.unwrap());
+    if let Some(default_level) = default_level {
+        if env::var("RUST_LOG").is_err() {
+            env::set_var("RUST_LOG", default_level);
+        }
     }
 
     env_logger::Builder::from_default_env()

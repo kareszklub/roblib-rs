@@ -11,19 +11,21 @@ const WAIT_MS: u64 = 100;
 async fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
-    let ip = std::env::args().nth(1).unwrap_or("localhost:1111".into());
+    let ip = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "localhost:1111".into());
     let robot = Robot::new(&format!("http://{ip}"));
 
     // boring arg parsing
     let mut args = args().skip(1);
     let runs = args
         .next()
-        .unwrap_or(NO_OF_RUNS.to_string())
+        .unwrap_or_else(|| NO_OF_RUNS.to_string())
         .parse()
         .unwrap_or(NO_OF_RUNS);
     let wait_ms = args
         .next()
-        .unwrap_or(WAIT_MS.to_string())
+        .unwrap_or_else(|| WAIT_MS.to_string())
         .parse()
         .unwrap_or(WAIT_MS);
 
@@ -42,12 +44,12 @@ async fn main() -> Result<()> {
     let sum = v.iter().sum::<f64>();
     let min = v
         .iter()
-        .map(|x| *x)
+        .copied()
         .reduce(f64::min)
         .expect("results contained NaN");
     let max = v
         .iter()
-        .map(|x| *x)
+        .copied()
         .reduce(f64::max)
         .expect("results contained NaN");
     let avg = sum / v.len() as f64;

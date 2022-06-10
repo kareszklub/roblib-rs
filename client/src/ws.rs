@@ -26,7 +26,7 @@ impl Robot {
 
         // twx: websocket sender, rwx: websocket receiver (tasks)
         let (mut twx, mut rwx) = ws.split();
-        // tx_t: send message to server, rx_t: recaive messages to be send (sender task)
+        // tx_t: send message to server, rx_t: receive messages to be sent (sender task)
         let (tx_t, mut rx_t) = mpsc::unbounded::<Message>();
         // tx_r: send messages to be received (receiver task), rx_r: receive messages
         let (mut tx_r, rx_r) = mpsc::unbounded::<String>();
@@ -36,7 +36,7 @@ impl Robot {
         // sender task
         let sender = spawn(async move {
             while let Some(msg) = rx_t.next().await {
-                if let Err(_) = twx.send(msg).await {
+                if (twx.send(msg).await).is_err() {
                     break;
                 }
             }
@@ -83,7 +83,10 @@ impl Robot {
 
     async fn send(&mut self, cmd: &str) -> Result<String> {
         self.tx.send(Message::Text(cmd.into())).await?;
-        Ok(self.rx.next().await.ok_or(anyhow!("no message received"))?)
+        self.rx
+            .next()
+            .await
+            .ok_or_else(|| anyhow!("no message received"))
     }
 
     pub async fn disconnect(&mut self) -> Result<()> {

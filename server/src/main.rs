@@ -49,15 +49,14 @@ async fn ws_index(
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse, Error> {
-    let res = ws_start(ws::WebSocket::new(data.robot.clone()), &req, stream);
-    res
+    ws_start(ws::WebSocket::new(data.robot.clone()), &req, stream)
 }
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(data: web::Data<AppState>, req_body: String) -> impl Responder {
-    let res = exec_str(&req_body, &data.robot);
+    let res = exec_str(&req_body, data.robot);
     HttpResponse::Ok().body(res)
 }
 
