@@ -1,0 +1,21 @@
+arch: amd64
+os: linux
+dist: focal
+language: rust
+rust: stable
+cache: cargo
+
+jobs:
+  include:
+    # Linux
+    - arch: amd64
+    - arch: arm64
+    # Windows
+    - os: windows
+    # test rust nightly
+    - rust: nightly
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
+
+script: cargo test --workspace
