@@ -14,7 +14,9 @@ impl Robot {
         }
     }
 
-    async fn send<'a>(&self, cmd: String) -> Result<String> {
+    /// Send a raw command.
+    /// You probably don't need this.
+    pub async fn send<'a>(&self, cmd: String) -> Result<String> {
         let mut req = match self.client.post(&self.base_url).send_body(cmd).await {
             Ok(x) => x,
             Err(_) => return Err(anyhow!("failed to connect")),
