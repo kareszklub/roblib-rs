@@ -18,7 +18,8 @@ jobs:
         toolchain: [stable]
         experimental: [false]
         include:
-          - toolchain: nightly
+          - os: ubuntu-latest
+            toolchain: nightly
             experimental: true
     
     runs-on: ${{ matrix.os }}
