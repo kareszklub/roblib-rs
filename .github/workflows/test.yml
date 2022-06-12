@@ -56,7 +56,7 @@ jobs:
     
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: ${{ matrix.toolchain }}
+        toolchain: stable
         default: true
         profile: minimal
         components: clippy
