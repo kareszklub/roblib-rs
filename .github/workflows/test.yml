@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -21,10 +21,13 @@ jobs:
           - os: ubuntu-latest
             toolchain: nightly
             experimental: true
+            # roland won't compile on windows because of the "rppal" dependency
+          - os: windows-latest
+            cargo-args: --exclude roland
     
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
-    name: Build & Test - ${{ matrix.os }} - ${{ matrix.toolchain }}
+    name: ${{ matrix.os }} - ${{ matrix.toolchain }}
 
     steps:
     - uses: actions/checkout@v3
@@ -34,9 +37,62 @@ jobs:
         toolchain: ${{ matrix.toolchain }}
         default: true
         profile: minimal
+
+    - uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --workspace --verbose ${{ matrix.cargo-args }}
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --verbose ${{ matrix.cargo-args }}
+  
+  clippy:
+    runs-on: ubuntu-latest
+    name: Clippy
+
+    steps:
+    - uses: actions/checkout@v3
     
-    # --exclude roland: needed to not fail windows builds
-    - name: Build
-      run: cargo build --workspace --exclude roland --verbose
-    - name: Run tests
-      run: cargo test --workspace --exclude roland --verbose
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        default: true
+        profile: minimal
+        components: clippy
+    
+    - uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-features
+
+  build:
+    name: Build server binary
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    needs: [test]
+    strategy:
+      matrix:
+        target: [aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          target: ${{ matrix.target }}
+          override: true
+      
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release -p roblib-server --verbose --target ${{ matrix.target }}
+      
+      - uses: actions/upload-artifact@v3
+        with:
+          name: roblib-server-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/roblib-server
+          if-no-files-found: error
