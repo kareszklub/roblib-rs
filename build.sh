@@ -1,5 +1,5 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
-cross build --release --target armv7-unknown-linux-gnueabihf
-rsync -vlP target/armv7-unknown-linux-gnueabihf/release/roblib-server pi@$PI:~
+cross build --release -p roblib-server --target $1
+rsync -vlP target/$1/release/roblib-server pi@$2:~

@@ -12,11 +12,11 @@ pub enum Cmd {
     /// l
     Led(bool, bool, bool),
     /// v
-    ServoAbsolute(f32),
+    ServoAbsolute(f64),
     /// t
     TrackSensor,
     /// b
-    Buzzer(f32),
+    Buzzer(f64),
     /// z
     GetTime,
 }
@@ -81,7 +81,7 @@ impl FromStr for Cmd {
                     if len > 1 {
                         return Err(ParseError::InvalidSyntax);
                     }
-                    let pw = args[0].parse::<f32>();
+                    let pw = args[0].parse::<f64>();
                     match pw {
                         Ok(pw) => Ok(Cmd::ServoAbsolute(pw)),
                         Err(_) => Err(ParseError::InvalidArg(args[0].to_string())),
@@ -97,7 +97,7 @@ impl FromStr for Cmd {
                     if len > 1 {
                         return Err(ParseError::InvalidSyntax);
                     }
-                    let pw = args[0].parse::<f32>();
+                    let pw = args[0].parse::<f64>();
                     match pw {
                         Ok(pw) => Ok(Cmd::Buzzer(pw)),
                         Err(_) => Err(ParseError::InvalidArg(args[0].to_string())),

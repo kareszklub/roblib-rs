@@ -18,10 +18,10 @@ pub const TRACK_SENSOR_R1: u8 = 4;
 pub const TRACK_SENSOR_R2: u8 = 18;
 
 // servo motor
-pub const SERVO: u8 = 4;
+pub const SERVO: u8 = 23;
 
 // buzzer
-pub const BUZZER: u8 = 10;
+pub const BUZZER: u8 = 8;
 
 // ultrasonic
 pub const ECHO: u8 = 0;

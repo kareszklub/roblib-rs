@@ -5,9 +5,9 @@ pub trait RobotTrait {
     fn led(&self, r: bool, g: bool, b: bool);
     fn move_robot(&self, left: i8, right: i8);
     fn stop_robot(&self);
-    fn servo_absolute(&self, degree: f32);
+    fn servo_absolute(&self, degree: f64);
     fn track_sensor(&self) -> SensorData;
-    fn buzzer(&self, pw: f32);
+    fn buzzer(&self, pw: f64);
 
     fn box_clone(&self) -> Robot;
 }
@@ -26,7 +26,7 @@ mod unix {
     pub use roland::gpio::Error;
     use roland::{
         constants::*,
-        gpio::{led, Gpio},
+        gpio::{buzzer, led, servo, Gpio},
     };
 
     /// This implementation is used when running on the actual robot.
@@ -61,15 +61,19 @@ mod unix {
         fn stop_robot(&self) {
             info!("Stopping robot");
         }
-        fn servo_absolute(&self, degree: f32) {
+        fn servo_absolute(&self, degree: f64) {
             info!("Servo absolute: {}", degree);
+
+            servo(&self.gpio, degree).expect("failed to initialize servo pin")
         }
         fn track_sensor(&self) -> SensorData {
             info!("Track sensor");
             [0, 1, 2, 3]
         }
-        fn buzzer(&self, pw: f32) {
+        fn buzzer(&self, pw: f64) {
             info!("Buzzer: {}", pw);
+
+            buzzer(&self.gpio, pw).expect("failed to initialize buzzer pin")
         }
 
         fn box_clone(&self) -> Robot {
@@ -132,14 +136,14 @@ impl RobotTrait for MockRobot {
     fn stop_robot(&self) {
         info!("Stopping robot");
     }
-    fn servo_absolute(&self, degree: f32) {
+    fn servo_absolute(&self, degree: f64) {
         info!("Servo absolute: {}", degree);
     }
     fn track_sensor(&self) -> SensorData {
         info!("Track sensor");
         [0, 1, 2, 3]
     }
-    fn buzzer(&self, pw: f32) {
+    fn buzzer(&self, pw: f64) {
         info!("Buzzer: {}", pw);
     }
 
