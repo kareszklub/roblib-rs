@@ -5,7 +5,7 @@ pub trait RobotTrait {
     fn led(&self, r: bool, g: bool, b: bool);
     fn move_robot(&self, left: i8, right: i8);
     fn stop_robot(&self);
-    fn servo_absolute(&self, degree: f64);
+    fn servo_absolute(&self, degree: i8);
     fn track_sensor(&self) -> SensorData;
     fn buzzer(&self, pw: f64);
 
@@ -24,34 +24,23 @@ mod unix {
     use super::{MockRobot, Robot, RobotTrait};
     use roblib_shared::cmd::SensorData;
     pub use roland::gpio::Error;
-    use roland::{
-        constants::*,
-        gpio::{buzzer, led, servo, Gpio},
-    };
+    use roland::gpio::{buzzer, led, servo};
 
     /// This implementation is used when running on the actual robot.
     #[derive(Clone)]
-    pub struct RealRobot {
-        gpio: Gpio,
-    }
+    pub struct RealRobot {}
     impl RealRobot {
         /// attempts to initialize the robot, will return none if anyhting fails
         pub fn new() -> Result<RealRobot, Error> {
-            let gpio = Gpio::new()?;
-
-            // will attempt to initialize all the pins just to see if they work
-            gpio.get(LED_R)?;
-            gpio.get(LED_G)?;
-            gpio.get(LED_B)?;
-
-            Ok(RealRobot { gpio })
+            roland::gpio::try_init()?;
+            Ok(Self {})
         }
     }
     impl RobotTrait for RealRobot {
         fn led(&self, r: bool, g: bool, b: bool) {
             info!("LED: {}:{}:{}", r, g, b);
 
-            led(&self.gpio, r, g, b).expect("failed to initialize led pins")
+            led(r, g, b).expect("failed to initialize led pins")
         }
 
         // TODO: implement
@@ -61,10 +50,10 @@ mod unix {
         fn stop_robot(&self) {
             info!("Stopping robot");
         }
-        fn servo_absolute(&self, degree: f64) {
+        fn servo_absolute(&self, degree: i8) {
             info!("Servo absolute: {}", degree);
 
-            servo(&self.gpio, degree).expect("failed to initialize servo pin")
+            servo(degree).expect("failed to initialize servo pin")
         }
         fn track_sensor(&self) -> SensorData {
             info!("Track sensor");
@@ -73,7 +62,7 @@ mod unix {
         fn buzzer(&self, pw: f64) {
             info!("Buzzer: {}", pw);
 
-            buzzer(&self.gpio, pw).expect("failed to initialize buzzer pin")
+            buzzer(pw).expect("failed to initialize buzzer pin")
         }
 
         fn box_clone(&self) -> Robot {
@@ -136,7 +125,7 @@ impl RobotTrait for MockRobot {
     fn stop_robot(&self) {
         info!("Stopping robot");
     }
-    fn servo_absolute(&self, degree: f64) {
+    fn servo_absolute(&self, degree: i8) {
         info!("Servo absolute: {}", degree);
     }
     fn track_sensor(&self) -> SensorData {

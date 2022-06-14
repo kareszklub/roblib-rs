@@ -12,7 +12,7 @@ pub enum Cmd {
     /// l
     Led(bool, bool, bool),
     /// v
-    ServoAbsolute(f64),
+    ServoAbsolute(i8),
     /// t
     TrackSensor,
     /// b
@@ -81,7 +81,7 @@ impl FromStr for Cmd {
                     if len > 1 {
                         return Err(ParseError::InvalidSyntax);
                     }
-                    let pw = args[0].parse::<f64>();
+                    let pw = args[0].parse();
                     match pw {
                         Ok(pw) => Ok(Cmd::ServoAbsolute(pw)),
                         Err(_) => Err(ParseError::InvalidArg(args[0].to_string())),

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+ctrlc = { version = "3.2.2", features = ["termination"] }
 lazy_static = "1.4.0"
-rppal = "0.13.1"
+rppal = { version = "0.13.1", features = ["hal"] }

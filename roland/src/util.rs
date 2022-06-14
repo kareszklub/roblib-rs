@@ -1,4 +1,4 @@
-pub fn clamp(x: f64, min: f64, max: f64) -> f64 {
+pub fn clamp(x: i8, min: i8, max: i8) -> i8 {
     if x < min {
         min
     } else if x > max {
