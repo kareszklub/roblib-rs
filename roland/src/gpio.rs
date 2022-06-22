@@ -1,8 +1,12 @@
 use crate::{constants::*, util::clamp};
+pub use anyhow::Error;
 use ctrlc::set_handler;
-use rppal::gpio::OutputPin;
-pub use rppal::gpio::{Error, Gpio};
+use rppal::{
+    gpio::{Gpio, OutputPin},
+    pwm::{Channel, Polarity, Pwm},
+};
 use std::{sync::Mutex, time::Duration};
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 lazy_static::lazy_static! {
@@ -15,17 +19,28 @@ lazy_static::lazy_static! {
     pub static ref PIN_SERVO: Mutex<OutputPin> = Mutex::new(GPIO.get(SERVO).unwrap().into_output());
 
     pub static ref PIN_BUZZER: Mutex<OutputPin> = Mutex::new(GPIO.get(BUZZER).unwrap().into_output());
+
+    pub static ref PIN_FWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_L).unwrap().into_output());
+    pub static ref PIN_BWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_L).unwrap().into_output());
+    pub static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
+    pub static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
 }
 
 // TODO: make this actually *try*, currently it just panics
 pub fn try_init() -> Result<()> {
     // will attempt to initialize all the pins just to see if they work
+    let gpio = Gpio::new()?;
 
-    led(false, false, false)?;
+    // LED
+    gpio.get(LED_R)?.into_output_low();
+    gpio.get(LED_G)?.into_output_low();
+    gpio.get(LED_B)?.into_output_low();
 
-    servo(0)?;
+    // SERVO
+    gpio.get(SERVO)?.into_output_low();
 
-    buzzer(100.0)?;
+    // BUZZER
+    gpio.get(BUZZER)?.into_output_high();
 
     set_handler(move || {
         eprintln!("Shutting down");
@@ -92,3 +107,15 @@ pub fn buzzer(pw: f64) -> Result<()> {
 }
 
 // TODO
+// pub fn drive(left: i8, right: i8) -> Result<()> {
+//     let mut pin_fwd_l = PIN_FWD_L.lock().unwrap();
+//     let mut pin_bwd_l = PIN_BWD_L.lock().unwrap();
+//     let mut pin_fwd_r = PIN_FWD_R.lock().unwrap();
+//     let mut pin_bwd_r = PIN_BWD_R.lock().unwrap();
+
+//     // let pwm = Pwm::with_frequency(Channel::Pwm0, 2000.0, 0.0, Polarity::Normal, true);
+//     let pwm0 = Pwm::new(Channel::Pwm0);
+//     let pwm1 = Pwm::new(Channel::Pwm1);
+
+//     Ok(())
+// }
