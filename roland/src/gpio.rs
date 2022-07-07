@@ -2,7 +2,7 @@ use crate::{constants::*, util::clamp};
 pub use anyhow::Error;
 use ctrlc::set_handler;
 use rppal::gpio::{Gpio, OutputPin};
-use std::{sync::Mutex, time::Duration};
+use std::{cmp::Ordering, sync::Mutex, time::Duration};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -80,25 +80,33 @@ pub fn drive(left: i8, right: i8) -> Result<()> {
     pin_pwm_l.set_pwm_frequency(2000.0, left.abs() as f64 / 100.0)?;
     pin_pwm_r.set_pwm_frequency(2000.0, right.abs() as f64 / 100.0)?;
 
-    if left > 0 {
-        pin_fwd_l.set_high();
-        pin_bwd_l.set_low();
-    } else if left < 0 {
-        pin_fwd_l.set_low();
-        pin_bwd_l.set_high();
-    } else {
-        pin_fwd_l.set_low();
-        pin_bwd_l.set_low();
+    match left.cmp(&0) {
+        Ordering::Greater => {
+            pin_fwd_l.set_high();
+            pin_bwd_l.set_low();
+        }
+        Ordering::Less => {
+            pin_fwd_l.set_low();
+            pin_bwd_l.set_high();
+        }
+        Ordering::Equal => {
+            pin_fwd_l.set_low();
+            pin_bwd_l.set_low();
+        }
     }
-    if right > 0 {
-        pin_fwd_r.set_high();
-        pin_bwd_r.set_low();
-    } else if right < 0 {
-        pin_fwd_r.set_low();
-        pin_bwd_r.set_high();
-    } else {
-        pin_fwd_r.set_low();
-        pin_bwd_r.set_low();
+    match right.cmp(&0) {
+        Ordering::Greater => {
+            pin_fwd_r.set_high();
+            pin_bwd_r.set_low();
+        }
+        Ordering::Less => {
+            pin_fwd_r.set_low();
+            pin_bwd_r.set_high();
+        }
+        Ordering::Equal => {
+            pin_fwd_r.set_low();
+            pin_bwd_r.set_low();
+        }
     }
 
     Ok(())
