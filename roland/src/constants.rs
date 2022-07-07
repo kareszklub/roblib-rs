@@ -11,17 +11,17 @@ pub const LED_R: u8 = 22;
 pub const LED_G: u8 = 27;
 pub const LED_B: u8 = 24;
 
-// infrared sensor pins (bcm)
-pub const TRACK_SENSOR_L1: u8 = 3;
-pub const TRACK_SENSOR_L2: u8 = 5;
-pub const TRACK_SENSOR_R1: u8 = 4;
-pub const TRACK_SENSOR_R2: u8 = 18;
-
 // servo motor
 pub const SERVO: u8 = 23;
 
 // buzzer
 pub const BUZZER: u8 = 8;
+
+// infrared sensor pins
+pub const TRACK_SENSOR_L1: u8 = 3;
+pub const TRACK_SENSOR_L2: u8 = 5;
+pub const TRACK_SENSOR_R1: u8 = 4;
+pub const TRACK_SENSOR_R2: u8 = 18;
 
 // ultrasonic
 pub const ECHO: u8 = 0;

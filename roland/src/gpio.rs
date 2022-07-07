@@ -1,10 +1,7 @@
 use crate::{constants::*, util::clamp};
 pub use anyhow::Error;
 use ctrlc::set_handler;
-use rppal::{
-    gpio::{Gpio, OutputPin},
-    pwm::{Channel, Polarity, Pwm},
-};
+use rppal::gpio::{Gpio, OutputPin};
 use std::{sync::Mutex, time::Duration};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -22,14 +19,23 @@ lazy_static::lazy_static! {
 
     pub static ref PIN_FWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_L).unwrap().into_output());
     pub static ref PIN_BWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_L).unwrap().into_output());
+    pub static ref PIN_PWM_L: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_L).unwrap().into_output());
     pub static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
     pub static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
+    pub static ref PIN_PWM_R: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_R).unwrap().into_output());
 }
 
-// TODO: make this actually *try*, currently it just panics
 pub fn try_init() -> Result<()> {
     // will attempt to initialize all the pins just to see if they work
     let gpio = Gpio::new()?;
+
+    // MOTOR
+    gpio.get(FWD_L)?.into_output_low();
+    gpio.get(BWD_L)?.into_output_low();
+    gpio.get(PWM_L)?.into_output_high();
+    gpio.get(FWD_R)?.into_output_low();
+    gpio.get(BWD_R)?.into_output_low();
+    gpio.get(PWM_R)?.into_output_high();
 
     // LED
     gpio.get(LED_R)?.into_output_low();
@@ -37,7 +43,7 @@ pub fn try_init() -> Result<()> {
     gpio.get(LED_B)?.into_output_low();
 
     // SERVO
-    gpio.get(SERVO)?.into_output_low();
+    gpio.get(SERVO)?.into_output_high();
 
     // BUZZER
     gpio.get(BUZZER)?.into_output_high();
@@ -48,12 +54,52 @@ pub fn try_init() -> Result<()> {
     })
     .expect("set_handler failed");
 
+    // ran here as well to reset servo to center
+    cleanup()?;
+
     Ok(())
 }
 
 pub fn cleanup() -> Result<()> {
+    drive(0, 0)?;
     led(false, false, false)?;
+    servo(0)?;
     buzzer(100.0)?;
+
+    Ok(())
+}
+
+pub fn drive(left: i8, right: i8) -> Result<()> {
+    let mut pin_fwd_l = PIN_FWD_L.lock().unwrap();
+    let mut pin_bwd_l = PIN_BWD_L.lock().unwrap();
+    let mut pin_pwm_l = PIN_PWM_L.lock().unwrap();
+    let mut pin_fwd_r = PIN_FWD_R.lock().unwrap();
+    let mut pin_bwd_r = PIN_BWD_R.lock().unwrap();
+    let mut pin_pwm_r = PIN_PWM_R.lock().unwrap();
+
+    pin_pwm_l.set_pwm_frequency(2000.0, left.abs() as f64 / 100.0)?;
+    pin_pwm_r.set_pwm_frequency(2000.0, right.abs() as f64 / 100.0)?;
+
+    if left > 0 {
+        pin_fwd_l.set_high();
+        pin_bwd_l.set_low();
+    } else if left < 0 {
+        pin_fwd_l.set_low();
+        pin_bwd_l.set_high();
+    } else {
+        pin_fwd_l.set_low();
+        pin_bwd_l.set_low();
+    }
+    if right > 0 {
+        pin_fwd_r.set_high();
+        pin_bwd_r.set_low();
+    } else if right < 0 {
+        pin_fwd_r.set_low();
+        pin_bwd_r.set_high();
+    } else {
+        pin_fwd_r.set_low();
+        pin_bwd_r.set_low();
+    }
 
     Ok(())
 }
@@ -88,8 +134,6 @@ pub fn servo(degree: i8) -> Result<()> {
     let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
     pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?;
 
-    dbg!(degree);
-
     Ok(())
 }
 
@@ -105,17 +149,3 @@ pub fn buzzer(pw: f64) -> Result<()> {
 
     Ok(())
 }
-
-// TODO
-// pub fn drive(left: i8, right: i8) -> Result<()> {
-//     let mut pin_fwd_l = PIN_FWD_L.lock().unwrap();
-//     let mut pin_bwd_l = PIN_BWD_L.lock().unwrap();
-//     let mut pin_fwd_r = PIN_FWD_R.lock().unwrap();
-//     let mut pin_bwd_r = PIN_BWD_R.lock().unwrap();
-
-//     // let pwm = Pwm::with_frequency(Channel::Pwm0, 2000.0, 0.0, Polarity::Normal, true);
-//     let pwm0 = Pwm::new(Channel::Pwm0);
-//     let pwm1 = Pwm::new(Channel::Pwm1);
-
-//     Ok(())
-// }

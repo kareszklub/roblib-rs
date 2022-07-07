@@ -1,5 +1,5 @@
-use roland::gpio::cleanup;
+use roland::gpio::{cleanup, Result};
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<()> {
     cleanup()
 }
