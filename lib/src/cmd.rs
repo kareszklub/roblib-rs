@@ -140,7 +140,23 @@ impl Debug for ParseError {
 }
 impl std::error::Error for ParseError {}
 
-pub type SensorData = [i32; 4];
+pub type SensorData = [bool; 4];
+// parse incoming data for the client
+pub fn parse_sensor_data(s: &str) -> SensorData {
+    s.split(',')
+        .map(|s| {
+            if s == "1" {
+                true
+            } else if s == "0" {
+                false
+            } else {
+                panic!("invalid number")
+            }
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap_or_else(|v: Vec<_>| panic!("Expected a Vec of length {} but it was {}", 4, v.len()))
+}
 
 pub fn get_time() -> f64 {
     SystemTime::now()

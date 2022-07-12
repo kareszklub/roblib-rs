@@ -24,7 +24,7 @@ mod unix {
     use super::{MockRobot, Robot, RobotTrait};
     use roblib_shared::cmd::SensorData;
     pub use roland::gpio::Error;
-    use roland::gpio::{buzzer, drive, led, servo};
+    use roland::gpio::{buzzer, drive, led, servo, track_sensor};
 
     /// This implementation is used when running on the actual robot.
     #[derive(Clone)]
@@ -65,7 +65,8 @@ mod unix {
         // TODO: implement
         fn track_sensor(&self) -> SensorData {
             info!("Track sensor");
-            [0, 1, 2, 3]
+
+            track_sensor().expect("failed to initialize track sensor pins")
         }
 
         fn box_clone(&self) -> Robot {
@@ -136,7 +137,7 @@ impl RobotTrait for MockRobot {
     }
     fn track_sensor(&self) -> SensorData {
         info!("Track sensor");
-        [0, 1, 2, 3]
+        [false, false, false, false]
     }
 
     fn box_clone(&self) -> Robot {

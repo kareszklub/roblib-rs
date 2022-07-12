@@ -8,7 +8,7 @@ use futures::{
     SinkExt,
 };
 use futures_util::stream::StreamExt;
-use roblib_shared::cmd::{get_time, SensorData};
+use roblib_shared::cmd::{get_time, parse_sensor_data, SensorData};
 
 pub struct Robot {
     tx: UnboundedSender<Message>,
@@ -128,16 +128,8 @@ impl Robot {
     }
     pub async fn get_sensor_data(&mut self) -> Result<SensorData> {
         debug!("S: t");
-        let d = self
-            .send("t")
-            .await?
-            .split(',')
-            .map(|s| s.parse::<i32>().unwrap())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap_or_else(|v: Vec<_>| {
-                panic!("Expected a Vec of length {} but it was {}", 4, v.len())
-            });
+        let s = self.send("t").await?;
+        let d = parse_sensor_data(&s);
         debug!("R {:?}", d);
         Ok(d)
     }

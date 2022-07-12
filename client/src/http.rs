@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use awc::Client;
-use roblib_shared::cmd::{get_time, SensorData};
+use roblib_shared::cmd::{get_time, parse_sensor_data, SensorData};
 
 pub struct Robot {
     base_url: String,
@@ -53,16 +53,8 @@ impl Robot {
     }
     pub async fn get_sensor_data(&self) -> Result<SensorData> {
         debug!("S: t");
-        let d = self
-            .send("t".into())
-            .await?
-            .split(',')
-            .map(|s| s.parse::<i32>().unwrap())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap_or_else(|v: Vec<_>| {
-                panic!("Expected a Vec of length {} but it was {}", 4, v.len())
-            });
+        let s = self.send("t".into()).await?;
+        let d = parse_sensor_data(&s);
         debug!("R {:?}", d);
         Ok(d)
     }

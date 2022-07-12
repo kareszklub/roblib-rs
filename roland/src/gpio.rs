@@ -1,7 +1,7 @@
 use crate::{constants::*, util::clamp};
 pub use anyhow::Error;
 use ctrlc::set_handler;
-use rppal::gpio::{Gpio, OutputPin};
+use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{cmp::Ordering, sync::Mutex, time::Duration};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -23,6 +23,11 @@ lazy_static::lazy_static! {
     pub static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
     pub static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
     pub static ref PIN_PWM_R: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_R).unwrap().into_output());
+
+    pub static ref PIN_TRACK_L1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L1).unwrap().into_input());
+    pub static ref PIN_TRACK_L2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L2).unwrap().into_input());
+    pub static ref PIN_TRACK_R1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R1).unwrap().into_input());
+    pub static ref PIN_TRACK_R2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R2).unwrap().into_input());
 }
 
 pub fn try_init() -> Result<()> {
@@ -156,4 +161,18 @@ pub fn buzzer(pw: f64) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn track_sensor() -> Result<[bool; 4]> {
+    let pin_l1 = PIN_TRACK_L1.lock().unwrap();
+    let pin_l2 = PIN_TRACK_L2.lock().unwrap();
+    let pin_r1 = PIN_TRACK_R1.lock().unwrap();
+    let pin_r2 = PIN_TRACK_R2.lock().unwrap();
+
+    Ok([
+        pin_l1.is_high(),
+        pin_l2.is_high(),
+        pin_r1.is_high(),
+        pin_r2.is_high(),
+    ])
 }

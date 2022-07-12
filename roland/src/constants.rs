@@ -18,10 +18,10 @@ pub const SERVO: u8 = 23;
 pub const BUZZER: u8 = 8;
 
 // infrared sensor pins
-pub const TRACK_SENSOR_L1: u8 = 3;
-pub const TRACK_SENSOR_L2: u8 = 5;
-pub const TRACK_SENSOR_R1: u8 = 4;
-pub const TRACK_SENSOR_R2: u8 = 18;
+pub const TRACK_L1: u8 = 3;
+pub const TRACK_L2: u8 = 5;
+pub const TRACK_R1: u8 = 4;
+pub const TRACK_R2: u8 = 18;
 
 // ultrasonic
 pub const ECHO: u8 = 0;

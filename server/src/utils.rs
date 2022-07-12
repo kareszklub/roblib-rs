@@ -5,7 +5,7 @@ use std::str::FromStr;
 pub fn exec(cmd: &Cmd, robot: &Robot) -> String {
     match cmd {
         Cmd::TrackSensor => {
-            let res = robot.track_sensor();
+            let res = robot.track_sensor().map(|x| x as u8);
             format!("{},{},{},{}", res[0], res[1], res[2], res[3])
         }
         Cmd::GetTime => format!("{:.3}", get_time()),
