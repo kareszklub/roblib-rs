@@ -1,0 +1,20 @@
+[package]
+name = "roblib"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+anyhow = "1"
+ctrlc = { version = "3.2.2", optional = true }
+lazy_static = "1.4.0"
+log = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+rppal = { version = "0.13.1", optional = true }
+
+[features]
+default = ["full"]
+full = ["gpio", "roland"]
+gpio = ["dep:rppal", "dep:ctrlc"]
+roland = ["gpio"]
