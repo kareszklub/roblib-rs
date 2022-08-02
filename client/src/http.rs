@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use awc::Client;
-use roblib_shared::cmd::{get_time, parse_sensor_data, SensorData};
+use roblib::cmd::{get_time, parse_sensor_data, Cmd, SensorData};
 
 pub struct Robot {
     base_url: String,
@@ -25,44 +25,22 @@ impl Robot {
         Ok(String::from_utf8(req.body().await?.to_vec())?)
     }
 
-    pub async fn move_robot(&self, left: i8, right: i8) -> Result<String> {
-        let s = format!("m {} {}", left, right);
-        debug!("S: {}", s);
-        self.send(s).await
+    pub async fn cmd(&self, cmd: Cmd) -> Result<String> {
+        let s = cmd.to_string();
+        debug!("S: {}", &s);
+        let r = self.send(s).await?;
+        debug!("R: {}", &r);
+        Ok(r)
     }
-    pub async fn stop_robot(&self) -> Result<String> {
-        debug!("S: s");
-        let res = self.send("s".into()).await?;
-        debug!("R: {res}");
-        Ok(res)
-    }
-    pub async fn led(&self, (r, g, b): (bool, bool, bool)) -> Result<String> {
-        let s = format!("l {} {} {}", r as i8, g as i8, b as i8);
-        debug!("S: {}", s);
-        self.send(s).await
-    }
-    pub async fn servo_absolute(&self, angle: f32) -> Result<String> {
-        let s = format!("v {}", angle);
-        debug!("S: {}", s);
-        self.send(s).await
-    }
-    pub async fn buzzer(&self, freq: u16) -> Result<String> {
-        let s = format!("b {}", freq);
-        debug!("S: {}", s);
-        self.send(s).await
-    }
+
+    #[cfg(feature = "roland")]
     pub async fn get_sensor_data(&self) -> Result<SensorData> {
-        debug!("S: t");
-        let s = self.send("t".into()).await?;
-        let d = parse_sensor_data(&s);
-        debug!("R {:?}", d);
-        Ok(d)
+        parse_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
     }
+
     pub async fn measure_latency(&self) -> Result<f64> {
-        let start = get_time();
-        debug!("S: ");
-        let r = self.send("z".into()).await?;
-        debug!("R {}", &r);
-        Ok(get_time() - start)
+        let start = get_time()?;
+        self.cmd(Cmd::GetTime).await?;
+        Ok(get_time()? - start)
     }
 }

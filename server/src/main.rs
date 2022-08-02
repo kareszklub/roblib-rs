@@ -9,7 +9,7 @@ use actix_web::{
     HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-use roblib::{cmd::Cmd, gpio::roland};
+use roblib::{cmd::Cmd, gpio};
 
 const DEFAULT_PORT: u16 = 1111;
 
@@ -47,8 +47,16 @@ async fn main() -> std::io::Result<()> {
     };
 
     info!("Starting server on port {}", &port);
+    info!(
+        "Server edition: {}",
+        if cfg!(feature = "roland") {
+            "Roland"
+        } else {
+            "Generic pin commands only"
+        }
+    );
 
-    match roland::try_init() {
+    match gpio::try_init() {
         Ok(_) => {
             info!("GPIO operational");
             info!("Server launching in production mode");

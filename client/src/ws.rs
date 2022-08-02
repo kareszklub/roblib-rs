@@ -8,7 +8,7 @@ use futures::{
     SinkExt,
 };
 use futures_util::stream::StreamExt;
-use roblib_shared::cmd::{get_time, parse_sensor_data, SensorData};
+use roblib::cmd::{get_time, parse_sensor_data, Cmd, SensorData};
 
 pub struct Robot {
     tx: UnboundedSender<Message>,
@@ -102,42 +102,22 @@ impl Robot {
         Ok(())
     }
 
-    pub async fn move_robot(&mut self, left: i8, right: i8) -> Result<String> {
-        let s = format!("m {} {}", left, right);
-        debug!("S: {}", s);
-        self.send(&s).await
+    pub async fn cmd(&mut self, cmd: Cmd) -> Result<String> {
+        let s = cmd.to_string();
+        debug!("S: {}", &s);
+        let r = self.send(&s).await?;
+        debug!("R: {}", &r);
+        Ok(r)
     }
-    pub async fn stop_robot(&mut self) -> Result<String> {
-        debug!("S: s");
-        self.send("s").await
-    }
-    pub async fn led(&mut self, (r, g, b): (bool, bool, bool)) -> Result<String> {
-        let s = format!("l {} {} {}", r as i8, g as i8, b as i8);
-        debug!("S: {}", s);
-        self.send(&s).await
-    }
-    pub async fn servo_absolute(&mut self, angle: f32) -> Result<String> {
-        let s = format!("v {}", angle);
-        debug!("S: {}", s);
-        self.send(&s).await
-    }
-    pub async fn buzzer(&mut self, freq: u16) -> Result<String> {
-        let s = format!("b {}", freq);
-        debug!("S: {}", s);
-        self.send(&s).await
-    }
+
+    #[cfg(feature = "roland")]
     pub async fn get_sensor_data(&mut self) -> Result<SensorData> {
-        debug!("S: t");
-        let s = self.send("t").await?;
-        let d = parse_sensor_data(&s);
-        debug!("R {:?}", d);
-        Ok(d)
+        parse_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
     }
+
     pub async fn measure_latency(&mut self) -> Result<f64> {
-        let start = get_time();
-        debug!("S: ");
-        let r = self.send("z").await?;
-        debug!("R {}", &r);
-        Ok(get_time() - start)
+        let start = get_time()?;
+        self.cmd(Cmd::GetTime).await?;
+        Ok(get_time()? - start)
     }
 }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["roblib", "server"]
+members = ["roblib", "server", "client"]
 
 [profile.release]
 strip = true

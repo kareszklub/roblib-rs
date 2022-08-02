@@ -1,33 +1,34 @@
-use crate::gpio::constants::*;
-pub use anyhow::Error;
+use crate::gpio::{constants::*, Result};
+pub mod constants {
+    pub use crate::gpio::constants::*;
+}
+
 use ctrlc::set_handler;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{cmp::Ordering, sync::Mutex, time::Duration};
 
-pub type Result<T> = std::result::Result<T, Error>;
-
 lazy_static::lazy_static! {
-    pub static ref GPIO: Gpio = Gpio::new().unwrap();
+    static ref GPIO: Gpio = Gpio::new().unwrap();
 
-    pub static ref PIN_R: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_R).unwrap().into_output());
-    pub static ref PIN_G: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_G).unwrap().into_output());
-    pub static ref PIN_B: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_B).unwrap().into_output());
+    static ref PIN_R: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_R).unwrap().into_output());
+    static ref PIN_G: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_G).unwrap().into_output());
+    static ref PIN_B: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_B).unwrap().into_output());
 
-    pub static ref PIN_SERVO: Mutex<OutputPin> = Mutex::new(GPIO.get(SERVO).unwrap().into_output());
+    static ref PIN_SERVO: Mutex<OutputPin> = Mutex::new(GPIO.get(SERVO).unwrap().into_output());
 
-    pub static ref PIN_BUZZER: Mutex<OutputPin> = Mutex::new(GPIO.get(BUZZER).unwrap().into_output());
+    static ref PIN_BUZZER: Mutex<OutputPin> = Mutex::new(GPIO.get(BUZZER).unwrap().into_output());
 
-    pub static ref PIN_FWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_L).unwrap().into_output());
-    pub static ref PIN_BWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_L).unwrap().into_output());
-    pub static ref PIN_PWM_L: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_L).unwrap().into_output());
-    pub static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
-    pub static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
-    pub static ref PIN_PWM_R: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_R).unwrap().into_output());
+    static ref PIN_FWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_L).unwrap().into_output());
+    static ref PIN_BWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_L).unwrap().into_output());
+    static ref PIN_PWM_L: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_L).unwrap().into_output());
+    static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
+    static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
+    static ref PIN_PWM_R: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_R).unwrap().into_output());
 
-    pub static ref PIN_TRACK_L1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L1).unwrap().into_input());
-    pub static ref PIN_TRACK_L2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L2).unwrap().into_input());
-    pub static ref PIN_TRACK_R1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R1).unwrap().into_input());
-    pub static ref PIN_TRACK_R2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R2).unwrap().into_input());
+    static ref PIN_TRACK_L1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L1).unwrap().into_input());
+    static ref PIN_TRACK_L2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L2).unwrap().into_input());
+    static ref PIN_TRACK_R1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R1).unwrap().into_input());
+    static ref PIN_TRACK_R2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R2).unwrap().into_input());
 }
 
 pub fn try_init() -> Result<()> {
@@ -145,7 +146,7 @@ pub fn servo(degree: i8) -> Result<()> {
     let mut pin = PIN_SERVO.lock().unwrap();
 
     let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
-    pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?;
+    pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
 
     Ok(())
 }
