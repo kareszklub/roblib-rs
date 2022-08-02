@@ -86,7 +86,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: roblib-server-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/roblib-server
+          path: |
+            target/${{ matrix.target }}/release/roblib-server
+            target/${{ matrix.target }}/release/roblib-server.exe
           if-no-files-found: error
 
       - name: Build Roland version
