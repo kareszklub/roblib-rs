@@ -1,4 +1,4 @@
-name: Build & Test
+name: Test & Build
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
     
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
-    name: ${{ matrix.os }} - ${{ matrix.toolchain }}
+    name: Test - ${{ matrix.os }} - ${{ matrix.toolchain }}
 
     steps:
     - uses: actions/checkout@v3
@@ -63,7 +63,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    name: ${{ matrix.target }}
+    name: Build - ${{ matrix.target }}
 
     steps:
       - uses: actions/checkout@v3
@@ -78,7 +78,7 @@ jobs:
       - name: Build base version
         uses: actions-rs/cargo@v1
         with:
-          use-cross: true
+          use-cross: ${{ matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf' }}
           command: build
           args: --release -p roblib-server --verbose --target ${{ matrix.target }}
 
@@ -92,14 +92,21 @@ jobs:
       - name: Build Roland version
         uses: actions-rs/cargo@v1
         with:
-          use-cross: true
+          use-cross: ${{ matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf' }}
           command: build
           args: --release -p roblib-server --verbose --target ${{ matrix.target }} --features roland
-      - run: cp target/${{ matrix.target }}/release/roblib-server target/${{ matrix.target }}/release/roblib-server-roland
+      
+      - name: rename file
+        shell: bash
+        run: |
+          [ ${{ matrix.os }} = "windows-latest" ] && EXT='.exe' || EXT=''
+          mv target/${{ matrix.target }}/release/roblib-server$EXT target/${{ matrix.target }}/release/roblib-server-roland$EXT
       
       - name: Upload Roland version
         uses: actions/upload-artifact@v3
         with:
           name: roland-server-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/roblib-server-roland
+          path: |
+            target/${{ matrix.target }}/release/roblib-server-roland
+            target/${{ matrix.target }}/release/roblib-server-roland.exe
           if-no-files-found: error
