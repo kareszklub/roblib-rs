@@ -149,6 +149,20 @@ macro_rules! parse {
             .collect::<Result<Vec<_>, _>>()?
     }};
 }
+macro_rules! parse_bool {
+    ($b:expr) => {
+        if $b == 1 {
+            true
+        } else if $b == 0 {
+            false
+        } else {
+            Err(anyhow!(
+                "invalid arg: {}, can be 1 for high or 0 for low",
+                $b
+            ))?
+        }
+    };
+}
 
 impl FromStr for Cmd {
     type Err = anyhow::Error;
@@ -169,8 +183,8 @@ impl FromStr for Cmd {
             "s" => Cmd::StopRobot,
             #[cfg(feature = "roland")]
             "l" => {
-                let x = parse!(args 3);
-                Cmd::Led(x[0], x[1], x[2])
+                let x: Vec<u8> = parse!(args 3);
+                Cmd::Led(parse_bool!(x[0]), parse_bool!(x[1]), parse_bool!(x[2]))
             }
             #[cfg(feature = "roland")]
             "v" => {
@@ -187,19 +201,7 @@ impl FromStr for Cmd {
 
             "p" => {
                 let x = parse!(args 2);
-                Cmd::SetPin(
-                    x[0],
-                    if x[1] == 1 {
-                        true
-                    } else if x[1] == 0 {
-                        false
-                    } else {
-                        Err(anyhow!(
-                            "invalid arg: {}, can be 1 for high or 0 for low",
-                            x[1]
-                        ))?
-                    },
-                )
+                Cmd::SetPin(x[0], parse_bool!(x[1]))
             }
             "w" => {
                 let x = parse!(args 3);
