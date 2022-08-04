@@ -1,35 +1,17 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 
-mod robot;
-mod utils;
+mod logger;
 mod ws;
 
-use crate::{
-    robot::{init_robot, Error as RobotError, Robot},
-    utils::exec_str,
-};
 use actix_web::{
-    get,
-    middleware::DefaultHeaders,
-    post,
-    web::{self, Payload},
-    App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+    get, middleware::DefaultHeaders, post, web::Payload, App, Error, HttpRequest, HttpResponse,
+    HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-use roblib_shared::logger;
-
-lazy_static! {
-    static ref ROBOT: (Robot, Option<RobotError>) = init_robot();
-}
+use roblib::{cmd::Cmd, gpio};
 
 const DEFAULT_PORT: u16 = 1111;
-
-struct AppState {
-    robot: &'static Robot,
-}
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -44,20 +26,15 @@ async fn echo(req_body: String) -> impl Responder {
 /// websocket endpoint
 /// will attempt to upgrade to websocket connection
 #[get("/ws")]
-async fn ws_index(
-    data: web::Data<AppState>,
-    req: HttpRequest,
-    stream: Payload,
-) -> Result<HttpResponse, Error> {
-    ws_start(ws::WebSocket::new(data.robot.clone()), &req, stream)
+async fn ws_index(req: HttpRequest, stream: Payload) -> Result<HttpResponse, Error> {
+    ws_start(ws::WebSocket::new(), &req, stream)
 }
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
 #[post("/cmd")]
-async fn cmd_index(data: web::Data<AppState>, req_body: String) -> impl Responder {
-    let res = exec_str(&req_body, data.robot);
-    HttpResponse::Ok().body(res)
+async fn cmd_index(body: String) -> impl Responder {
+    HttpResponse::Ok().body(Cmd::exec_str(&body))
 }
 
 #[actix_web::main]
@@ -70,18 +47,29 @@ async fn main() -> std::io::Result<()> {
     };
 
     info!("Starting server on port {}", &port);
+    info!(
+        "Server edition: {}",
+        if cfg!(feature = "roland") {
+            "Roland"
+        } else {
+            "Generic pin commands only"
+        }
+    );
 
-    if let Some(err) = &ROBOT.1 {
-        info!("Failed to initialize GPIO: {}", err);
-        info!("Server launching in test mode");
-    } else {
-        info!("GPIO operational");
-        info!("Server launching in production mode");
+    match gpio::try_init() {
+        Ok(_) => {
+            info!("GPIO operational");
+            info!("Server launching in production mode");
+        }
+
+        Err(err) => {
+            info!("Failed to initialize GPIO: {}", err);
+            info!("Server launching in test mode");
+        }
     }
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(AppState { robot: &ROBOT.0 }))
             .wrap(
                 DefaultHeaders::new()
                     .add(("Server", "roblib-rs"))
