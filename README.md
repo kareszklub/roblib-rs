@@ -9,6 +9,11 @@ library also written in rust.
 
 -   [javascript/typescript](https://github.com/kareszklub/roblib-client)
 
+## server downloads
+
+-   [arm32](https://nightly.link/kareszklub/roblib-rs/workflows/ci/main/roblib-server-armv7-unknown-linux-gnueabihf.zip)
+-   [arm64](https://nightly.link/kareszklub/roblib-rs/workflows/ci/main/roblib-server-aarch64-unknown-linux-gnu.zip)
+
 ## server api
 
 the server communicates via standard websockets. the initial websocket endpoint
