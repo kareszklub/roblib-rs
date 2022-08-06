@@ -1,4 +1,4 @@
-use crate::gpio::{constants::*, Result};
+use crate::gpio::{clamp, constants::*, Result};
 pub mod constants {
     pub use crate::gpio::constants::*;
 }
@@ -176,14 +176,4 @@ pub fn track_sensor() -> Result<[bool; 4]> {
         pin_r1.is_high(),
         pin_r2.is_high(),
     ])
-}
-
-fn clamp(x: i8, min: i8, max: i8) -> i8 {
-    if x < min {
-        min
-    } else if x > max {
-        max
-    } else {
-        x
-    }
 }

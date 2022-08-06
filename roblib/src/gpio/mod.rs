@@ -14,7 +14,7 @@ pub fn try_init() -> anyhow::Result<()> {
 
 pub use anyhow::Result;
 use rppal::gpio::{Gpio, OutputPin};
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex, time::Duration};
 
 lazy_static::lazy_static! {
     pub static ref PINS: Mutex<HashMap<u8, OutputPin>> = Mutex::new(HashMap::new());
@@ -47,4 +47,38 @@ pub fn pwm(pin: u8, hz: f64, cycle: f64) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn servo(pin: u8, degree: i8) -> Result<()> {
+    let mut l = PINS.lock().unwrap();
+    if !l.contains_key(&pin) {
+        l.insert(pin, Gpio::new()?.get(pin)?.into_output());
+    }
+    let p = l.get_mut(&pin).unwrap();
+
+    let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
+    p.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
+
+    Ok(())
+}
+
+/*
+pub fn servo(degree: i8) -> Result<()> {
+    let mut pin = PIN_SERVO.lock().unwrap();
+
+    let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
+    pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
+
+    Ok(())
+}
+*/
+
+fn clamp(x: i8, min: i8, max: i8) -> i8 {
+    if x < min {
+        min
+    } else if x > max {
+        max
+    } else {
+        x
+    }
 }

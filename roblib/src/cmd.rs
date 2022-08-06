@@ -32,6 +32,8 @@ pub enum Cmd {
     SetPin(u8, bool),
     /// w
     SetPwm(u8, f64, f64),
+    /// V
+    ServoBasic(u8, i8),
     /// z
     GetTime,
 }
@@ -96,6 +98,12 @@ impl Cmd {
                 gpio::pwm(*pin, *hz, *cycle)?;
                 None
             }
+            Cmd::ServoBasic(pin, deg) => {
+                debug!("Servo basic: {deg}");
+                #[cfg(all(unix, feature = "gpio"))]
+                gpio::servo(*pin, *deg)?;
+                None
+            }
             Cmd::GetTime => Some(format!("{:.3}", get_time()?)),
         };
         Ok(res)
@@ -128,6 +136,7 @@ impl Display for Cmd {
 
             Cmd::SetPin(pin, value) => write!(f, "p {} {}", pin, *value as u8),
             Cmd::SetPwm(pin, hz, cycle) => write!(f, "w {} {} {}", pin, hz, cycle),
+            Cmd::ServoBasic(pin, deg) => write!(f, "V {} {}", pin, deg),
             Cmd::GetTime => write!(f, "z"),
         }
     }
@@ -206,6 +215,10 @@ impl FromStr for Cmd {
             "w" => {
                 let x = parse!(args 3);
                 Cmd::SetPwm(x[0] as u8, x[1], x[2])
+            }
+            "V" => {
+                let x: Vec<i16> = parse!(args 2);
+                Cmd::ServoBasic(x[0] as u8, x[1] as i8)
             }
             "z" => Cmd::GetTime,
 
