@@ -40,7 +40,7 @@ pub enum Cmd {
 
 impl Cmd {
     pub fn exec(&self) -> anyhow::Result<Option<String>> {
-        #[cfg(all(unix, feature = "gpio"))]
+        #[cfg(all(unix, feature = "gpio", feature = "roland"))]
         let rol = gpio::roland::RES.is_none();
         let res = match self {
             #[cfg(feature = "roland")]
