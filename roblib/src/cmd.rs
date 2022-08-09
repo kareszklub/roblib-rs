@@ -40,47 +40,63 @@ pub enum Cmd {
 
 impl Cmd {
     pub fn exec(&self) -> anyhow::Result<Option<String>> {
+        #[cfg(all(unix, feature = "gpio"))]
+        let rol = gpio::roland::RES.is_none();
         let res = match self {
             #[cfg(feature = "roland")]
             Cmd::MoveRobot(left, right) => {
                 debug!("Moving robot: {left}:{right}");
                 #[cfg(all(unix, feature = "gpio"))]
-                gpio::roland::drive(*left, *right)?;
+                if rol {
+                    gpio::roland::drive(*left, *right)?
+                };
                 None
             }
             #[cfg(feature = "roland")]
             Cmd::StopRobot => {
                 debug!("Stopping robot");
                 #[cfg(all(unix, feature = "gpio"))]
-                gpio::roland::drive(0, 0)?;
+                if rol {
+                    gpio::roland::drive(0, 0)?
+                };
                 None
             }
             #[cfg(feature = "roland")]
             Cmd::Led(r, g, b) => {
                 debug!("LED: {r}:{g}:{b}");
                 #[cfg(all(unix, feature = "gpio"))]
-                gpio::roland::led(*r, *g, *b)?;
+                if rol {
+                    gpio::roland::led(*r, *g, *b)?
+                };
                 None
             }
             #[cfg(feature = "roland")]
             Cmd::ServoAbsolute(deg) => {
                 debug!("Servo absolute: {deg}");
                 #[cfg(all(unix, feature = "gpio"))]
-                gpio::roland::servo(*deg)?;
+                if rol {
+                    gpio::roland::servo(*deg)?
+                };
                 None
             }
             #[cfg(feature = "roland")]
             Cmd::Buzzer(pw) => {
                 debug!("Buzzer: {pw}");
                 #[cfg(all(unix, feature = "gpio"))]
-                gpio::roland::buzzer(*pw)?;
+                if rol {
+                    gpio::roland::buzzer(*pw)?
+                };
                 None
             }
             #[cfg(feature = "roland")]
             Cmd::TrackSensor => {
                 debug!("Track sensor");
                 #[cfg(all(unix, feature = "gpio"))]
-                let res = gpio::roland::track_sensor()?;
+                let res = if rol {
+                    gpio::roland::track_sensor()?
+                } else {
+                    [true, false, false, false]
+                };
                 #[cfg(not(all(unix, feature = "gpio")))]
                 let res = [false, false, false, false];
                 Some(format!("{},{},{},{}", res[0], res[1], res[2], res[3]))

@@ -22,8 +22,8 @@ lazy_static::lazy_static! {
 
 pub fn set(pin: u8, value: bool) -> Result<()> {
     let mut l = PINS.lock().unwrap();
-    if !l.contains_key(&pin) {
-        l.insert(pin, Gpio::new()?.get(pin)?.into_output());
+    if let std::collections::hash_map::Entry::Vacant(e) = l.entry(pin) {
+        e.insert(Gpio::new()?.get(pin)?.into_output());
     }
     match value {
         true => l.get_mut(&pin).unwrap().set_high(),
@@ -35,8 +35,8 @@ pub fn set(pin: u8, value: bool) -> Result<()> {
 
 pub fn pwm(pin: u8, hz: f64, cycle: f64) -> Result<()> {
     let mut l = PINS.lock().unwrap();
-    if !l.contains_key(&pin) {
-        l.insert(pin, Gpio::new()?.get(pin)?.into_output());
+    if let std::collections::hash_map::Entry::Vacant(e) = l.entry(pin) {
+        e.insert(Gpio::new()?.get(pin)?.into_output());
     }
     let p = l.get_mut(&pin).unwrap();
 
@@ -51,8 +51,8 @@ pub fn pwm(pin: u8, hz: f64, cycle: f64) -> Result<()> {
 
 pub fn servo(pin: u8, degree: i8) -> Result<()> {
     let mut l = PINS.lock().unwrap();
-    if !l.contains_key(&pin) {
-        l.insert(pin, Gpio::new()?.get(pin)?.into_output());
+    if let std::collections::hash_map::Entry::Vacant(e) = l.entry(pin) {
+        e.insert(Gpio::new()?.get(pin)?.into_output());
     }
     let p = l.get_mut(&pin).unwrap();
 
