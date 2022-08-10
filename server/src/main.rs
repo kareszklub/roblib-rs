@@ -39,7 +39,7 @@ async fn cmd_index(body: String) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    logger::init_log(Some("actix_web=info,roblib_server=info"));
+    logger::init_log(Some("actix_web=info,roblib_server=info,roblib=debug"));
 
     let port: u16 = match std::env::args().collect::<Vec<String>>().get(1) {
         Some(s) => s.parse().expect("port must be a valid number"),
