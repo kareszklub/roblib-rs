@@ -8,6 +8,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct WebSocket {
     hb: Instant,
+    run: bool,
 }
 
 impl Actor for WebSocket {
@@ -31,7 +32,7 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
                 ctx.pong(&msg);
             }
             Ok(Message::Pong(_)) => self.hb = Instant::now(),
-            Ok(Message::Text(text)) => ctx.text(Cmd::exec_str(&text)),
+            Ok(Message::Text(text)) => ctx.text(Cmd::exec_str(&text, self.run)),
             Ok(Message::Binary(_)) => ctx.text("binary data not supported"),
             Ok(Message::Close(reason)) => {
                 ctx.close(reason);
@@ -43,8 +44,11 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
 }
 
 impl WebSocket {
-    pub fn new() -> Self {
-        Self { hb: Instant::now() }
+    pub fn new(run: bool) -> Self {
+        Self {
+            hb: Instant::now(),
+            run,
+        }
     }
 
     /// helper method that sends pings to the client.

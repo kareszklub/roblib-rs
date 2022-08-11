@@ -39,15 +39,14 @@ pub enum Cmd {
 }
 
 impl Cmd {
-    pub fn exec(&self) -> anyhow::Result<Option<String>> {
-        #[cfg(all(unix, feature = "gpio", feature = "roland"))]
-        let rol = gpio::roland::RES.is_none();
+    #[allow(unused_variables)]
+    pub fn exec(&self, _run: bool) -> anyhow::Result<Option<String>> {
         let res = match self {
             #[cfg(feature = "roland")]
             Cmd::MoveRobot(left, right) => {
                 debug!("Moving robot: {left}:{right}");
                 #[cfg(all(unix, feature = "gpio"))]
-                if rol {
+                if _run {
                     gpio::roland::drive(*left, *right)?
                 };
                 None
@@ -56,7 +55,7 @@ impl Cmd {
             Cmd::StopRobot => {
                 debug!("Stopping robot");
                 #[cfg(all(unix, feature = "gpio"))]
-                if rol {
+                if _run {
                     gpio::roland::drive(0, 0)?
                 };
                 None
@@ -65,7 +64,7 @@ impl Cmd {
             Cmd::Led(r, g, b) => {
                 debug!("LED: {r}:{g}:{b}");
                 #[cfg(all(unix, feature = "gpio"))]
-                if rol {
+                if _run {
                     gpio::roland::led(*r, *g, *b)?
                 };
                 None
@@ -74,7 +73,7 @@ impl Cmd {
             Cmd::ServoAbsolute(deg) => {
                 debug!("Servo absolute: {deg}");
                 #[cfg(all(unix, feature = "gpio"))]
-                if rol {
+                if _run {
                     gpio::roland::servo(*deg)?
                 };
                 None
@@ -83,7 +82,7 @@ impl Cmd {
             Cmd::Buzzer(pw) => {
                 debug!("Buzzer: {pw}");
                 #[cfg(all(unix, feature = "gpio"))]
-                if rol {
+                if _run {
                     gpio::roland::buzzer(*pw)?
                 };
                 None
@@ -92,7 +91,7 @@ impl Cmd {
             Cmd::TrackSensor => {
                 debug!("Track sensor");
                 #[cfg(all(unix, feature = "gpio"))]
-                let res = if rol {
+                let res = if _run {
                     gpio::roland::track_sensor()?
                 } else {
                     [true, false, false, false]
@@ -125,8 +124,8 @@ impl Cmd {
         Ok(res)
     }
 
-    pub fn exec_str(s: &str) -> String {
-        match Cmd::from_str(s).and_then(|c| c.exec()) {
+    pub fn exec_str(s: &str, run: bool) -> String {
+        match Cmd::from_str(s).and_then(|c| c.exec(run)) {
             Ok(r) => r.unwrap_or_else(|| "OK".into()),
             Err(e) => e.to_string(),
         }

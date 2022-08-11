@@ -9,7 +9,6 @@ use std::{cmp::Ordering, sync::Mutex, time::Duration};
 
 lazy_static::lazy_static! {
     static ref GPIO: Gpio = Gpio::new().unwrap();
-    pub static ref RES: Option<anyhow::Error> = try_init().err();
 
     static ref PIN_R: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_R).unwrap().into_output());
     static ref PIN_G: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_G).unwrap().into_output());
