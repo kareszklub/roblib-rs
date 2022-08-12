@@ -1,9 +1,10 @@
-#![cfg(not(windows))]
 use anyhow::Result;
-use roblib::gpio::roland::servo;
-use std::{thread::sleep, time::Duration};
 
+#[cfg(not(windows))]
 fn main() -> Result<()> {
+    use roblib::gpio::roland::servo;
+    use std::{thread::sleep, time::Duration};
+
     loop {
         for i in -90..90 {
             servo(i)?;
@@ -15,3 +16,7 @@ fn main() -> Result<()> {
         }
     }
 }
+
+#[cfg(windows)]
+fn main(){}
+
