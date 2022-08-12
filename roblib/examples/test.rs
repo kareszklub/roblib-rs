@@ -1,3 +1,4 @@
+#![cfg(not(windows))]
 use anyhow::Result;
 use roblib::gpio::roland::servo;
 use std::{thread::sleep, time::Duration};
