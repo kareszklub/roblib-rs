@@ -118,6 +118,28 @@ pub fn drive(left: i8, right: i8) -> Result<()> {
     Ok(())
 }
 
+pub fn drive_by_angle(angle: f64, speed: i8, leds: Option<(bool, bool, bool)>) -> Result<()> {
+    let angle = clamp(angle, -90.0, 90.0);
+    let speed = clamp(speed, -100, 100);
+
+    let a = (angle + 90.0) / 180.0;
+
+    let speed_left = (a * 100.0) * speed as f64;
+    let speed_right = (100.0 - (a * 100.0)) * speed as f64;
+
+    drive(speed_left as i8, speed_right as i8)?;
+
+    if let Some((r, g, b)) = leds {
+        servo((a * 180.0 - 90.0) as i8)?;
+        led(r, g, b)?;
+    } else {
+        servo(0)?;
+        led(false, false, false)?;
+    };
+
+    Ok(())
+}
+
 pub fn led(r: bool, g: bool, b: bool) -> Result<()> {
     let mut pin_r = PIN_R.lock().unwrap();
     let mut pin_g = PIN_G.lock().unwrap();

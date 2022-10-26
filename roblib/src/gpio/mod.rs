@@ -73,7 +73,7 @@ pub fn servo(degree: i8) -> Result<()> {
 }
 */
 
-fn clamp(x: i8, min: i8, max: i8) -> i8 {
+fn clamp<T: PartialOrd>(x: T, min: T, max: T) -> T {
     if x < min {
         min
     } else if x > max {

@@ -12,6 +12,9 @@ pub enum Cmd {
     /// m
     #[cfg(feature = "roland")]
     MoveRobot(i8, i8),
+    /// M
+    #[cfg(feature = "roland")]
+    MoveRobotByAngle(f64, i8, Option<(bool, bool, bool)>),
     /// s
     #[cfg(feature = "roland")]
     StopRobot,
@@ -48,6 +51,23 @@ impl Cmd {
                 #[cfg(all(unix, feature = "gpio"))]
                 if _run {
                     gpio::roland::drive(*left, *right)?
+                };
+                None
+            }
+            #[cfg(feature = "roland")]
+            Cmd::MoveRobotByAngle(angle, speed, leds) => {
+                if let Some((r, g, b)) = leds {
+                    debug!(
+                        "Moving robot by angle: {}:{} with leds set to {}:{}:{}",
+                        angle, speed, r, g, b
+                    );
+                } else {
+                    debug!("Moving robot by angle: {}:{}", angle, speed);
+                }
+
+                #[cfg(all(unix, feature = "gpio"))]
+                if _run {
+                    gpio::roland::drive_by_angle(*angle, *speed, *leds)?
                 };
                 None
             }
@@ -138,6 +158,14 @@ impl Display for Cmd {
         match self {
             #[cfg(feature = "roland")]
             Cmd::MoveRobot(left, right) => write!(f, "m {} {}", left, right),
+            #[cfg(feature = "roland")]
+            Cmd::MoveRobotByAngle(angle, speed, leds) => {
+                if let Some((r, g, b)) = leds {
+                    write!(f, "M {} {} 1 {} {} {}", angle, speed, r, g, b)
+                } else {
+                    write!(f, "M {} {} 0", angle, speed)
+                }
+            }
             #[cfg(feature = "roland")]
             Cmd::StopRobot => write!(f, "s"),
             #[cfg(feature = "roland")]
