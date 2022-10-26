@@ -3,6 +3,7 @@ use crate::gpio;
 use anyhow::{anyhow, Result};
 use std::{
     fmt::Display,
+    ops::Index,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -230,6 +231,28 @@ impl FromStr for Cmd {
             "m" => {
                 let x = parse!(args 2);
                 Cmd::MoveRobot(x[0], x[1])
+            }
+            "M" => {
+                if args.len() < 3 {
+                    Err(anyhow!("Didn't provide angle, speed, and optional leds",))?
+                }
+
+                let angle = args[0].parse::<f64>()?;
+                let speed = args[1].parse::<i8>()?;
+
+                if args[2].parse::<i8>()? == 1 {
+                    if args.len() != 6 {
+                        Err(anyhow!("Didn't provide all 3 leds"))?
+                    }
+
+                    let r = args[3].parse::<i8>()? == 1;
+                    let g = args[4].parse::<i8>()? == 1;
+                    let b = args[5].parse::<i8>()? == 1;
+
+                    Cmd::MoveRobotByAngle(angle, speed, Some((r, g, b)))
+                } else {
+                    Cmd::MoveRobotByAngle(angle, speed, None)
+                }
             }
             #[cfg(feature = "roland")]
             "s" => Cmd::StopRobot,
