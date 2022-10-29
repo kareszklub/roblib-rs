@@ -83,8 +83,8 @@ impl Robot {
 
     /// Send a raw command.
     /// You probably don't need this.
-    pub async fn send(&mut self, cmd: &str) -> Result<String> {
-        self.tx.send(Message::Text(cmd.into())).await?;
+    pub async fn send(&mut self, cmd: Cmd) -> Result<String> {
+        self.tx.send(Message::Binary(cmd.to_bin()?.into())).await?;
         self.rx
             .next()
             .await
@@ -103,9 +103,7 @@ impl Robot {
     }
 
     pub async fn cmd(&mut self, cmd: Cmd) -> Result<String> {
-        let s = cmd.to_string();
-        debug!("S: {}", &s);
-        let r = self.send(&s).await?;
+        let r = self.send(cmd).await?;
         debug!("R: {}", &r);
         Ok(r)
     }

@@ -26,9 +26,7 @@ impl Robot {
     }
 
     pub async fn cmd(&self, cmd: Cmd) -> Result<String> {
-        let s = cmd.to_string();
-        debug!("S: {}", &s);
-        let r = self.send(s).await?;
+        let r = self.send(cmd.to_string()).await?;
         debug!("R: {}", &r);
         Ok(r)
     }

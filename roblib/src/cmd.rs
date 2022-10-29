@@ -162,6 +162,9 @@ impl Cmd {
     pub fn from_bin(b: &[u8]) -> Result<Self, anyhow::Error> {
         Ok(binary_opts().deserialize(b)?)
     }
+    pub fn to_bin(&self) -> Result<Vec<u8>, anyhow::Error> {
+        Ok(binary_opts().serialize(self)?)
+    }
 }
 
 impl Display for Cmd {
