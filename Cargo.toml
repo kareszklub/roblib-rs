@@ -1,5 +1,5 @@
 [workspace]
-members = ["roblib", "server", "client"]
+members = ["roblib", "server", "client", "encoder-wasm"]
 
 [profile.release]
 strip = true

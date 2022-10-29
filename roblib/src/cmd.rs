@@ -1,14 +1,15 @@
 #[cfg(all(unix, feature = "gpio"))]
 use crate::gpio;
 use anyhow::{anyhow, Result};
+pub use bincode::Options as BincodeOptions;
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
-    ops::Index,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Cmd {
     /// m
     #[cfg(feature = "roland")]
@@ -150,7 +151,16 @@ impl Cmd {
             Ok(r) => r.unwrap_or_else(|| "OK".into()),
             Err(e) => e.to_string(),
         }
-        // Cmd::from_str(s)?.exec()
+    }
+
+    pub fn exec_bin(b: &[u8], run: bool) -> String {
+        match Cmd::from_bin(b).and_then(|c| c.exec(run)) {
+            Ok(r) => r.unwrap_or_else(|| "OK".into()),
+            Err(e) => e.to_string(),
+        }
+    }
+    pub fn from_bin(b: &[u8]) -> Result<Self, anyhow::Error> {
+        Ok(binary_opts().deserialize(b)?)
     }
 }
 
@@ -162,7 +172,11 @@ impl Display for Cmd {
             #[cfg(feature = "roland")]
             Cmd::MoveRobotByAngle(angle, speed, leds) => {
                 if let Some((r, g, b)) = leds {
-                    write!(f, "M {} {} 1 {} {} {}", angle, speed, r, g, b)
+                    write!(
+                        f,
+                        "M {} {} 1 {} {} {}",
+                        angle, speed, *r as u8, *g as u8, *b as u8
+                    )
                 } else {
                     write!(f, "M {} {} 0", angle, speed)
                 }
@@ -232,15 +246,18 @@ impl FromStr for Cmd {
                 let x = parse!(args 2);
                 Cmd::MoveRobot(x[0], x[1])
             }
+            #[cfg(feature = "roland")]
             "M" => {
                 if args.len() < 3 {
-                    Err(anyhow!("Didn't provide angle, speed, and optional leds",))?
+                    Err(anyhow!("Didn't provide angle, speed, and optional leds"))?
                 }
 
+                // FIXME
                 let angle = args[0].parse::<f64>()?;
                 let speed = args[1].parse::<i8>()?;
 
                 if args[2].parse::<i8>()? == 1 {
+                    dbg!(&args);
                     if args.len() != 6 {
                         Err(anyhow!("Didn't provide all 3 leds"))?
                     }
@@ -292,6 +309,14 @@ impl FromStr for Cmd {
         };
         Ok(res)
     }
+}
+
+pub fn binary_opts() -> impl BincodeOptions {
+    bincode::options()
+        .with_varint_encoding()
+        .reject_trailing_bytes()
+        .with_little_endian()
+        .with_limit(1024)
 }
 
 pub type SensorData = [bool; 4];

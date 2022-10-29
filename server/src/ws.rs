@@ -25,7 +25,7 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
         msg: Result<ws_actix::Message, ws_actix::ProtocolError>,
         ctx: &mut Self::Context,
     ) {
-        debug!("WS: {:?}", msg);
+        trace!("WS: {:?}", msg);
         match msg {
             Ok(Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -33,7 +33,7 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
             }
             Ok(Message::Pong(_)) => self.hb = Instant::now(),
             Ok(Message::Text(text)) => ctx.text(Cmd::exec_str(&text, self.run)),
-            Ok(Message::Binary(_)) => ctx.text("binary data not supported"),
+            Ok(Message::Binary(b)) => ctx.text(Cmd::exec_bin(&b, self.run)),
             Ok(Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();

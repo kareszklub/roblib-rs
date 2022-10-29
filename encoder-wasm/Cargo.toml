@@ -1,0 +1,13 @@
+[package]
+name = "roblib-encoder-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "LGPL-3.0"
+repository = "https://github.com/kareszklub/roblib-rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+roblib = { path = "../roblib", default-features = false, features = ["roland"] }
+wasm-bindgen = "0.2.83"
