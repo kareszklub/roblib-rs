@@ -255,12 +255,10 @@ impl FromStr for Cmd {
                     Err(anyhow!("Didn't provide angle, speed, and optional leds"))?
                 }
 
-                // FIXME
                 let angle = args[0].parse::<f64>()?;
                 let speed = args[1].parse::<i8>()?;
 
                 if args[2].parse::<i8>()? == 1 {
-                    dbg!(&args);
                     if args.len() != 6 {
                         Err(anyhow!("Didn't provide all 3 leds"))?
                     }
