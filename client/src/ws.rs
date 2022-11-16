@@ -84,6 +84,7 @@ impl Robot {
     /// Send a raw command.
     /// You probably don't need this.
     pub async fn send(&mut self, cmd: Cmd) -> Result<String> {
+        // self.tx.send(Message::Text(cmd.to_string().into())).await?;
         self.tx.send(Message::Binary(cmd.to_bin()?.into())).await?;
         self.rx
             .next()

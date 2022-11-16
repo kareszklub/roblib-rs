@@ -2,11 +2,11 @@ use roblib::cmd::Cmd;
 use roblib::cmd::{binary_opts as opts, BincodeOptions};
 use std::str::FromStr;
 
-const RUNS: usize = 1000000;
+const RUNS: usize = 100000000;
 static CMD: Cmd = Cmd::MoveRobotByAngle(std::f64::consts::PI - 100.0, 1, Some((true, true, true)));
 
 fn main() {
-    println!("{}", CMD.to_string());
+    println!("{CMD}");
     measure("encode_str", encode_str);
     measure("encode_bin", encode_bin);
     measure("decode_str", decode_str);

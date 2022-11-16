@@ -3,4 +3,4 @@ ARG VARIANT="buster"
 FROM mcr.microsoft.com/vscode/devcontainers/rust:0-${VARIANT}
 
 USER vscode
-RUN cargo install cargo-edit && cargo install cross
+RUN cargo install cross
