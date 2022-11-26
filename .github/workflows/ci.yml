@@ -27,29 +27,38 @@ jobs:
     name: Test - ${{ matrix.os }} - ${{ matrix.toolchain }}
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.toolchain }}
-        default: true
-        profile: minimal
-        components: clippy
+      - uses: actions/checkout@v3
 
-    - uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --workspace --verbose
-    - uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --verbose --all-features
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          default: true
+          profile: minimal
+          components: clippy
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - uses: actions-rs/clippy-check@v1
-      if: matrix.toolchain == 'stable'
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        args: --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --workspace --verbose
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --verbose --all-features
+
+      - uses: actions-rs/clippy-check@v1
+        if: matrix.toolchain == 'stable' && matrix.os == 'ubuntu-latest'
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
 
   build:
     needs: [test]
@@ -74,6 +83,15 @@ jobs:
           default: true
           profile: minimal
           target: ${{ matrix.target }}
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Build base version
         uses: actions-rs/cargo@v1
@@ -112,3 +130,28 @@ jobs:
             target/${{ matrix.target }}/release/roblib-server-roland
             target/${{ matrix.target }}/release/roblib-server-roland.exe
           if-no-files-found: error
+
+  # this looked very cool, but cargo-bloat-action is really broken
+  # cargo_bloat:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Install Rust
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #     - uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: ${{ runner.os }}-cargo-bloat-${{ hashFiles('**/Cargo.lock') }}
+  #     - name: Run cargo bloat
+  #       uses: orf/cargo-bloat-action@v1
+  #       with:
+  #         exclude_packages: "roblib roblib-client"
+  #         bloat_args: "--profile bloat --all-features --crates"
+  #         token: ${{ secrets.GITHUB_TOKEN }}

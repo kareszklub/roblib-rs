@@ -3,3 +3,9 @@ members = ["roblib", "server", "client", "encoder-wasm"]
 
 [profile.release]
 strip = true
+lto = true
+
+[profile.bloat]
+inherits = "release"
+strip = false
+lto = false
