@@ -18,5 +18,6 @@ fn main() -> Result<()> {
 }
 
 #[cfg(windows)]
-fn main(){}
-
+fn main() {
+    panic!("This example is not supported on Windows");
+}
