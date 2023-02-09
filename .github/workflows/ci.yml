@@ -155,3 +155,23 @@ jobs:
   #         exclude_packages: "roblib roblib-client"
   #         bloat_args: "--profile bloat --all-features --crates"
   #         token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-wasm:
+    needs: [test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          profile: minimal
+
+      - uses: jetli/wasm-pack-action@v0.3.0
+
+      - run: wasm-pack build -t nodejs -s kareszklub && wasm-pack publish -a public
+        working-directory: encoder-wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
