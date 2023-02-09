@@ -171,7 +171,12 @@ jobs:
 
       - uses: jetli/wasm-pack-action@v0.3.0
 
-      - run: wasm-pack build -t nodejs -s kareszklub && wasm-pack publish -a public
+      - run: |
+          wasm-pack build -t nodejs -s kareszklub
+          tar cf pkg.tar pkg/
         working-directory: encoder-wasm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: roblib-encoder-wasm
+          path: encoder-wasm/pkg.tar
