@@ -19,7 +19,6 @@ const DEFAULT_PORT: u16 = 1111;
 
 struct AppState {
     roland: Arc<Option<Roland>>,
-    run: bool,
 }
 
 #[get("/")]
@@ -41,7 +40,7 @@ async fn ws_index(
     state: Data<AppState>,
 ) -> Result<HttpResponse, Error> {
     ws_start(
-        ws::WebSocket::new(state.run, state.roland.clone()),
+        ws::WebSocket::new(state.roland.clone()),
         &req,
         stream,
     )
@@ -53,7 +52,6 @@ async fn ws_index(
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
     HttpResponse::Ok().body(Cmd::exec_str(
         &body,
-        state.run,
         state.roland.as_ref().as_ref(),
     ))
 }
@@ -92,7 +90,7 @@ async fn main() -> std::io::Result<()> {
     }
     .into();
 
-    let data = Data::new(AppState { run: true, roland });
+    let data = Data::new(AppState { roland });
     HttpServer::new(move || {
         App::new()
             .wrap(
