@@ -5,8 +5,8 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+camloc-server = { git = "https://github.com/Kris030/camloc-server" }
 anyhow = "1"
-ctrlc = { version = "3.2.2", optional = true }
 lazy_static = "1.4.0"
 log = "0.4"
 
@@ -16,5 +16,5 @@ rppal = { version = "0.13.1", optional = true }
 [features]
 default = []
 full = ["gpio", "roland"]
-gpio = ["dep:rppal", "dep:ctrlc"]
+gpio = ["dep:rppal"]
 roland = []

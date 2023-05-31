@@ -4,7 +4,7 @@ mod constants;
 pub mod roland;
 
 #[cfg(feature = "roland")]
-pub use roland::try_init;
+pub use roland::Roland;
 
 #[cfg(not(feature = "roland"))]
 pub fn try_init() -> anyhow::Result<()> {

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use awc::Client;
-use roblib::cmd::{get_time, parse_sensor_data, Cmd, SensorData};
+use roblib::cmd::{get_time, parse_track_sensor_data, Cmd, SensorData};
 
 pub struct Robot {
     base_url: String,
@@ -35,7 +35,7 @@ impl Robot {
 
     #[cfg(feature = "roland")]
     pub async fn get_sensor_data(&self) -> Result<SensorData> {
-        parse_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
+        parse_track_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
     }
 
     pub async fn measure_latency(&self) -> Result<f64> {

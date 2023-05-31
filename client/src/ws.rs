@@ -3,12 +3,13 @@ use actix_rt::{spawn, task::JoinHandle};
 use actix_web::web::Bytes;
 use anyhow::{anyhow, Result};
 use awc::{ws::Message, Client};
+use camloc_common::Position;
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     SinkExt,
 };
 use futures_util::stream::StreamExt;
-use roblib::cmd::{get_time, parse_sensor_data, Cmd, SensorData};
+use roblib::cmd::{Cmd, SensorData};
 
 pub struct Robot {
     tx: UnboundedSender<Message>,
@@ -111,13 +112,18 @@ impl Robot {
     }
 
     #[cfg(feature = "roland")]
-    pub async fn get_sensor_data(&mut self) -> Result<SensorData> {
-        parse_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
+    pub async fn get_track_sensor_data(&mut self) -> Result<SensorData> {
+        roblib::cmd::parse_track_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
+    }
+
+    #[cfg(feature = "roland")]
+    pub async fn get_position(&mut self) -> Result<Option<Position>> {
+        roblib::cmd::parse_position_data(&self.cmd(Cmd::GetPosition).await?)
     }
 
     pub async fn measure_latency(&mut self) -> Result<f64> {
-        let start = get_time()?;
+        let start = roblib::cmd::get_time()?;
         self.cmd(Cmd::GetTime).await?;
-        Ok(get_time()? - start)
+        Ok(roblib::cmd::get_time()? - start)
     }
 }

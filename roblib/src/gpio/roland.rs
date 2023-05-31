@@ -3,199 +3,235 @@ pub mod constants {
     pub use crate::gpio::constants::*;
 }
 
-use ctrlc::set_handler;
+use camloc_server::{
+    compass::{no_compass, Compass},
+    extrapolations::{Extrapolation, LinearExtrapolation},
+    service::{LocationService, LocationServiceHandle},
+    TimedPosition,
+};
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{cmp::Ordering, sync::Mutex, time::Duration};
 
-lazy_static::lazy_static! {
-    static ref GPIO: Gpio = Gpio::new().unwrap();
+pub struct Roland {
+    pin_r: Mutex<OutputPin>,
+    pin_g: Mutex<OutputPin>,
+    pin_b: Mutex<OutputPin>,
 
-    static ref PIN_R: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_R).unwrap().into_output());
-    static ref PIN_G: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_G).unwrap().into_output());
-    static ref PIN_B: Mutex<OutputPin> = Mutex::new(GPIO.get(LED_B).unwrap().into_output());
+    pin_servo: Mutex<OutputPin>,
+    pin_fwd_l: Mutex<OutputPin>,
+    pin_bwd_l: Mutex<OutputPin>,
+    pin_pwm_l: Mutex<OutputPin>,
+    pin_fwd_r: Mutex<OutputPin>,
+    pin_bwd_r: Mutex<OutputPin>,
+    pin_pwm_r: Mutex<OutputPin>,
 
-    static ref PIN_SERVO: Mutex<OutputPin> = Mutex::new(GPIO.get(SERVO).unwrap().into_output());
+    pin_buzzer: Mutex<OutputPin>,
 
-    static ref PIN_BUZZER: Mutex<OutputPin> = Mutex::new(GPIO.get(BUZZER).unwrap().into_output());
+    pin_track_l1: Mutex<InputPin>,
+    pin_track_l2: Mutex<InputPin>,
+    pin_track_r1: Mutex<InputPin>,
+    pin_track_r2: Mutex<InputPin>,
 
-    static ref PIN_FWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_L).unwrap().into_output());
-    static ref PIN_BWD_L: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_L).unwrap().into_output());
-    static ref PIN_PWM_L: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_L).unwrap().into_output());
-    static ref PIN_FWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(FWD_R).unwrap().into_output());
-    static ref PIN_BWD_R: Mutex<OutputPin> = Mutex::new(GPIO.get(BWD_R).unwrap().into_output());
-    static ref PIN_PWM_R: Mutex<OutputPin> = Mutex::new(GPIO.get(PWM_R).unwrap().into_output());
-
-    static ref PIN_TRACK_L1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L1).unwrap().into_input());
-    static ref PIN_TRACK_L2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_L2).unwrap().into_input());
-    static ref PIN_TRACK_R1: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R1).unwrap().into_input());
-    static ref PIN_TRACK_R2: Mutex<InputPin> = Mutex::new(GPIO.get(TRACK_R2).unwrap().into_input());
+    camloc_service: LocationServiceHandle,
 }
 
-pub fn try_init() -> Result<()> {
-    // will attempt to initialize all the pins just to see if they work
-    let gpio = Gpio::new()?;
-
-    // MOTOR
-    gpio.get(FWD_L)?.into_output_low();
-    gpio.get(BWD_L)?.into_output_low();
-    gpio.get(PWM_L)?.into_output_high();
-    gpio.get(FWD_R)?.into_output_low();
-    gpio.get(BWD_R)?.into_output_low();
-    gpio.get(PWM_R)?.into_output_high();
-
-    // LED
-    gpio.get(LED_R)?.into_output_low();
-    gpio.get(LED_G)?.into_output_low();
-    gpio.get(LED_B)?.into_output_low();
-
-    // SERVO
-    gpio.get(SERVO)?.into_output_high();
-
-    // BUZZER
-    gpio.get(BUZZER)?.into_output_high();
-
-    set_handler(move || {
-        eprintln!("Shutting down");
-        cleanup().expect("cleanup failed");
-    })
-    .expect("set_handler failed");
-
-    // ran here as well to reset servo to center
-    cleanup()?;
-
-    Ok(())
-}
-
-pub fn cleanup() -> Result<()> {
-    drive(0, 0)?;
-    led(false, false, false)?;
-    servo(0)?;
-    buzzer(100.0)?;
-
-    Ok(())
-}
-
-pub fn drive(left: i8, right: i8) -> Result<()> {
-    let mut pin_fwd_l = PIN_FWD_L.lock().unwrap();
-    let mut pin_bwd_l = PIN_BWD_L.lock().unwrap();
-    let mut pin_pwm_l = PIN_PWM_L.lock().unwrap();
-    let mut pin_fwd_r = PIN_FWD_R.lock().unwrap();
-    let mut pin_bwd_r = PIN_BWD_R.lock().unwrap();
-    let mut pin_pwm_r = PIN_PWM_R.lock().unwrap();
-
-    pin_pwm_l.set_pwm_frequency(2000.0, left.abs() as f64 / 100.0)?;
-    pin_pwm_r.set_pwm_frequency(2000.0, right.abs() as f64 / 100.0)?;
-
-    match left.cmp(&0) {
-        Ordering::Greater => {
-            pin_fwd_l.set_high();
-            pin_bwd_l.set_low();
-        }
-        Ordering::Less => {
-            pin_fwd_l.set_low();
-            pin_bwd_l.set_high();
-        }
-        Ordering::Equal => {
-            pin_fwd_l.set_low();
-            pin_bwd_l.set_low();
-        }
+impl Drop for Roland {
+    fn drop(&mut self) {
+        self.cleanup().expect("Failed to clean up!!!");
     }
-    match right.cmp(&0) {
-        Ordering::Greater => {
-            pin_fwd_r.set_high();
-            pin_bwd_r.set_low();
-        }
-        Ordering::Less => {
-            pin_fwd_r.set_low();
-            pin_bwd_r.set_high();
-        }
-        Ordering::Equal => {
-            pin_fwd_r.set_low();
-            pin_bwd_r.set_low();
-        }
+}
+
+impl Roland {
+    pub async fn try_init() -> Result<Roland> {
+        let gpio = Gpio::new()?;
+
+        // MOTOR
+        gpio.get(FWD_L)?.into_output_low();
+        gpio.get(BWD_L)?.into_output_low();
+        gpio.get(PWM_L)?.into_output_high();
+        gpio.get(FWD_R)?.into_output_low();
+        gpio.get(BWD_R)?.into_output_low();
+        gpio.get(PWM_R)?.into_output_high();
+
+        // LED
+        gpio.get(LED_R)?.into_output_low();
+        gpio.get(LED_G)?.into_output_low();
+        gpio.get(LED_B)?.into_output_low();
+
+        // SERVO
+        gpio.get(SERVO)?.into_output_high();
+
+        // BUZZER
+        gpio.get(BUZZER)?.into_output_high();
+
+        let camloc_service = LocationService::start(
+            Some(Extrapolation::new::<LinearExtrapolation>(
+                Duration::from_millis(500),
+            )),
+            // no_extrapolation!(),
+            camloc_server::camloc_common::hosts::constants::MAIN_PORT,
+            no_compass!(),
+            Duration::from_millis(500),
+        )
+        .await
+        .map_err(anyhow::Error::msg)?;
+
+        let roland = Roland {
+            pin_r: Mutex::new(gpio.get(LED_R)?.into_output()),
+            pin_g: Mutex::new(gpio.get(LED_G)?.into_output()),
+            pin_b: Mutex::new(gpio.get(LED_B)?.into_output()),
+            pin_servo: Mutex::new(gpio.get(SERVO)?.into_output()),
+            pin_buzzer: Mutex::new(gpio.get(BUZZER)?.into_output()),
+            pin_fwd_l: Mutex::new(gpio.get(FWD_L)?.into_output()),
+            pin_bwd_l: Mutex::new(gpio.get(BWD_L)?.into_output()),
+            pin_pwm_l: Mutex::new(gpio.get(PWM_L)?.into_output()),
+            pin_fwd_r: Mutex::new(gpio.get(FWD_R)?.into_output()),
+            pin_bwd_r: Mutex::new(gpio.get(BWD_R)?.into_output()),
+            pin_pwm_r: Mutex::new(gpio.get(PWM_R)?.into_output()),
+            pin_track_l1: Mutex::new(gpio.get(TRACK_L1)?.into_input()),
+            pin_track_l2: Mutex::new(gpio.get(TRACK_L2)?.into_input()),
+            pin_track_r1: Mutex::new(gpio.get(TRACK_R1)?.into_input()),
+            pin_track_r2: Mutex::new(gpio.get(TRACK_R2)?.into_input()),
+
+            camloc_service,
+        };
+
+        // ran here as well to reset servo to center
+        roland.cleanup()?;
+
+        Ok(roland)
     }
 
-    Ok(())
-}
+    pub fn cleanup(&self) -> Result<()> {
+        self.drive(0, 0)?;
+        self.led(false, false, false)?;
+        self.servo(0)?;
+        self.buzzer(100.0)?;
 
-pub fn drive_by_angle(angle: f64, speed: i8, leds: Option<(bool, bool, bool)>) -> Result<()> {
-    let angle = clamp(angle, -90.0, 90.0);
-    let speed = clamp(speed, -100, 100);
-
-    let a = (angle + 90.0) / 180.0;
-
-    let speed_left = (a * 100.0) * speed as f64;
-    let speed_right = (100.0 - (a * 100.0)) * speed as f64;
-
-    drive(speed_left as i8, speed_right as i8)?;
-
-    if let Some((r, g, b)) = leds {
-        servo((a * 180.0 - 90.0) as i8)?;
-        led(r, g, b)?;
-    } else {
-        servo(0)?;
-        led(false, false, false)?;
-    };
-
-    Ok(())
-}
-
-pub fn led(r: bool, g: bool, b: bool) -> Result<()> {
-    let mut pin_r = PIN_R.lock().unwrap();
-    let mut pin_g = PIN_G.lock().unwrap();
-    let mut pin_b = PIN_B.lock().unwrap();
-
-    if r {
-        pin_r.set_high();
-    } else {
-        pin_r.set_low();
-    }
-    if g {
-        pin_g.set_high();
-    } else {
-        pin_g.set_low();
-    }
-    if b {
-        pin_b.set_high();
-    } else {
-        pin_b.set_low();
+        Ok(())
     }
 
-    Ok(())
-}
+    pub fn drive(&self, left: i8, right: i8) -> Result<()> {
+        let mut pin_fwd_l = self.pin_fwd_l.lock().unwrap();
+        let mut pin_bwd_l = self.pin_bwd_l.lock().unwrap();
+        let mut pin_pwm_l = self.pin_pwm_l.lock().unwrap();
+        let mut pin_fwd_r = self.pin_fwd_r.lock().unwrap();
+        let mut pin_bwd_r = self.pin_bwd_r.lock().unwrap();
+        let mut pin_pwm_r = self.pin_pwm_r.lock().unwrap();
 
-pub fn servo(degree: i8) -> Result<()> {
-    let mut pin = PIN_SERVO.lock().unwrap();
+        pin_pwm_l.set_pwm_frequency(2000.0, left.abs() as f64 / 100.0)?;
+        pin_pwm_r.set_pwm_frequency(2000.0, right.abs() as f64 / 100.0)?;
 
-    let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
-    pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
+        match left.cmp(&0) {
+            Ordering::Greater => {
+                pin_fwd_l.set_high();
+                pin_bwd_l.set_low();
+            }
+            Ordering::Less => {
+                pin_fwd_l.set_low();
+                pin_bwd_l.set_high();
+            }
+            Ordering::Equal => {
+                pin_fwd_l.set_low();
+                pin_bwd_l.set_low();
+            }
+        }
+        match right.cmp(&0) {
+            Ordering::Greater => {
+                pin_fwd_r.set_high();
+                pin_bwd_r.set_low();
+            }
+            Ordering::Less => {
+                pin_fwd_r.set_low();
+                pin_bwd_r.set_high();
+            }
+            Ordering::Equal => {
+                pin_fwd_r.set_low();
+                pin_bwd_r.set_low();
+            }
+        }
 
-    Ok(())
-}
-
-pub fn buzzer(pw: f64) -> Result<()> {
-    let mut pin = PIN_BUZZER.lock().unwrap();
-
-    if pw == 100.0 {
-        pin.clear_pwm()?;
-        pin.set_high();
-    } else {
-        pin.set_pwm_frequency(100.0, pw / 100.0)?;
+        Ok(())
     }
 
-    Ok(())
-}
+    pub fn drive_by_angle(&self, angle: f64, speed: i8) -> Result<()> {
+        let angle = clamp(angle, -90.0, 90.0);
+        let speed = clamp(speed, -100, 100);
 
-pub fn track_sensor() -> Result<[bool; 4]> {
-    let pin_l1 = PIN_TRACK_L1.lock().unwrap();
-    let pin_l2 = PIN_TRACK_L2.lock().unwrap();
-    let pin_r1 = PIN_TRACK_R1.lock().unwrap();
-    let pin_r2 = PIN_TRACK_R2.lock().unwrap();
+        let a = (angle + 90.0) / 180.0;
 
-    Ok([
-        pin_l1.is_high(),
-        pin_l2.is_high(),
-        pin_r1.is_high(),
-        pin_r2.is_high(),
-    ])
+        let speed_left = (a * 100.0) * speed as f64;
+        let speed_right = (100.0 - (a * 100.0)) * speed as f64;
+
+        self.drive(speed_left as i8, speed_right as i8)?;
+
+        Ok(())
+    }
+
+    pub fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
+        let mut pin_r = self.pin_r.lock().unwrap();
+        let mut pin_g = self.pin_g.lock().unwrap();
+        let mut pin_b = self.pin_b.lock().unwrap();
+
+        if r {
+            pin_r.set_high();
+        } else {
+            pin_r.set_low();
+        }
+        if g {
+            pin_g.set_high();
+        } else {
+            pin_g.set_low();
+        }
+        if b {
+            pin_b.set_high();
+        } else {
+            pin_b.set_low();
+        }
+
+        Ok(())
+    }
+
+    pub fn servo(&self, degree: i8) -> Result<()> {
+        let mut pin = self.pin_servo.lock().unwrap();
+
+        let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
+        pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
+
+        Ok(())
+    }
+
+    pub fn buzzer(&self, pw: f64) -> Result<()> {
+        let mut pin = self.pin_buzzer.lock().unwrap();
+
+        if pw == 100.0 {
+            pin.clear_pwm()?;
+            pin.set_high();
+        } else {
+            pin.set_pwm_frequency(100.0, pw / 100.0)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn track_sensor(&self) -> Result<[bool; 4]> {
+        let pin_l1 = self.pin_track_l1.lock().unwrap();
+        let pin_l2 = self.pin_track_l2.lock().unwrap();
+        let pin_r1 = self.pin_track_r1.lock().unwrap();
+        let pin_r2 = self.pin_track_r2.lock().unwrap();
+
+        Ok([
+            pin_l1.is_high(),
+            pin_l2.is_high(),
+            pin_r1.is_high(),
+            pin_r2.is_high(),
+        ])
+    }
+
+    pub fn get_position(&self) -> Option<TimedPosition> {
+        camloc_server::tokio::task::block_in_place(|| {
+            camloc_server::tokio::runtime::Handle::current()
+                .block_on(self.camloc_service.get_position())
+        })
+    }
 }

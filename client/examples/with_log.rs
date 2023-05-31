@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
 
     robot.cmd(Cmd::StopRobot).await?;
 
-    let data = robot.get_sensor_data().await?;
+    let data = robot.get_track_sensor_data().await?;
     println!("{:?}", data);
 
     Ok(())
