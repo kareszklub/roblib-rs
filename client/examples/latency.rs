@@ -1,4 +1,4 @@
-use roblib_client::{sleep, ws::RobotWS, RemoteRobot, Result};
+use roblib_client::{sleep, ws::RobotWS, RemoteRobotTransport, Result};
 use std::{
     env::args,
     time::{Duration, Instant},

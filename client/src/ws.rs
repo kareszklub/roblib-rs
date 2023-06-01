@@ -1,4 +1,4 @@
-use crate::RemoteRobot;
+use crate::RemoteRobotTransport;
 use actix_http::ws::Frame;
 use actix_rt::{spawn, task::JoinHandle};
 use actix_web::web::Bytes;
@@ -107,7 +107,7 @@ impl RobotWS {
     }
 }
 
-impl RemoteRobot for RobotWS {
+impl RemoteRobotTransport for RobotWS {
     fn cmd(&self, cmd: Cmd) -> Result<String> {
         block_on(async {
             let s = cmd.to_string();

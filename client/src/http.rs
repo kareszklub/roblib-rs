@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use awc::Client;
 use futures::executor::block_on;
 
-use crate::RemoteRobot;
+use crate::RemoteRobotTransport;
 
 pub struct RobotHTTP {
     base_url: String,
@@ -28,7 +28,7 @@ impl RobotHTTP {
     }
 }
 
-impl RemoteRobot for RobotHTTP {
+impl RemoteRobotTransport for RobotHTTP {
     fn cmd(&self, cmd: roblib::cmd::Cmd) -> Result<String> {
         block_on(async {
             let s = cmd.to_string();

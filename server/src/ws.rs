@@ -1,6 +1,6 @@
 use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
 use actix_web_actors::ws::{self as ws_actix, Message, WebsocketContext};
-use roblib::{cmd::Cmd, gpio::Roland};
+use roblib::{cmd::Cmd, gpio::GPIORoland};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -11,7 +11,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct WebSocket {
     hb: Instant,
-    roland: Arc<Option<Roland>>,
+    roland: Arc<Option<GPIORoland>>,
 }
 
 impl Actor for WebSocket {
@@ -49,7 +49,7 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
 }
 
 impl WebSocket {
-    pub fn new(roland: Arc<Option<Roland>>) -> Self {
+    pub fn new(roland: Arc<Option<GPIORoland>>) -> Self {
         Self {
             hb: Instant::now(),
             roland,

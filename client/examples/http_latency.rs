@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use roblib_client::RemoteRobot;
+use roblib_client::RemoteRobotTransport;
 use roblib_client::{http::RobotHTTP, sleep, Result};
 use std::{
     env::args,

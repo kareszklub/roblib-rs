@@ -3,12 +3,7 @@ pub mod constants {
     pub use crate::gpio::constants::*;
 }
 
-use camloc_server::{
-    compass::{no_compass, Compass},
-    extrapolations::{Extrapolation, LinearExtrapolation},
-    service::{LocationService, LocationServiceHandle},
-    MotionHint, Position,
-};
+use camloc_server::{service::LocationServiceHandle, MotionHint, Position};
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{
     sync::Mutex,
@@ -16,6 +11,14 @@ use std::{
 };
 
 use super::servo_on_pin;
+
+macro_rules! await_sync {
+    ($e:expr) => {
+        camloc_server::tokio::task::block_in_place(|| {
+            camloc_server::tokio::runtime::Handle::current().block_on($e)
+        })
+    };
+}
 
 struct Leds {
     r: OutputPin,
@@ -44,8 +47,8 @@ struct UltraSensor {
     echo: InputPin,
 }
 
-pub struct Roland {
-    camloc_service: LocationServiceHandle,
+pub struct GPIORoland {
+    camloc_service: Option<LocationServiceHandle>,
     ultra_sensor: Mutex<UltraSensor>,
     track_sensor: Mutex<TrackSensor>,
     buzzer: Mutex<OutputPin>,
@@ -54,14 +57,14 @@ pub struct Roland {
     leds: Mutex<Leds>,
 }
 
-impl Drop for Roland {
+impl Drop for GPIORoland {
     fn drop(&mut self) {
         self.cleanup().expect("Failed to clean up!!!");
     }
 }
 
-impl Roland {
-    pub async fn try_init() -> Result<Roland> {
+impl GPIORoland {
+    pub fn try_init(camloc_service: Option<LocationServiceHandle>) -> Result<GPIORoland> {
         let gpio = Gpio::new()?;
 
         // MOTOR
@@ -83,19 +86,7 @@ impl Roland {
         // BUZZER
         gpio.get(BUZZER)?.into_output_high();
 
-        let camloc_service = LocationService::start(
-            Some(Extrapolation::new::<LinearExtrapolation>(
-                Duration::from_millis(500),
-            )),
-            // no_extrapolation!(),
-            camloc_server::camloc_common::hosts::constants::MAIN_PORT,
-            no_compass!(),
-            Duration::from_millis(500),
-        )
-        .await
-        .map_err(anyhow::Error::msg)?;
-
-        let roland = Roland {
+        let roland = GPIORoland {
             leds: Leds {
                 r: gpio.get(LED_R)?.into_output(),
                 g: gpio.get(LED_G)?.into_output(),
@@ -161,15 +152,7 @@ impl Roland {
     }
 }
 
-impl Robot for Roland {
-    type Args = ();
-
-    fn start(_: Self::Args) -> Result<Self> {
-        camloc_server::tokio::task::block_in_place(|| {
-            camloc_server::tokio::runtime::Handle::current().block_on(Roland::try_init())
-        })
-    }
-
+impl Roland for GPIORoland {
     fn drive(&self, left: f64, right: f64) -> Result<()> {
         let left = clamp(left, -1., 1.);
         let right = clamp(right, -1., 1.);
@@ -212,12 +195,11 @@ impl Robot for Roland {
             _ => unreachable!(),
         }
 
-        let motion_hint = Self::get_motion_hint(left, left_sign, right, right_sign);
-
-        camloc_server::tokio::task::block_in_place(|| {
-            camloc_server::tokio::runtime::Handle::current()
-                .block_on(self.camloc_service.set_motion_hint(motion_hint))
-        });
+        if let Some(s) = &self.camloc_service {
+            await_sync!(
+                s.set_motion_hint(Self::get_motion_hint(left, left_sign, right, right_sign))
+            );
+        }
 
         Ok(())
     }
@@ -286,14 +268,11 @@ impl Robot for Roland {
     }
 
     fn get_position(&self) -> Result<Option<Position>> {
-        Ok(camloc_server::tokio::task::block_in_place(|| {
-            camloc_server::tokio::runtime::Handle::current().block_on(async {
-                self.camloc_service
-                    .get_position()
-                    .await
-                    .map(|tp| tp.position)
-            })
-        }))
+        Ok(if let Some(s) = &self.camloc_service {
+            await_sync!(async { s.get_position().await.map(|tp| tp.position) })
+        } else {
+            None
+        })
     }
 
     fn ultra_sensor(&self) -> Result<f64> {
@@ -316,11 +295,7 @@ impl Robot for Roland {
     }
 }
 
-pub trait Robot: Sized {
-    type Args;
-
-    fn start(args: Self::Args) -> Result<Self>;
-
+pub trait Roland: Sized {
     fn drive(&self, left: f64, right: f64) -> Result<()>;
     fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()>;
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()>;

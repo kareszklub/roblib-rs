@@ -12,13 +12,20 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-use roblib::{cmd::Cmd, gpio::Roland};
-use std::sync::Arc;
+use roblib::{
+    camloc_server::{
+        extrapolations::{Extrapolation, LinearExtrapolation},
+        service::LocationService,
+    },
+    cmd::Cmd,
+    gpio::roland::GPIORoland,
+};
+use std::{sync::Arc, time::Duration};
 
 const DEFAULT_PORT: u16 = 1111;
 
 struct AppState {
-    roland: Arc<Option<Roland>>,
+    roland: Arc<Option<GPIORoland>>,
 }
 
 #[get("/")]
@@ -68,7 +75,18 @@ async fn main() -> std::io::Result<()> {
         }
     );
 
-    let roland = match Roland::try_init().await {
+    let camloc_service = LocationService::start(
+        Some(Extrapolation::new::<LinearExtrapolation>(
+            Duration::from_millis(500),
+        )),
+        roblib::camloc_server::camloc_common::hosts::constants::MAIN_PORT,
+        None,
+        Duration::from_millis(500),
+    )
+    .await
+    .ok();
+
+    let roland = match GPIORoland::try_init(camloc_service) {
         Ok(r) => {
             info!("GPIO operational");
             info!("Server launching in production mode");

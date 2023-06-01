@@ -1,6 +1,6 @@
-use crate::gpio::roland::Robot;
+use crate::gpio::roland::Roland;
 #[cfg(all(unix, feature = "gpio"))]
-use crate::gpio::{self, roland::Roland};
+use crate::gpio::{self, roland::GPIORoland};
 use anyhow::{anyhow, Result};
 use camloc_server::Position;
 use std::{
@@ -51,7 +51,7 @@ pub enum Cmd {
 
 impl Cmd {
     #[allow(unused_variables)]
-    pub fn exec(&self, roland: Option<&Roland>) -> anyhow::Result<Option<String>> {
+    pub fn exec(&self, roland: Option<&GPIORoland>) -> anyhow::Result<Option<String>> {
         let res = match self {
             #[cfg(feature = "roland")]
             Cmd::MoveRobot(left, right) => {
@@ -179,7 +179,7 @@ impl Cmd {
         Ok(res)
     }
 
-    pub fn exec_str(s: &str, roland: Option<&Roland>) -> String {
+    pub fn exec_str(s: &str, roland: Option<&GPIORoland>) -> String {
         match Cmd::from_str(s).and_then(|c| c.exec(roland)) {
             Ok(r) => r.unwrap_or_else(|| "OK".into()),
             Err(e) => e.to_string(),

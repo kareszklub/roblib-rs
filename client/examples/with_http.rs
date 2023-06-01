@@ -1,12 +1,14 @@
-use roblib::gpio::roland::Robot;
-use roblib_client::{http::RobotHTTP, logger::init_log, sleep, RemoteRobot, Result};
+use roblib::gpio::roland::Roland;
+use roblib_client::{
+    http::RobotHTTP, logger::init_log, sleep, RemoteRobotTransport, Result, Robot,
+};
 use std::time::Duration;
 
 #[roblib_client::main]
 async fn main() -> Result<()> {
     init_log(Some("roblib_client=debug"));
 
-    let robot = RobotHTTP::connect("http://localhost:1111").await?;
+    let robot = Robot::new(RobotHTTP::connect("http://localhost:1111").await?);
 
     robot.led(true, false, false)?;
 
@@ -16,7 +18,7 @@ async fn main() -> Result<()> {
 
     robot.stop()?;
 
-    println!("{:?}", robot.measure_latency()?);
+    println!("{:?}", robot.transport.measure_latency()?);
 
     Ok(())
 }

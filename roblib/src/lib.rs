@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+pub use camloc_server;
+
 pub mod cmd;
 
 #[cfg(all(unix, feature = "gpio"))]

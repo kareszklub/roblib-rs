@@ -1,10 +1,10 @@
-use roblib::gpio::roland::Robot;
-use roblib_client::{sleep, ws::RobotWS, Result};
+use roblib::gpio::roland::Roland;
+use roblib_client::{sleep, ws::RobotWS, Result, Robot};
 use std::time::Duration;
 
 #[roblib_client::main]
 async fn main() -> Result<()> {
-    let robot = RobotWS::connect("ws://localhost:1111/ws").await?;
+    let robot = Robot::new(RobotWS::connect("ws://localhost:1111/ws").await?);
 
     robot.led(true, false, false)?;
 
