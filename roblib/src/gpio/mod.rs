@@ -49,7 +49,7 @@ pub fn pwm(pin: u8, hz: f64, cycle: f64) -> Result<()> {
     Ok(())
 }
 
-pub fn servo(pin: u8, degree: i8) -> Result<()> {
+pub fn servo(pin: u8, degree: f64) -> Result<()> {
     let mut l = PINS.lock().unwrap();
     if let std::collections::hash_map::Entry::Vacant(e) = l.entry(pin) {
         e.insert(Gpio::new()?.get(pin)?.into_output());
@@ -60,8 +60,8 @@ pub fn servo(pin: u8, degree: i8) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn servo_on_pin(pin: &mut OutputPin, degree: i8) -> Result<()> {
-    let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
+pub(crate) fn servo_on_pin(pin: &mut OutputPin, degree: f64) -> Result<()> {
+    let degree = ((clamp(degree, -90., 90.) as i64 + 90) as u64 * 11) + 500;
     pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
     Ok(())
 }

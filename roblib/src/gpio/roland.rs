@@ -140,7 +140,12 @@ impl Roland {
         Ok(roland)
     }
 
-    fn get_motion_hint(left: i8, left_sign: i8, right: i8, right_sign: i8) -> Option<MotionHint> {
+    fn get_motion_hint(
+        left: f64,
+        left_sign: isize,
+        right: f64,
+        right_sign: isize,
+    ) -> Option<MotionHint> {
         match (left_sign, right_sign) {
             (1, 1) | (1, 0) | (0, 1) => Some(MotionHint::MovingForwards),
 
@@ -149,7 +154,7 @@ impl Roland {
             (-1, -1) | (-1, 0) | (0, -1) => Some(MotionHint::MovingBackwards),
 
             // turning in place
-            (1, -1) | (-1, 1) if left == -right => None,
+            (1, -1) | (-1, 1) if (left * 100.) as usize == (-right * 100.) as usize => None,
 
             _ => unreachable!(),
         }
@@ -165,15 +170,15 @@ impl Robot for Roland {
         })
     }
 
-    fn drive(&self, left: i8, right: i8) -> Result<()> {
+    fn drive(&self, left: f64, right: f64) -> Result<()> {
+        let left = clamp(left, -1., 1.);
+        let right = clamp(right, -1., 1.);
         let mut m = self.motor.lock().unwrap();
 
-        m.pwm_l
-            .set_pwm_frequency(2000.0, left.abs() as f64 / 100.0)?;
-        m.pwm_r
-            .set_pwm_frequency(2000.0, right.abs() as f64 / 100.0)?;
+        m.pwm_l.set_pwm_frequency(2000.0, left.abs())?;
+        m.pwm_r.set_pwm_frequency(2000.0, right.abs())?;
 
-        let left_sign = left.signum();
+        let left_sign = (left as isize).signum();
         match left_sign {
             1 => {
                 m.fwd_l.set_high();
@@ -190,7 +195,7 @@ impl Robot for Roland {
             _ => unreachable!(),
         }
 
-        let right_sign = right.signum();
+        let right_sign = (right as isize).signum();
         match right_sign {
             1 => {
                 m.fwd_r.set_high();
@@ -217,16 +222,16 @@ impl Robot for Roland {
         Ok(())
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: i8) -> Result<()> {
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
         let angle = clamp(angle, -90.0, 90.0);
-        let speed = clamp(speed, -100, 100);
+        let speed = clamp(speed, -1., 1.);
 
         let a = (angle + 90.0) / 180.0;
 
-        let left = (a * 100.0) * speed as f64;
-        let right = (100.0 - (a * 100.0)) * speed as f64;
+        let left = (a * 100.0) * speed;
+        let right = (100.0 - (a * 100.0)) * speed;
 
-        self.drive(left as i8, right as i8)?;
+        self.drive(left, right)?;
 
         Ok(())
     }
@@ -253,7 +258,7 @@ impl Robot for Roland {
         Ok(())
     }
 
-    fn servo(&self, degree: i8) -> Result<()> {
+    fn servo(&self, degree: f64) -> Result<()> {
         servo_on_pin(&mut self.servo.lock().unwrap(), degree)
     }
 
@@ -316,23 +321,23 @@ pub trait Robot: Sized {
 
     fn start(args: Self::Args) -> Result<Self>;
 
-    fn drive(&self, left: i8, right: i8) -> Result<()>;
-    fn drive_by_angle(&self, angle: f64, speed: i8) -> Result<()>;
+    fn drive(&self, left: f64, right: f64) -> Result<()>;
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()>;
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()>;
-    fn servo(&self, degree: i8) -> Result<()>;
+    fn servo(&self, degree: f64) -> Result<()>;
     fn buzzer(&self, pw: f64) -> Result<()>;
     fn get_position(&self) -> Result<Option<Position>>;
     fn track_sensor(&self) -> Result<[bool; 4]>;
     fn ultra_sensor(&self) -> Result<f64>;
 
     fn stop(&self) -> Result<()> {
-        self.drive(0, 0)
+        self.drive(0., 0.)
     }
 
     fn cleanup(&self) -> Result<()> {
-        self.drive(0, 0)?;
+        self.drive(0., 0.)?;
         self.led(false, false, false)?;
-        self.servo(0)?;
+        self.servo(0.)?;
         self.buzzer(100.0)?;
 
         Ok(())

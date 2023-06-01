@@ -13,10 +13,10 @@ use std::{
 pub enum Cmd {
     /// m
     #[cfg(feature = "roland")]
-    MoveRobot(i8, i8),
+    MoveRobot(f64, f64),
     /// M
     #[cfg(feature = "roland")]
-    MoveRobotByAngle(f64, i8),
+    MoveRobotByAngle(f64, f64),
     /// s
     #[cfg(feature = "roland")]
     StopRobot,
@@ -25,7 +25,7 @@ pub enum Cmd {
     Led(bool, bool, bool),
     /// v
     #[cfg(feature = "roland")]
-    ServoAbsolute(i8),
+    ServoAbsolute(f64),
     /// b
     #[cfg(feature = "roland")]
     Buzzer(f64),
@@ -44,7 +44,7 @@ pub enum Cmd {
     /// w
     SetPwm(u8, f64, f64),
     /// V
-    ServoBasic(u8, i8),
+    ServoBasic(u8, f64),
     /// z
     GetTime,
 }
@@ -77,7 +77,7 @@ impl Cmd {
                 debug!("Stopping robot");
                 #[cfg(all(unix, feature = "gpio"))]
                 if let Some(r) = roland {
-                    r.drive(0, 0)?
+                    r.drive(0., 0.)?
                 };
                 None
             }
@@ -269,8 +269,8 @@ impl FromStr for Cmd {
                     Err(anyhow!("Didn't provide angle, speed",))?
                 }
 
-                let angle = args[0].parse::<f64>()?;
-                let speed = args[1].parse::<i8>()?;
+                let angle = args[0].parse()?;
+                let speed = args[1].parse()?;
 
                 Cmd::MoveRobotByAngle(angle, speed)
             }
@@ -307,8 +307,8 @@ impl FromStr for Cmd {
                 Cmd::SetPwm(x[0] as u8, x[1], x[2])
             }
             "V" => {
-                let x: Vec<i16> = parse!(args 2);
-                Cmd::ServoBasic(x[0] as u8, x[1] as i8)
+                let x: Vec<f64> = parse!(args 2);
+                Cmd::ServoBasic(x[0] as u8, x[1])
             }
             "z" => Cmd::GetTime,
 

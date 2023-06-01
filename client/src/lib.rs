@@ -34,12 +34,12 @@ macro_rules! impl_robo {
                 block_on($R::connect(&args))
             }
 
-            fn drive(&self, left: i8, right: i8) -> Result<()> {
+            fn drive(&self, left: f64, right: f64) -> Result<()> {
                 self.cmd(Cmd::MoveRobot(left, right))?;
                 Ok(())
             }
 
-            fn drive_by_angle(&self, angle: f64, speed: i8) -> Result<()> {
+            fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
                 self.cmd(Cmd::MoveRobotByAngle(angle, speed))?;
                 Ok(())
             }
@@ -49,7 +49,7 @@ macro_rules! impl_robo {
                 Ok(())
             }
 
-            fn servo(&self, degree: i8) -> Result<()> {
+            fn servo(&self, degree: f64) -> Result<()> {
                 self.cmd(Cmd::ServoAbsolute(degree))?;
                 Ok(())
             }

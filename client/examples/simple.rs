@@ -8,7 +8,7 @@ async fn main() -> Result<()> {
 
     robot.led(true, false, false)?;
 
-    robot.drive(40, 40)?;
+    robot.drive(40., 40.)?;
 
     sleep(Duration::from_secs(2)).await;
 
