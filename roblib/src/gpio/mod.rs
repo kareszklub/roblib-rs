@@ -54,24 +54,17 @@ pub fn servo(pin: u8, degree: i8) -> Result<()> {
     if let std::collections::hash_map::Entry::Vacant(e) = l.entry(pin) {
         e.insert(Gpio::new()?.get(pin)?.into_output());
     }
-    let p = l.get_mut(&pin).unwrap();
 
-    let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
-    p.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
+    servo_on_pin(l.get_mut(&pin).unwrap(), degree)?;
 
     Ok(())
 }
 
-/*
-pub fn servo(degree: i8) -> Result<()> {
-    let mut pin = PIN_SERVO.lock().unwrap();
-
+pub(crate) fn servo_on_pin(pin: &mut OutputPin, degree: i8) -> Result<()> {
     let degree = ((clamp(degree, -90, 90) as i64 + 90) as u64 * 11) + 500;
     pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
-
     Ok(())
 }
-*/
 
 fn clamp<T: PartialOrd>(x: T, min: T, max: T) -> T {
     if x < min {

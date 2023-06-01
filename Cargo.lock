@@ -429,7 +429,7 @@ source = "git+https://github.com/Kris030/camloc-common#88843783531e3037e98f6d620
 [[package]]
 name = "camloc-server"
 version = "1.0.0"
-source = "git+https://github.com/Kris030/camloc-server#4e167f8c179d39c41f433691bcf95e52bcdb8fe6"
+source = "git+https://github.com/Kris030/camloc-server#1690c88dba7e84bf525aa651693e2c33284388b3"
 dependencies = [
  "camloc-common",
  "futures",

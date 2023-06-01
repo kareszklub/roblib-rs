@@ -39,21 +39,14 @@ async fn ws_index(
     stream: Payload,
     state: Data<AppState>,
 ) -> Result<HttpResponse, Error> {
-    ws_start(
-        ws::WebSocket::new(state.roland.clone()),
-        &req,
-        stream,
-    )
+    ws_start(ws::WebSocket::new(state.roland.clone()), &req, stream)
 }
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().body(Cmd::exec_str(
-        &body,
-        state.roland.as_ref().as_ref(),
-    ))
+    HttpResponse::Ok().body(Cmd::exec_str(&body, state.roland.as_ref().as_ref()))
 }
 
 #[actix_web::main]

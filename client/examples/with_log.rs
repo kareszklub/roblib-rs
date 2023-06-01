@@ -1,21 +1,22 @@
-use roblib_client::{cmd::Cmd, logger, sleep, ws::Robot, Result};
+use roblib::gpio::roland::Robot;
+use roblib_client::{logger, sleep, ws::RobotWS, Result};
 use std::time::Duration;
 
 #[roblib_client::main]
 async fn main() -> Result<()> {
     logger::init_log(Some("roblib_client=debug"));
 
-    let mut robot = Robot::connect("ws://localhost:1111/ws").await?;
+    let robot = RobotWS::connect("ws://localhost:1111/ws").await?;
 
-    robot.cmd(Cmd::Led(true, false, false)).await?;
+    robot.led(true, false, false)?;
 
-    robot.cmd(Cmd::MoveRobot(40, 40)).await?;
+    robot.drive(40, 40)?;
 
     sleep(Duration::from_secs(2)).await;
 
-    robot.cmd(Cmd::StopRobot).await?;
+    robot.stop()?;
 
-    let data = robot.get_track_sensor_data().await?;
+    let data = robot.track_sensor()?;
     println!("{:?}", data);
 
     Ok(())

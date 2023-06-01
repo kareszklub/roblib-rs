@@ -1,4 +1,4 @@
-use roblib_client::{sleep, ws::Robot, Result};
+use roblib_client::{sleep, ws::RobotWS, RemoteRobot, Result};
 use std::{
     env::args,
     time::{Duration, Instant},
@@ -14,33 +14,35 @@ async fn main() -> Result<()> {
     let ip = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
-    let mut robot = Robot::connect(&format!("ws://{}/ws", ip)).await?;
+
+    let robot = RobotWS::connect(&format!("ws://{}/ws", ip)).await?;
 
     // boring arg parsing
     let mut args = args().skip(1);
+
     let runs = args
         .next()
         .unwrap_or_else(|| NO_OF_RUNS.to_string())
         .parse()
         .unwrap_or(NO_OF_RUNS);
+
     let wait_ms = args
         .next()
         .unwrap_or_else(|| WAIT_MS.to_string())
         .parse()
         .unwrap_or(WAIT_MS);
 
-    println!(
-        "Starting test with {} runs, in intervals of {}ms",
-        runs, wait_ms
-    );
+    println!("Starting test with {runs} runs, in intervals of {wait_ms}ms",);
 
     let start = Instant::now();
     let mut v = Vec::with_capacity(runs);
+
     for _ in 0..runs {
-        let r = robot.measure_latency().await?;
+        let r = robot.measure_latency()?;
         v.push(r);
         sleep(Duration::from_millis(wait_ms)).await;
     }
+
     let sum = v.iter().sum::<f64>();
     let min = v
         .iter()
@@ -52,8 +54,10 @@ async fn main() -> Result<()> {
         .copied()
         .reduce(f64::max)
         .expect("results contained NaN");
+
     let avg = sum / v.len() as f64;
     let dur = Instant::now().duration_since(start).as_millis() as f64 / 1000f64;
+
     println!(
         "Results:\n{v:?}\nRuns: {runs}\nTime elapsed: {dur}s\nMin: {min:.3}ms\nMax: {max:.3}ms\nAverage: {avg:.3}ms",
         v=v.iter().map(|n|format!("{n:.3}").parse().unwrap()).collect::<Vec<f64>>()

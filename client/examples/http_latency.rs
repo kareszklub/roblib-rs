@@ -1,4 +1,6 @@
-use roblib_client::{http::Robot, sleep, Result};
+use anyhow::anyhow;
+use roblib_client::RemoteRobot;
+use roblib_client::{http::RobotHTTP, sleep, Result};
 use std::{
     env::args,
     time::{Duration, Instant},
@@ -14,7 +16,7 @@ async fn main() -> Result<()> {
     let ip = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
-    let robot = Robot::new(&format!("http://{ip}"));
+    let robot = RobotHTTP::connect(&format!("http://{ip}")).await?;
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -37,8 +39,7 @@ async fn main() -> Result<()> {
     let start = Instant::now();
     let mut v = Vec::with_capacity(runs);
     for _ in 0..runs {
-        let r = robot.measure_latency().await?;
-        v.push(r);
+        v.push(robot.measure_latency()?);
         sleep(Duration::from_millis(wait_ms)).await;
     }
     let sum = v.iter().sum::<f64>();
@@ -54,9 +55,17 @@ async fn main() -> Result<()> {
         .expect("results contained NaN");
     let avg = sum / v.len() as f64;
     let dur = Instant::now().duration_since(start).as_millis() as f64 / 1000f64;
+
+    let v = v
+        .iter()
+        .map(|n| {
+            format!("{n:.3}")
+                .parse()
+                .map_err(|_| anyhow!("Couldn't parse"))
+        })
+        .collect::<Result<Vec<f64>>>();
     println!(
         "Results:\n{v:?}\nRuns: {runs}\nTime elapsed: {dur}s\nMin: {min:.3}ms\nMax: {max:.3}ms\nAverage: {avg:.3}ms",
-        v=v.iter().map(|n|format!("{n:.3}").parse().unwrap()).collect::<Vec<f64>>()
     );
 
     Ok(())

@@ -1,3 +1,4 @@
+use crate::gpio::roland::Robot;
 #[cfg(all(unix, feature = "gpio"))]
 use crate::gpio::{self, roland::Roland};
 use anyhow::{anyhow, Result};
@@ -31,7 +32,9 @@ pub enum Cmd {
     /// t
     #[cfg(feature = "roland")]
     TrackSensor,
-
+    /// u
+    #[cfg(feature = "roland")]
+    UltraSensor,
     /// P
     #[cfg(feature = "roland")]
     GetPosition,
@@ -118,13 +121,27 @@ impl Cmd {
                 let res = [false, false, false, false];
                 Some(format!("{},{},{},{}", res[0], res[1], res[2], res[3]))
             }
+            #[cfg(feature = "roland")]
+            Cmd::UltraSensor => {
+                debug!("Ultra sensor");
 
+                #[cfg(all(unix, feature = "gpio"))]
+                let res = if let Some(r) = roland {
+                    r.ultra_sensor()?
+                } else {
+                    f64::NAN
+                };
+                #[cfg(not(all(unix, feature = "gpio")))]
+                let res = anyhow!("No");
+
+                Some(format!("{}", res))
+            }
             #[cfg(feature = "roland")]
             Cmd::GetPosition => {
                 debug!("Get position");
                 #[cfg(all(unix, feature = "gpio"))]
                 let res = if let Some(r) = roland {
-                    r.get_position()
+                    r.get_position()?
                 } else {
                     None
                 };
@@ -133,10 +150,7 @@ impl Cmd {
                 let res = None;
 
                 Some(if let Some(pos) = res {
-                    format!(
-                        "{},{},{}",
-                        pos.position.x, pos.position.y, pos.position.rotation
-                    )
+                    format!("{},{},{}", pos.x, pos.y, pos.rotation)
                 } else {
                     String::new()
                 })
@@ -191,6 +205,8 @@ impl Display for Cmd {
             Cmd::Buzzer(pw) => write!(f, "b {}", pw),
             #[cfg(feature = "roland")]
             Cmd::TrackSensor => write!(f, "t"),
+            #[cfg(feature = "roland")]
+            Cmd::UltraSensor => write!(f, "u"),
             #[cfg(feature = "roland")]
             Cmd::GetPosition => write!(f, "P"),
 
@@ -279,6 +295,8 @@ impl FromStr for Cmd {
             }
             #[cfg(feature = "roland")]
             "P" => Cmd::GetPosition,
+            #[cfg(feature = "roland")]
+            "u" => Cmd::UltraSensor,
 
             "p" => {
                 let x = parse!(args 2);
@@ -301,6 +319,7 @@ impl FromStr for Cmd {
 }
 
 pub type SensorData = [bool; 4];
+
 // parse incoming data for the client
 pub fn parse_track_sensor_data(s: &str) -> Result<SensorData> {
     let v = s
@@ -332,6 +351,10 @@ pub fn parse_position_data(s: &str) -> Result<Option<Position>> {
         Ok(vec) if vec.len() == 3 => Ok(Some(Position::new(vec[0], vec[1], vec[2]))),
         _ => Err(anyhow!("Expected three floats")),
     }
+}
+
+pub fn parse_ultra_sensor_data(s: &str) -> Result<f64> {
+    s.parse().map_err(|_| anyhow!("Expected a float"))
 }
 
 pub fn get_time() -> Result<f64> {

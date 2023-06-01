@@ -1,24 +1,25 @@
+use crate::RemoteRobot;
 use actix_http::ws::Frame;
 use actix_rt::{spawn, task::JoinHandle};
 use actix_web::web::Bytes;
 use anyhow::{anyhow, Result};
 use awc::{ws::Message, Client};
-use camloc_common::Position;
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    executor::block_on,
     SinkExt,
 };
-use futures_util::stream::StreamExt;
-use roblib::cmd::{Cmd, SensorData};
+use futures_util::{lock::Mutex, stream::StreamExt};
+use roblib::cmd::Cmd;
 
-pub struct Robot {
-    tx: UnboundedSender<Message>,
-    rx: UnboundedReceiver<String>,
+pub struct RobotWS {
+    tx: Mutex<UnboundedSender<Message>>,
+    rx: Mutex<UnboundedReceiver<String>>,
     sender: JoinHandle<()>,
     receiver: JoinHandle<()>,
 }
 
-impl Robot {
+impl RobotWS {
     pub async fn connect(addr: &str) -> Result<Self> {
         let (_, ws) = match Client::new().ws(addr).connect().await {
             Ok(x) => x,
@@ -75,8 +76,8 @@ impl Robot {
         });
 
         Ok(Self {
-            tx: tx_t,
-            rx: rx_r,
+            tx: tx_t.into(),
+            rx: rx_r.into(),
             sender,
             receiver,
         })
@@ -84,46 +85,36 @@ impl Robot {
 
     /// Send a raw command.
     /// You probably don't need this.
-    pub async fn send(&mut self, cmd: &str) -> Result<String> {
-        self.tx.send(Message::Text(cmd.into())).await?;
+    pub async fn send(&self, cmd: &str) -> Result<String> {
+        self.tx.lock().await.send(Message::Text(cmd.into())).await?;
         self.rx
+            .lock()
+            .await
             .next()
             .await
             .ok_or_else(|| anyhow!("no message received"))
     }
 
-    pub async fn disconnect(&mut self) -> Result<()> {
+    pub async fn disconnect(&self) -> Result<()> {
         debug!("disconnecting");
 
-        self.tx.send(Message::Close(None)).await?;
+        self.tx.lock().await.send(Message::Close(None)).await?;
         self.sender.abort();
         self.receiver.abort();
 
         info!("disconnected");
         Ok(())
     }
+}
 
-    pub async fn cmd(&mut self, cmd: Cmd) -> Result<String> {
-        let s = cmd.to_string();
-        debug!("S: {}", &s);
-        let r = self.send(&s).await?;
-        debug!("R: {}", &r);
-        Ok(r)
-    }
-
-    #[cfg(feature = "roland")]
-    pub async fn get_track_sensor_data(&mut self) -> Result<SensorData> {
-        roblib::cmd::parse_track_sensor_data(&self.cmd(Cmd::TrackSensor).await?)
-    }
-
-    #[cfg(feature = "roland")]
-    pub async fn get_position(&mut self) -> Result<Option<Position>> {
-        roblib::cmd::parse_position_data(&self.cmd(Cmd::GetPosition).await?)
-    }
-
-    pub async fn measure_latency(&mut self) -> Result<f64> {
-        let start = roblib::cmd::get_time()?;
-        self.cmd(Cmd::GetTime).await?;
-        Ok(roblib::cmd::get_time()? - start)
+impl RemoteRobot for RobotWS {
+    fn cmd(&self, cmd: Cmd) -> Result<String> {
+        block_on(async {
+            let s = cmd.to_string();
+            debug!("S: {}", &s);
+            let r = self.send(&s).await?;
+            debug!("R: {}", &r);
+            Ok(r)
+        })
     }
 }
