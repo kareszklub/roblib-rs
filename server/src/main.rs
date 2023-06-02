@@ -12,11 +12,6 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-#[cfg(feature = "camloc")]
-use roblib::camloc_server::{
-    extrapolations::{Extrapolation, LinearExtrapolation},
-    service::LocationService,
-};
 use roblib::{cmd::Cmd, Robot};
 use std::sync::Arc;
 
@@ -24,16 +19,6 @@ const DEFAULT_PORT: u16 = 1111;
 
 struct AppState {
     robot: Arc<Robot>,
-}
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world")
-}
-
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
 }
 
 /// websocket endpoint
@@ -51,7 +36,7 @@ async fn ws_index(
 /// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().body(Cmd::exec_str(&body, state.robot.as_ref()))
+    HttpResponse::Ok().body(Cmd::exec_str(&body, state.robot.as_ref()).await)
 }
 
 #[actix_web::main]
@@ -75,16 +60,22 @@ async fn main() -> std::io::Result<()> {
     info!("Server features: {}", features.join(", "));
 
     #[cfg(feature = "camloc")]
-    let camloc_service = LocationService::start(
-        Some(Extrapolation::new::<LinearExtrapolation>(
+    let camloc_service = {
+        use roblib::camloc_server::{
+            extrapolations::{Extrapolation, LinearExtrapolation},
+            service::LocationService,
+        };
+        LocationService::start(
+            Some(Extrapolation::new::<LinearExtrapolation>(
+                std::time::Duration::from_millis(500),
+            )),
+            roblib::camloc_server::camloc_common::hosts::constants::MAIN_PORT,
+            None,
             std::time::Duration::from_millis(500),
-        )),
-        roblib::camloc_server::camloc_common::hosts::constants::MAIN_PORT,
-        None,
-        std::time::Duration::from_millis(500),
-    )
-    .await
-    .ok();
+        )
+        .await
+        .ok()
+    };
 
     #[cfg(feature = "roland")]
     let roland = {
@@ -142,7 +133,6 @@ async fn main() -> std::io::Result<()> {
             )
             .wrap(logger::actix_log())
             .app_data(data.clone())
-            .service(hello)
             .service(echo)
             .service(ws_index)
             .service(cmd_index)

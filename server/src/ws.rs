@@ -1,5 +1,6 @@
 use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
 use actix_web_actors::ws::{self as ws_actix, Message, WebsocketContext};
+use futures_util::stream::once;
 use roblib::{cmd::Cmd, Robot};
 use std::{
     sync::Arc,
@@ -30,17 +31,29 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
     ) {
         debug!("WS: {:?}", msg);
         match msg {
+            Ok(Message::Text(text)) => {
+                let robot_pointer = self.roland.clone();
+                ctx.add_stream(once(async move {
+                    Ok(Message::Text(
+                        (Cmd::exec_str(&text, robot_pointer.as_ref()).await).into(),
+                    ))
+                }));
+            }
+
             Ok(Message::Ping(msg)) => {
                 self.hb = Instant::now();
                 ctx.pong(&msg);
             }
+
             Ok(Message::Pong(_)) => self.hb = Instant::now(),
-            Ok(Message::Text(text)) => ctx.text(Cmd::exec_str(&text, self.roland.as_ref())),
+
             Ok(Message::Binary(_)) => ctx.text("binary data not supported"),
+
             Ok(Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();
             }
+
             _ => ctx.stop(),
         }
     }

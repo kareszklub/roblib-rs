@@ -25,11 +25,9 @@ pub struct Robot {
 
 impl Robot {
     #[cfg(feature = "camloc")]
-    fn get_position(&self) -> Result<Option<camloc_server::Position>> {
+    async fn get_position(&self) -> Result<Option<camloc_server::Position>> {
         Ok(if let Some(s) = &self.camloc_service {
-            // TODO: have camloc accept a runtime and block on that
-            todo!()
-            // s.get_position().position
+            s.get_position().await.map(|tp| tp.position)
         } else {
             None
         })

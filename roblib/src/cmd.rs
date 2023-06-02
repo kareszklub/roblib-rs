@@ -57,7 +57,7 @@ pub enum Cmd {
 
 impl Cmd {
     #[allow(unused_variables)]
-    pub fn exec(&self, robot: &Robot) -> anyhow::Result<Option<String>> {
+    pub async fn exec(&self, robot: &Robot) -> anyhow::Result<Option<String>> {
         let res = match self {
             #[cfg(feature = "roland")]
             Cmd::MoveRobot(left, right) => {
@@ -68,7 +68,7 @@ impl Cmd {
                     let hint = r.drive(*left, *right)?;
                     #[cfg(feature = "camloc")]
                     if let Some(r) = &robot.camloc_service {
-                        r.set_motion_hint(hint);
+                        r.set_motion_hint(hint).await;
                     }
                 }
 
@@ -84,7 +84,7 @@ impl Cmd {
                     let hint = r.drive_by_angle(*angle, *speed)?;
                     #[cfg(feature = "camloc")]
                     if let Some(r) = &robot.camloc_service {
-                        r.set_motion_hint(hint);
+                        r.set_motion_hint(hint).await;
                     }
                 }
                 None
@@ -161,7 +161,7 @@ impl Cmd {
             Cmd::GetPosition => {
                 debug!("Get position");
 
-                Some(if let Some(pos) = robot.get_position()? {
+                Some(if let Some(pos) = robot.get_position().await? {
                     format!("{},{},{}", pos.x, pos.y, pos.rotation)
                 } else {
                     String::new()
@@ -204,9 +204,13 @@ impl Cmd {
         Ok(res)
     }
 
-    pub fn exec_str(s: &str, robot: &Robot) -> String {
-        match Cmd::from_str(s).and_then(|c| c.exec(robot)) {
-            Ok(r) => r.unwrap_or_else(|| "OK".into()),
+    pub async fn exec_str(s: &str, robot: &Robot) -> String {
+        let cmd = Cmd::from_str(s);
+        match cmd {
+            Ok(cmd) => match cmd.exec(robot).await {
+                Ok(opt) => opt.unwrap_or_else(|| "OK".into()),
+                Err(e) => e.to_string(),
+            },
             Err(e) => e.to_string(),
         }
     }

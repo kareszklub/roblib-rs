@@ -1073,6 +1073,7 @@ dependencies = [
  "actix-web-actors",
  "anyhow",
  "env_logger",
+ "futures-util",
  "lazy_static",
  "log",
  "roblib",
