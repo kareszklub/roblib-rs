@@ -34,7 +34,7 @@ def main():
 		feature_combinations.insert(0, ('bare',))
 
 	for f in feature_combinations:
-		cmd = f'cargo check --features "{" ".join(f)}" --examples'
+		cmd = f'cargo clippy --features "{" ".join(f)}" --examples'
 		if do_it:
 			print(f'\n\n{cmd}:')
 			if os.system(cmd) != 0:
