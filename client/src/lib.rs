@@ -4,12 +4,14 @@ pub mod http;
 pub mod logger;
 pub mod ws;
 
-pub use actix_rt::{main, task, time::sleep};
 pub use anyhow::Result;
-pub use camloc_common::Position;
 
 pub use roblib;
-use roblib::cmd::{get_time, Cmd};
+
+use roblib::{
+    cmd::{get_time, Cmd},
+    roland::DriveResult,
+};
 
 pub trait RemoteRobotTransport {
     fn cmd(&self, cmd: Cmd) -> Result<String>;
@@ -25,22 +27,35 @@ pub struct Robot<T> {
     pub transport: T,
 }
 
-impl<T> Robot<T> {
+impl<T: RemoteRobotTransport> Robot<T> {
     pub fn new(transport: T) -> Self {
         Self { transport }
+    }
+
+    #[cfg(feature = "camloc")]
+    pub fn get_position(&self) -> Result<Option<roblib::camloc_server::Position>> {
+        roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
     }
 }
 
 #[cfg(feature = "roland")]
-impl<T: RemoteRobotTransport> roblib::gpio::roland::Roland for Robot<T> {
-    fn drive(&self, left: f64, right: f64) -> Result<()> {
+impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
+    fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
         self.transport.cmd(Cmd::MoveRobot(left, right))?;
-        Ok(())
+        #[cfg(feature = "camloc")]
+        let res = Ok(None);
+        #[cfg(not(feature = "camloc"))]
+        let res = Ok(());
+        res
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
         self.transport.cmd(Cmd::MoveRobotByAngle(angle, speed))?;
-        Ok(())
+        #[cfg(feature = "camloc")]
+        let res = Ok(None);
+        #[cfg(not(feature = "camloc"))]
+        let res = Ok(());
+        res
     }
 
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
@@ -56,10 +71,6 @@ impl<T: RemoteRobotTransport> roblib::gpio::roland::Roland for Robot<T> {
     fn buzzer(&self, pw: f64) -> Result<()> {
         self.transport.cmd(Cmd::Buzzer(pw))?;
         Ok(())
-    }
-
-    fn get_position(&self) -> Result<Option<Position>> {
-        roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
     }
 
     fn track_sensor(&self) -> Result<[bool; 4]> {

@@ -1,18 +1,18 @@
 use crate::RemoteRobotTransport;
 use actix_http::ws::Frame;
-use actix_rt::{spawn, task::JoinHandle};
+use actix_rt::{spawn, task::JoinHandle, Runtime};
 use actix_web::web::Bytes;
 use anyhow::{anyhow, Result};
 use awc::{ws::Message, Client};
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    executor::block_on,
     SinkExt,
 };
 use futures_util::{lock::Mutex, stream::StreamExt};
 use roblib::cmd::Cmd;
 
 pub struct RobotWS {
+    runtime: Runtime,
     tx: Mutex<UnboundedSender<Message>>,
     rx: Mutex<UnboundedReceiver<String>>,
     sender: JoinHandle<()>,
@@ -20,7 +20,27 @@ pub struct RobotWS {
 }
 
 impl RobotWS {
-    pub async fn connect(addr: &str) -> Result<Self> {
+    pub fn create(addr: &str) -> Result<Self> {
+        let runtime = Runtime::new()?;
+        let (tx, rx, sender, receiver) = runtime.block_on(Self::create_inner(addr))?;
+
+        Ok(Self {
+            runtime,
+            receiver,
+            sender,
+            tx,
+            rx,
+        })
+    }
+
+    async fn create_inner(
+        addr: &str,
+    ) -> Result<(
+        Mutex<UnboundedSender<Message>>,
+        Mutex<UnboundedReceiver<String>>,
+        JoinHandle<()>,
+        JoinHandle<()>,
+    )> {
         let (_, ws) = match Client::new().ws(addr).connect().await {
             Ok(x) => x,
             Err(_) => return Err(anyhow!("failed to connect")),
@@ -28,8 +48,10 @@ impl RobotWS {
 
         // twx: websocket sender, rwx: websocket receiver (tasks)
         let (mut twx, mut rwx) = ws.split();
+
         // tx_t: send message to server, rx_t: receive messages to be sent (sender task)
         let (tx_t, mut rx_t) = mpsc::unbounded::<Message>();
+
         // tx_r: send messages to be received (receiver task), rx_r: receive messages
         let (mut tx_r, rx_r) = mpsc::unbounded::<String>();
 
@@ -54,33 +76,28 @@ impl RobotWS {
                             .await
                             .unwrap();
                     }
-                    Frame::Binary(_) => {
-                        error!("received binary frame");
-                    }
-                    Frame::Continuation(_) => {
-                        error!("received continuation frame");
-                    }
+
+                    Frame::Binary(_) => error!("received binary frame"),
+
+                    Frame::Continuation(_) => error!("received continuation frame"),
+
                     Frame::Ping(_) => {
                         tx.send(Message::Pong(Bytes::new())).await.unwrap();
                         trace!("ping");
                     }
-                    Frame::Pong(_) => {
-                        trace!("pong");
-                    }
+
+                    Frame::Pong(_) => trace!("pong"),
+
                     Frame::Close(reason) => {
-                        // self.ws.close().await?;
+                        tx.close().await.unwrap();
                         error!("socket closed: {reason:?}");
+                        break;
                     }
                 }
             }
         });
 
-        Ok(Self {
-            tx: tx_t.into(),
-            rx: rx_r.into(),
-            sender,
-            receiver,
-        })
+        Ok((tx_t.into(), rx_r.into(), sender, receiver))
     }
 
     /// Send a raw command.
@@ -109,11 +126,13 @@ impl RobotWS {
 
 impl RemoteRobotTransport for RobotWS {
     fn cmd(&self, cmd: Cmd) -> Result<String> {
-        block_on(async {
+        self.runtime.block_on(async {
             let s = cmd.to_string();
-            debug!("S: {}", &s);
+            debug!("S: {s}");
+
             let r = self.send(&s).await?;
-            debug!("R: {}", &r);
+            debug!("R: {r}");
+
             Ok(r)
         })
     }

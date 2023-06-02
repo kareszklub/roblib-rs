@@ -1,23 +1,44 @@
-use crate::gpio::{clamp, constants::*, Result};
-pub mod constants {
-    pub use crate::gpio::constants::*;
-}
-
-use camloc_server::{service::LocationServiceHandle, MotionHint, Position};
+#[cfg(feature = "camloc")]
+use camloc_server::MotionHint;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{
     sync::Mutex,
     time::{Duration, Instant},
 };
 
-use super::servo_on_pin;
+use crate::{clamp, servo_on_pin};
+use anyhow::Result;
+use constants::*;
 
-macro_rules! await_sync {
-    ($e:expr) => {
-        camloc_server::tokio::task::block_in_place(|| {
-            camloc_server::tokio::runtime::Handle::current().block_on($e)
-        })
-    };
+pub mod constants {
+    // motors
+    pub const FWD_L: u8 = 20; // left forward
+    pub const BWD_L: u8 = 21; // left backward
+    pub const FWD_R: u8 = 19; // right forward
+    pub const BWD_R: u8 = 26; // right backward
+    pub const PWM_L: u8 = 16; // left speed (pwm)
+    pub const PWM_R: u8 = 13; // right speed (pwm)
+
+    // led
+    pub const LED_R: u8 = 22;
+    pub const LED_G: u8 = 27;
+    pub const LED_B: u8 = 24;
+
+    // servo motor
+    pub const SERVO: u8 = 23;
+
+    // buzzer
+    pub const BUZZER: u8 = 8;
+
+    // infrared sensor pins
+    pub const TRACK_L1: u8 = 3;
+    pub const TRACK_L2: u8 = 5;
+    pub const TRACK_R1: u8 = 4;
+    pub const TRACK_R2: u8 = 18;
+
+    // ultrasonic
+    pub const ECHO: u8 = 0;
+    pub const TRIG: u8 = 1;
 }
 
 struct Leds {
@@ -48,7 +69,6 @@ struct UltraSensor {
 }
 
 pub struct GPIORoland {
-    camloc_service: Option<LocationServiceHandle>,
     ultra_sensor: Mutex<UltraSensor>,
     track_sensor: Mutex<TrackSensor>,
     buzzer: Mutex<OutputPin>,
@@ -64,7 +84,7 @@ impl Drop for GPIORoland {
 }
 
 impl GPIORoland {
-    pub fn try_init(camloc_service: Option<LocationServiceHandle>) -> Result<GPIORoland> {
+    pub fn try_init() -> Result<GPIORoland> {
         let gpio = Gpio::new()?;
 
         // MOTOR
@@ -121,8 +141,6 @@ impl GPIORoland {
                 trig: gpio.get(TRIG)?.into_output(),
             }
             .into(),
-
-            camloc_service,
         };
 
         // ran here as well to reset servo to center
@@ -131,6 +149,7 @@ impl GPIORoland {
         Ok(roland)
     }
 
+    #[cfg(feature = "camloc")]
     fn get_motion_hint(
         left: f64,
         left_sign: isize,
@@ -153,7 +172,7 @@ impl GPIORoland {
 }
 
 impl Roland for GPIORoland {
-    fn drive(&self, left: f64, right: f64) -> Result<()> {
+    fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
         let left = clamp(left, -1., 1.);
         let right = clamp(right, -1., 1.);
         let mut m = self.motor.lock().unwrap();
@@ -195,16 +214,15 @@ impl Roland for GPIORoland {
             _ => unreachable!(),
         }
 
-        if let Some(s) = &self.camloc_service {
-            await_sync!(
-                s.set_motion_hint(Self::get_motion_hint(left, left_sign, right, right_sign))
-            );
-        }
+        #[cfg(feature = "camloc")]
+        let ret = Ok(Self::get_motion_hint(left, left_sign, right, right_sign));
+        #[cfg(not(feature = "camloc"))]
+        let ret = Ok(());
 
-        Ok(())
+        ret
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
         let angle = clamp(angle, -90.0, 90.0);
         let speed = clamp(speed, -1., 1.);
 
@@ -213,9 +231,7 @@ impl Roland for GPIORoland {
         let left = (a * 100.0) * speed;
         let right = (100.0 - (a * 100.0)) * speed;
 
-        self.drive(left, right)?;
-
-        Ok(())
+        self.drive(left, right)
     }
 
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
@@ -267,14 +283,6 @@ impl Roland for GPIORoland {
         ])
     }
 
-    fn get_position(&self) -> Result<Option<Position>> {
-        Ok(if let Some(s) = &self.camloc_service {
-            await_sync!(async { s.get_position().await.map(|tp| tp.position) })
-        } else {
-            None
-        })
-    }
-
     fn ultra_sensor(&self) -> Result<f64> {
         const BLAST_DURATION: Duration = Duration::from_micros(15);
         const CONVERSION_FACTOR: f64 = 340. / 2. * 100.;
@@ -295,18 +303,23 @@ impl Roland for GPIORoland {
     }
 }
 
+#[cfg(feature = "camloc")]
+pub type DriveResult = Option<MotionHint>;
+#[cfg(not(feature = "camloc"))]
+pub type DriveResult = ();
+
 pub trait Roland: Sized {
-    fn drive(&self, left: f64, right: f64) -> Result<()>;
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()>;
+    fn drive(&self, left: f64, right: f64) -> Result<DriveResult>;
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult>;
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()>;
     fn servo(&self, degree: f64) -> Result<()>;
     fn buzzer(&self, pw: f64) -> Result<()>;
-    fn get_position(&self) -> Result<Option<Position>>;
     fn track_sensor(&self) -> Result<[bool; 4]>;
     fn ultra_sensor(&self) -> Result<f64>;
 
     fn stop(&self) -> Result<()> {
-        self.drive(0., 0.)
+        self.drive(0., 0.)?;
+        Ok(())
     }
 
     fn cleanup(&self) -> Result<()> {

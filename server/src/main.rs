@@ -12,20 +12,18 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-use roblib::{
-    camloc_server::{
-        extrapolations::{Extrapolation, LinearExtrapolation},
-        service::LocationService,
-    },
-    cmd::Cmd,
-    gpio::roland::GPIORoland,
+#[cfg(feature = "camloc")]
+use roblib::camloc_server::{
+    extrapolations::{Extrapolation, LinearExtrapolation},
+    service::LocationService,
 };
-use std::{sync::Arc, time::Duration};
+use roblib::{cmd::Cmd, Robot};
+use std::sync::Arc;
 
 const DEFAULT_PORT: u16 = 1111;
 
 struct AppState {
-    roland: Arc<Option<GPIORoland>>,
+    robot: Arc<Robot>,
 }
 
 #[get("/")]
@@ -46,14 +44,14 @@ async fn ws_index(
     stream: Payload,
     state: Data<AppState>,
 ) -> Result<HttpResponse, Error> {
-    ws_start(ws::WebSocket::new(state.roland.clone()), &req, stream)
+    ws_start(ws::WebSocket::new(state.robot.clone()), &req, stream)
 }
 
 /// http endpoint intended for one-time commands
 /// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().body(Cmd::exec_str(&body, state.roland.as_ref().as_ref()))
+    HttpResponse::Ok().body(Cmd::exec_str(&body, state.robot.as_ref()))
 }
 
 #[actix_web::main]
@@ -65,43 +63,76 @@ async fn main() -> std::io::Result<()> {
         None => DEFAULT_PORT,
     };
 
-    info!("Starting server on port {}", &port);
-    info!(
-        "Server edition: {}",
-        if cfg!(feature = "roland") {
-            "Roland"
-        } else {
-            "Generic pin commands only"
-        }
-    );
+    info!("Server starting up");
+    let features: Vec<&str> = vec![
+        #[cfg(feature = "roland")]
+        "roland",
+        #[cfg(feature = "gpio")]
+        "gpio",
+        #[cfg(feature = "camloc")]
+        "camloc",
+    ];
+    info!("Server features: {}", features.join(", "));
 
+    #[cfg(feature = "camloc")]
     let camloc_service = LocationService::start(
         Some(Extrapolation::new::<LinearExtrapolation>(
-            Duration::from_millis(500),
+            std::time::Duration::from_millis(500),
         )),
         roblib::camloc_server::camloc_common::hosts::constants::MAIN_PORT,
         None,
-        Duration::from_millis(500),
+        std::time::Duration::from_millis(500),
     )
     .await
     .ok();
 
-    let roland = match GPIORoland::try_init(camloc_service) {
-        Ok(r) => {
-            info!("GPIO operational");
-            info!("Server launching in production mode");
-            Some(r)
-        }
+    #[cfg(feature = "roland")]
+    let roland = {
+        match roblib::roland::GPIORoland::try_init() {
+            Ok(r) => {
+                info!("GPIO operational");
+                info!("Server launching in production mode");
+                Some(r)
+            }
 
-        Err(err) => {
-            info!("Failed to initialize GPIO: {}", err);
-            info!("Server launching in test mode");
-            None
+            Err(err) => {
+                info!("Failed to initialize GPIO: {}", err);
+                info!("Server launching in test mode");
+                None
+            }
         }
+    };
+
+    #[cfg(feature = "gpio")]
+    let raw_gpio = {
+        match roblib::gpio::Robot::new() {
+            Ok(r) => {
+                info!("GPIO operational");
+                info!("Server launching in production mode");
+                Some(r)
+            }
+
+            Err(err) => {
+                info!("Failed to initialize GPIO: {}", err);
+                info!("Server launching in test mode");
+                None
+            }
+        }
+    };
+
+    let robot = Robot {
+        #[cfg(feature = "camloc")]
+        camloc_service,
+        #[cfg(feature = "gpio")]
+        raw_gpio,
+        #[cfg(feature = "roland")]
+        roland,
     }
     .into();
 
-    let data = Data::new(AppState { roland });
+    let data = Data::new(AppState { robot });
+
+    info!("Webserver starting on port {}", &port);
     HttpServer::new(move || {
         App::new()
             .wrap(

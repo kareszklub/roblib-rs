@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-roblib = { path = "../roblib", features = ["gpio"] }
+roblib = { path = "../roblib" }
 actix = "0.13.0"
 actix-web = "4.0"
 actix-web-actors = "4.1"
@@ -14,4 +14,12 @@ lazy_static = "1.4.0"
 anyhow = "1.0.59"
 
 [features]
+default = ["roland"]
+
+all = ["roland", "gpio", "camloc"]
+
+bare = []
+
 roland = ["roblib/roland"]
+gpio = ["roblib/gpio"]
+camloc = ["roblib/camloc"]

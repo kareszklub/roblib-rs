@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use roblib_client::RemoteRobotTransport;
-use roblib_client::{http::RobotHTTP, sleep, Result};
+use roblib_client::{http::RobotHTTP, Result};
+use std::thread::sleep;
 use std::{
     env::args,
     time::{Duration, Instant},
@@ -9,14 +10,14 @@ use std::{
 const NO_OF_RUNS: usize = 25;
 const WAIT_MS: u64 = 100;
 
-#[roblib_client::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
     let ip = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
-    let robot = RobotHTTP::connect(&format!("http://{ip}")).await?;
+
+    let robot = RobotHTTP::create(&format!("http://{ip}"))?;
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -25,6 +26,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|| NO_OF_RUNS.to_string())
         .parse()
         .unwrap_or(NO_OF_RUNS);
+
     let wait_ms = args
         .next()
         .unwrap_or_else(|| WAIT_MS.to_string())
@@ -40,8 +42,9 @@ async fn main() -> Result<()> {
     let mut v = Vec::with_capacity(runs);
     for _ in 0..runs {
         v.push(robot.measure_latency()?);
-        sleep(Duration::from_millis(wait_ms)).await;
+        sleep(Duration::from_millis(wait_ms));
     }
+
     let sum = v.iter().sum::<f64>();
     let min = v
         .iter()

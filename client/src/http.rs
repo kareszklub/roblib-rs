@@ -1,41 +1,49 @@
+use actix_rt::Runtime;
 use anyhow::{anyhow, Result};
 use awc::Client;
-use futures::executor::block_on;
 
 use crate::RemoteRobotTransport;
 
 pub struct RobotHTTP {
     base_url: String,
     client: Client,
+    runtime: Runtime,
 }
+
 impl RobotHTTP {
-    pub async fn connect(base_url: &str) -> Result<Self> {
+    pub fn create(base_url: &str) -> Result<RobotHTTP> {
         Ok(Self {
             base_url: format!("{base_url}/cmd"),
             client: Client::default(),
+            runtime: Runtime::new()?,
         })
     }
 
     /// Send a raw command.
     /// You probably don't need this.
-    pub async fn send(&self, cmd: String) -> Result<String> {
+    async fn send(&self, cmd: String) -> Result<String> {
         let mut req = match self.client.post(&self.base_url).send_body(cmd).await {
             Ok(x) => x,
-            Err(_) => return Err(anyhow!("failed to connect")),
+            Err(e) => return Err(anyhow!("didn't recieve HTTP response, because: {e}")),
         };
 
-        Ok(String::from_utf8(req.body().await?.to_vec())?)
+        let body = req.body().await?;
+        Ok(String::from_utf8(body.to_vec())?)
     }
 }
 
 impl RemoteRobotTransport for RobotHTTP {
     fn cmd(&self, cmd: roblib::cmd::Cmd) -> Result<String> {
-        block_on(async {
+        self.runtime.block_on(async {
             let s = cmd.to_string();
-            debug!("S: {}", &s);
-            let r = self.send(s).await?;
-            debug!("R: {}", &r);
-            Ok(r)
+            debug!("S: {s}");
+
+            let r = self.send(s).await;
+            if let Ok(r) = &r {
+                debug!("R: {r}");
+            }
+
+            r
         })
     }
 }

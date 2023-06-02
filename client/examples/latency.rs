@@ -1,21 +1,21 @@
-use roblib_client::{sleep, ws::RobotWS, RemoteRobotTransport, Result};
+use roblib_client::{ws::RobotWS, RemoteRobotTransport, Result};
 use std::{
     env::args,
+    thread::sleep,
     time::{Duration, Instant},
 };
 
 const NO_OF_RUNS: usize = 25;
 const WAIT_MS: u64 = 100;
 
-#[roblib_client::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // roblib_client::logger::init_log(Some("roblib_client=debug")); // uncomment if you want to spam the terminal
 
     let ip = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let robot = RobotWS::connect(&format!("ws://{}/ws", ip)).await?;
+    let robot = RobotWS::create(&format!("ws://{}/ws", ip))?;
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     for _ in 0..runs {
         let r = robot.measure_latency()?;
         v.push(r);
-        sleep(Duration::from_millis(wait_ms)).await;
+        sleep(Duration::from_millis(wait_ms));
     }
 
     let sum = v.iter().sum::<f64>();
