@@ -12,6 +12,7 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
+use anyhow::{anyhow, Result};
 use roblib::{cmd::Cmd, Robot};
 use std::sync::Arc;
 
@@ -40,11 +41,13 @@ async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=info,roblib=debug"));
 
     let port: u16 = match std::env::args().nth(1) {
-        Some(s) => s.parse().expect("port must be a valid number"),
+        Some(s) => s
+            .parse()
+            .map_err(|_| anyhow!("port must be a valid number"))?,
         None => DEFAULT_PORT,
     };
 
@@ -65,7 +68,7 @@ async fn main() -> std::io::Result<()> {
             extrapolations::{Extrapolation, LinearExtrapolation},
             service::LocationService,
         };
-        LocationService::start(
+        let serv = LocationService::start(
             Some(Extrapolation::new::<LinearExtrapolation>(
                 std::time::Duration::from_millis(500),
             )),
@@ -73,22 +76,31 @@ async fn main() -> std::io::Result<()> {
             None,
             std::time::Duration::from_millis(500),
         )
-        .await
-        .ok()
+        .await;
+
+        match serv {
+            Ok(r) => {
+                info!("Camloc operational");
+                Some(r)
+            }
+
+            Err(err) => {
+                info!("Failed to initialize camloc: {err}");
+                None
+            }
+        }
     };
 
     #[cfg(feature = "roland")]
     let roland = {
         match roblib::roland::GPIORoland::try_init() {
             Ok(r) => {
-                info!("GPIO operational");
-                info!("Server launching in production mode");
+                info!("Roland operational");
                 Some(r)
             }
 
             Err(err) => {
-                info!("Failed to initialize GPIO: {}", err);
-                info!("Server launching in test mode");
+                info!("Failed to initialize roland: {err}");
                 None
             }
         }
@@ -99,13 +111,11 @@ async fn main() -> std::io::Result<()> {
         match roblib::gpio::Robot::new() {
             Ok(r) => {
                 info!("GPIO operational");
-                info!("Server launching in production mode");
                 Some(r)
             }
 
             Err(err) => {
-                info!("Failed to initialize GPIO: {}", err);
-                info!("Server launching in test mode");
+                info!("Failed to initialize GPIO: {err}");
                 None
             }
         }
@@ -124,7 +134,7 @@ async fn main() -> std::io::Result<()> {
     let data = Data::new(AppState { robot });
 
     info!("Webserver starting on port {}", &port);
-    HttpServer::new(move || {
+    Ok(HttpServer::new(move || {
         App::new()
             .wrap(
                 DefaultHeaders::new()
@@ -133,11 +143,10 @@ async fn main() -> std::io::Result<()> {
             )
             .wrap(logger::actix_log())
             .app_data(data.clone())
-            .service(echo)
             .service(ws_index)
             .service(cmd_index)
     })
     .bind(("0.0.0.0", port))?
     .run()
-    .await
+    .await?)
 }
