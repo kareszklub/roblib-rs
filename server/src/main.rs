@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "camloc")]
     let camloc_service = {
-        use roblib::camloc_server::{
+        use roblib::camloc::{
             extrapolations::{Extrapolation, LinearExtrapolation},
             service::LocationService,
         };
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
             Some(Extrapolation::new::<LinearExtrapolation>(
                 std::time::Duration::from_millis(500),
             )),
-            roblib::camloc_server::camloc_common::hosts::constants::MAIN_PORT,
+            roblib::camloc::MAIN_PORT,
             None,
             std::time::Duration::from_millis(500),
         )

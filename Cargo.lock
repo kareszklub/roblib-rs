@@ -424,13 +424,17 @@ dependencies = [
 [[package]]
 name = "camloc-common"
 version = "1.0.0"
-source = "git+https://github.com/Kris030/camloc-common#88843783531e3037e98f6d6209733d88333378a2"
+source = "git+https://github.com/Kris030/camloc-common#62591694c877303b64e8e6a5773afaef0359f350"
+dependencies = [
+ "anyhow",
+]
 
 [[package]]
 name = "camloc-server"
 version = "1.0.0"
-source = "git+https://github.com/Kris030/camloc-server#1690c88dba7e84bf525aa651693e2c33284388b3"
+source = "git+https://github.com/Kris030/camloc-server#065e183e95d6f892b43fb986da5fcc56e3185cb3"
 dependencies = [
+ "anyhow",
  "camloc-common",
  "futures",
  "tokio",

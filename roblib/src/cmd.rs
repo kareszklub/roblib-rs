@@ -154,7 +154,7 @@ impl Cmd {
                     f64::NAN
                 };
 
-                Some(format!("{}", res))
+                Some(format!("{res}"))
             }
 
             #[cfg(feature = "camloc")]

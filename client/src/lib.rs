@@ -33,7 +33,7 @@ impl<T: RemoteRobotTransport> Robot<T> {
     }
 
     #[cfg(feature = "camloc")]
-    pub fn get_position(&self) -> Result<Option<roblib::camloc_server::Position>> {
+    pub fn get_position(&self) -> Result<Option<roblib::Position>> {
         roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
     }
 }
@@ -43,19 +43,17 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
     fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
         self.transport.cmd(Cmd::MoveRobot(left, right))?;
         #[cfg(feature = "camloc")]
-        let res = Ok(None);
+        return Ok(None);
         #[cfg(not(feature = "camloc"))]
-        let res = Ok(());
-        res
+        return Ok(());
     }
 
     fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
         self.transport.cmd(Cmd::MoveRobotByAngle(angle, speed))?;
         #[cfg(feature = "camloc")]
-        let res = Ok(None);
+        return Ok(None);
         #[cfg(not(feature = "camloc"))]
-        let res = Ok(());
-        res
+        return Ok(());
     }
 
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {

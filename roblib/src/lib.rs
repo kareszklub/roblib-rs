@@ -12,7 +12,7 @@ pub mod gpio;
 #[cfg(feature = "roland")]
 pub mod roland;
 #[cfg(feature = "camloc")]
-pub use camloc_server::{self, Position};
+pub use camloc_server::{self as camloc, Position};
 
 pub struct Robot {
     #[cfg(feature = "gpio")]
