@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{clamp, get_servo_pwm_durations};
+use crate::get_servo_pwm_durations;
 use anyhow::Result;
 use constants::*;
 
@@ -206,8 +206,8 @@ impl GPIORoland {
 
 impl Roland for GPIORoland {
     fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
-        let left = clamp(left, -1., 1.);
-        let right = clamp(right, -1., 1.);
+        let left = left.clamp(-1., 1.);
+        let right = right.clamp(-1., 1.);
         let mut m = self.motor.lock().unwrap();
 
         m.pwm_l.set_pwm_frequency(2000.0, left.abs())?;
@@ -256,8 +256,8 @@ impl Roland for GPIORoland {
     }
 
     fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
-        let angle = clamp(angle, -90.0, 90.0);
-        let speed = clamp(speed, -1., 1.);
+        let angle = angle.clamp(-90.0, 90.0);
+        let speed = speed.clamp(-1., 1.);
 
         let a = (angle + 90.0) / 180.0;
 

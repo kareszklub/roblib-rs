@@ -32,17 +32,6 @@ pub struct Robot {
 
 #[cfg(any(feature = "roland", feature = "gpio"))]
 pub(crate) fn get_servo_pwm_durations(degree: f64) -> (Duration, Duration) {
-    let degree = ((clamp(degree, -90., 90.) as i64 + 90) as u64 * 11) + 500;
+    let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;
     (Duration::from_millis(20), Duration::from_micros(degree)) // 50Hz
-}
-
-#[allow(unused)]
-fn clamp<T: PartialOrd>(x: T, min: T, max: T) -> T {
-    if x < min {
-        min
-    } else if x > max {
-        max
-    } else {
-        x
-    }
 }
