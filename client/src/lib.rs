@@ -46,6 +46,10 @@ impl<T: RemoteRobotTransport> Robot<T> {
 #[cfg(feature = "roland")]
 impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
     fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
+        if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
+            warn!("Drive values are now [-1, 1] not [-100, 100]");
+        }
+
         self.transport.cmd(Cmd::MoveRobot(left, right))?;
         #[cfg(feature = "camloc")]
         return Ok(None);
@@ -54,6 +58,10 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
     }
 
     fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
+        if !(-1. ..=1.).contains(&speed) {
+            warn!("Drive values are now [-1, 1] not [-100, 100]");
+        }
+
         self.transport.cmd(Cmd::MoveRobotByAngle(angle, speed))?;
         #[cfg(feature = "camloc")]
         return Ok(None);
