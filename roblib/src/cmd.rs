@@ -1,3 +1,5 @@
+#[cfg(feature = "gpio")]
+use crate::gpio::Gpio;
 #[cfg(feature = "roland")]
 use crate::roland::Roland;
 
@@ -37,10 +39,10 @@ pub enum Cmd {
     /// u
     #[cfg(feature = "roland")]
     UltraSensor,
-    /// P
-    #[cfg(feature = "camloc")]
-    GetPosition,
 
+    /// r
+    #[cfg(feature = "gpio")]
+    ReadPin(u8),
     /// p
     #[cfg(feature = "gpio")]
     SetPin(u8, bool),
@@ -50,6 +52,10 @@ pub enum Cmd {
     /// V
     #[cfg(feature = "gpio")]
     ServoBasic(u8, f64),
+
+    /// P
+    #[cfg(feature = "camloc")]
+    GetPosition,
 
     /// z
     GetTime,
@@ -161,11 +167,28 @@ impl Cmd {
             Cmd::GetPosition => {
                 debug!("Get position");
 
-                Some(if let Some(pos) = robot.get_position().await? {
-                    format!("{},{},{}", pos.x, pos.y, pos.rotation)
+                use crate::camloc::Position;
+                let res = if let Some(r) = &robot.camloc_service {
+                    r.get_position()
+                        .await
+                        .map(|tp| tp.position)
+                        .unwrap_or(Position::new(f64::NAN, f64::NAN, f64::NAN))
                 } else {
-                    String::new()
-                })
+                    Position::new(f64::NAN, f64::NAN, f64::NAN)
+                };
+
+                Some(format!("{},{},{}", res.x, res.y, res.rotation))
+            }
+
+            #[cfg(feature = "gpio")]
+            Cmd::ReadPin(pin) => {
+                debug!("Read pin: {pin}");
+
+                if let Some(r) = &robot.raw_gpio {
+                    Some(format!("{}", r.read_pin(*pin)? as u8))
+                } else {
+                    Some("0".to_string())
+                }
             }
 
             #[cfg(feature = "gpio")]
@@ -173,7 +196,7 @@ impl Cmd {
                 debug!("Set pin: {pin}:{value}");
 
                 if let Some(r) = &robot.raw_gpio {
-                    r.set(*pin, *value)?;
+                    r.set_pin(*pin, *value)?;
                 }
                 None
             }
@@ -244,6 +267,9 @@ impl Display for Cmd {
             Cmd::UltraSensor => write!(f, "u"),
 
             #[cfg(feature = "gpio")]
+            Cmd::ReadPin(pin) => write!(f, "r {pin}"),
+
+            #[cfg(feature = "gpio")]
             Cmd::SetPin(pin, value) => write!(f, "p {} {}", pin, *value as u8),
 
             #[cfg(feature = "gpio")]
@@ -281,9 +307,9 @@ macro_rules! parse {
 #[allow(unused)]
 macro_rules! parse_bool {
     ($b:expr) => {
-        if $b == 1 {
+        if $b == 1u8 {
             true
-        } else if $b == 0 {
+        } else if $b == 0u8 {
             false
         } else {
             Err(anyhow!(
@@ -414,6 +440,15 @@ pub fn parse_position_data(s: &str) -> Result<Option<camloc_server::Position>> {
 #[cfg(feature = "roland")]
 pub fn parse_ultra_sensor_data(s: &str) -> Result<f64> {
     s.parse().map_err(|_| anyhow!("Expected a float"))
+}
+
+#[cfg(feature = "gpio")]
+pub fn parse_pin_data(s: &str) -> Result<bool> {
+    match s {
+        "0" => Ok(false),
+        "1" => Ok(true),
+        _ => Err(anyhow!("Expected 0 or 1")),
+    }
 }
 
 pub fn get_time() -> Result<f64> {

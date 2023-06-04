@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "camloc")]
     let camloc_service = {
-        use roblib::camloc::{
+        use roblib::camloc::server::{
             extrapolations::{Extrapolation, LinearExtrapolation},
             service::LocationService,
         };

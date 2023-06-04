@@ -1,18 +1,23 @@
 #[macro_use]
 extern crate log;
 
-use anyhow::Result;
-use rppal::gpio::OutputPin;
 use std::time::Duration;
 
 pub mod cmd;
 
+#[cfg(feature = "camloc")]
+pub mod camloc {
+    pub mod server {
+        pub use camloc_server::*;
+    }
+    pub use camloc_server::{service::Subscriber, MotionHint, Mutex, Position, MAIN_PORT};
+}
+
 #[cfg(feature = "gpio")]
 pub mod gpio;
+
 #[cfg(feature = "roland")]
 pub mod roland;
-#[cfg(feature = "camloc")]
-pub use camloc_server::{self as camloc, Position};
 
 pub struct Robot {
     #[cfg(feature = "gpio")]
@@ -23,22 +28,10 @@ pub struct Robot {
     pub camloc_service: Option<camloc_server::service::LocationServiceHandle>,
 }
 
-impl Robot {
-    #[cfg(feature = "camloc")]
-    async fn get_position(&self) -> Result<Option<camloc_server::Position>> {
-        Ok(if let Some(s) = &self.camloc_service {
-            s.get_position().await.map(|tp| tp.position)
-        } else {
-            None
-        })
-    }
-}
-
 #[cfg(any(feature = "roland", feature = "gpio"))]
-pub(crate) fn servo_on_pin(pin: &mut OutputPin, degree: f64) -> Result<()> {
+pub(crate) fn get_servo_pwm_durations(degree: f64) -> (Duration, Duration) {
     let degree = ((clamp(degree, -90., 90.) as i64 + 90) as u64 * 11) + 500;
-    pin.set_pwm(Duration::from_millis(20), Duration::from_micros(degree))?; // 50Hz
-    Ok(())
+    (Duration::from_millis(20), Duration::from_micros(degree)) // 50Hz
 }
 
 #[allow(unused)]

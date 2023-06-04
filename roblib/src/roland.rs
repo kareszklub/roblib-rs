@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{clamp, servo_on_pin};
+use crate::{clamp, get_servo_pwm_durations};
 use anyhow::Result;
 use constants::*;
 
@@ -257,7 +257,9 @@ impl Roland for GPIORoland {
     }
 
     fn servo(&self, degree: f64) -> Result<()> {
-        servo_on_pin(&mut self.servo.lock().unwrap(), degree)
+        let (period, pulse_width) = get_servo_pwm_durations(degree);
+        self.servo.lock().unwrap().set_pwm(period, pulse_width)?;
+        Ok(())
     }
 
     fn buzzer(&self, pw: f64) -> Result<()> {

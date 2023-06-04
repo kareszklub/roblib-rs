@@ -31,11 +31,6 @@ impl<T: RemoteRobotTransport> Robot<T> {
     pub fn new(transport: T) -> Self {
         Self { transport }
     }
-
-    #[cfg(feature = "camloc")]
-    pub fn get_position(&self) -> Result<Option<roblib::Position>> {
-        roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
-    }
 }
 
 #[cfg(feature = "roland")]
@@ -82,5 +77,34 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
     fn stop(&self) -> Result<()> {
         self.transport.cmd(Cmd::StopRobot)?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "gpio")]
+impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
+    fn read_pin(&self, pin: u8) -> Result<bool> {
+        roblib::cmd::parse_pin_data(&self.transport.cmd(Cmd::ReadPin(pin))?)
+    }
+
+    fn set_pin(&self, pin: u8, value: bool) -> Result<()> {
+        self.transport.cmd(Cmd::SetPin(pin, value))?;
+        Ok(())
+    }
+
+    fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()> {
+        self.transport.cmd(Cmd::SetPwm(pin, hz, cycle))?;
+        Ok(())
+    }
+
+    fn servo(&self, pin: u8, degree: f64) -> Result<()> {
+        self.transport.cmd(Cmd::ServoBasic(pin, degree))?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "camloc")]
+impl<T: RemoteRobotTransport> Robot<T> {
+    pub fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
+        roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
     }
 }

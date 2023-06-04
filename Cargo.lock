@@ -432,7 +432,7 @@ dependencies = [
 [[package]]
 name = "camloc-server"
 version = "1.0.0"
-source = "git+https://github.com/Kris030/camloc-server#065e183e95d6f892b43fb986da5fcc56e3185cb3"
+source = "git+https://github.com/Kris030/camloc-server#d66fcc0b423a663feb4b4040f66e165e214c5b93"
 dependencies = [
  "anyhow",
  "camloc-common",
