@@ -29,7 +29,11 @@ fn main() -> Result<()> {
             }
         };
 
-        println!("< {res}");
+        if let Some(res) = res {
+            println!("< {res}");
+        } else {
+            println!("<>");
+        }
     }
 
     Ok(())

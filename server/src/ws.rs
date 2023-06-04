@@ -1,8 +1,9 @@
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
-use actix_web_actors::ws::{self as ws_actix, Message, WebsocketContext};
-use futures_util::stream::once;
+use actix::prelude::*;
+use actix::{Actor, ActorContext, AsyncContext, Handler, StreamHandler};
+use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
 use roblib::{cmd::Cmd, Robot};
 use std::{
+    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -11,50 +12,75 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct WebSocket {
-    hb: Instant,
+    last_heartbeat: Instant,
     roland: Arc<Robot>,
+}
+
+#[derive(Debug, Message)]
+#[rtype(result = "()")]
+struct CmdResult(anyhow::Result<Option<String>>);
+
+impl Handler<CmdResult> for WebSocket {
+    type Result = ();
+    fn handle(&mut self, CmdResult(msg): CmdResult, ctx: &mut Self::Context) {
+        match msg {
+            Ok(Some(res)) => ctx.text(res),
+            Ok(None) => ctx.text(""),
+            Err(e) => {
+                let e = e.to_string();
+                error!("{e}");
+                ctx.text(e);
+            }
+        }
+    }
 }
 
 impl Actor for WebSocket {
     type Context = WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.hb(ctx);
+        self.start_heartbeat(ctx);
     }
 }
 
-impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSocket {
-    fn handle(
-        &mut self,
-        msg: Result<ws_actix::Message, ws_actix::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
-        debug!("WS: {:?}", msg);
+impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
+    fn handle(&mut self, msg: Result<Message, ProtocolError>, ctx: &mut Self::Context) {
+        let msg = match msg {
+            Ok(msg) => msg,
+            Err(e) => {
+                error!("{e}");
+                ctx.stop();
+                return;
+            }
+        };
+
+        debug!("WS: {msg:?}");
         match msg {
-            Ok(Message::Text(text)) => {
+            Message::Text(text) => {
+                let cmd = Cmd::from_str(&text).unwrap();
                 let robot_pointer = self.roland.clone();
-                ctx.add_stream(once(async move {
-                    Ok(Message::Text(
-                        (Cmd::exec_str(&text, robot_pointer.as_ref()).await).into(),
-                    ))
-                }));
+
+                let recipient = ctx.address().recipient();
+                async move { recipient.do_send(CmdResult(cmd.exec(&robot_pointer).await)) }
+                    .into_actor(self)
+                    .spawn(ctx);
             }
 
-            Ok(Message::Ping(msg)) => {
-                self.hb = Instant::now();
+            Message::Ping(msg) => {
+                self.last_heartbeat = Instant::now();
                 ctx.pong(&msg);
             }
 
-            Ok(Message::Pong(_)) => self.hb = Instant::now(),
+            Message::Pong(_) => self.last_heartbeat = Instant::now(),
 
-            Ok(Message::Binary(_)) => ctx.text("binary data not supported"),
+            Message::Binary(_) => ctx.text("binary data not supported"),
 
-            Ok(Message::Close(reason)) => {
+            Message::Close(reason) => {
                 ctx.close(reason);
                 ctx.stop();
             }
 
-            _ => ctx.stop(),
+            m => error!("got unsupported message {m:?}"),
         }
     }
 }
@@ -62,15 +88,15 @@ impl StreamHandler<Result<ws_actix::Message, ws_actix::ProtocolError>> for WebSo
 impl WebSocket {
     pub fn new(roland: Arc<Robot>) -> Self {
         Self {
-            hb: Instant::now(),
+            last_heartbeat: Instant::now(),
             roland,
         }
     }
 
     /// helper method that sends pings to the client.
-    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
+    fn start_heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
+            if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
                 // heartbeat timed out
                 debug!("Websocket Client heartbeat failed, disconnecting!");
                 // stop actor

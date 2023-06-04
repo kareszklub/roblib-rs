@@ -38,7 +38,7 @@ fn main() -> Result<()> {
     let mut v = Vec::with_capacity(runs);
 
     for _ in 0..runs {
-        let r = robot.measure_latency()?;
+        let r = robot.measure_latency()?.as_secs_f64();
         v.push(r);
         sleep(Duration::from_millis(wait_ms));
     }

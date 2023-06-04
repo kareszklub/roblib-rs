@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub mod cmd;
 
@@ -20,6 +20,8 @@ pub mod gpio;
 pub mod roland;
 
 pub struct Robot {
+    pub startup_time: Instant,
+
     #[cfg(feature = "gpio")]
     pub raw_gpio: Option<gpio::Robot>,
     #[cfg(feature = "roland")]

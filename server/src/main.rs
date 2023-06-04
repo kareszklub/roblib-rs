@@ -14,7 +14,7 @@ use actix_web::{
 use actix_web_actors::ws::start as ws_start;
 use anyhow::{anyhow, Result};
 use roblib::{cmd::Cmd, Robot};
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
 
@@ -33,11 +33,18 @@ async fn ws_index(
     ws_start(ws::WebSocket::new(state.robot.clone()), &req, stream)
 }
 
-/// http endpoint intended for one-time commands
-/// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().body(Cmd::exec_str(&body, state.robot.as_ref()).await)
+    match Cmd::from_str(&body) {
+        Ok(cmd) => match cmd.exec(&state.robot).await {
+            Ok(s) => match s {
+                Some(s) => HttpResponse::Ok().body(s),
+                None => HttpResponse::Ok().into(),
+            },
+            Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        },
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[actix_web::main]
@@ -122,6 +129,8 @@ async fn main() -> Result<()> {
     };
 
     let robot = Robot {
+        startup_time: Instant::now(),
+
         #[cfg(feature = "camloc")]
         camloc_service,
         #[cfg(feature = "gpio")]

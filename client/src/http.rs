@@ -21,29 +21,33 @@ impl RobotHTTP {
 
     /// Send a raw command.
     /// You probably don't need this.
-    async fn send(&self, cmd: String) -> Result<String> {
+    async fn send(&self, cmd: String) -> Result<Option<String>> {
         let mut req = match self.client.post(&self.base_url).send_body(cmd).await {
             Ok(x) => x,
             Err(e) => return Err(anyhow!("didn't recieve HTTP response, because: {e}")),
         };
 
         let body = req.body().await?;
-        Ok(String::from_utf8(body.to_vec())?)
+        if body.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(String::from_utf8(body.to_vec())?))
     }
 }
 
 impl RemoteRobotTransport for RobotHTTP {
-    fn cmd(&self, cmd: roblib::cmd::Cmd) -> Result<String> {
+    fn cmd(&self, cmd: roblib::cmd::Cmd) -> Result<Option<String>> {
         self.runtime.block_on(async {
             let s = cmd.to_string();
             debug!("S: {s}");
 
-            let r = self.send(s).await;
-            if let Ok(r) = &r {
+            let r = self.send(s).await?;
+            if let Some(r) = &r {
                 debug!("R: {r}");
             }
 
-            r
+            Ok(r)
         })
     }
 }

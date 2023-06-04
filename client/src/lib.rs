@@ -4,22 +4,32 @@ pub mod http;
 pub mod logger;
 pub mod ws;
 
+use std::time::{Duration, Instant};
+
 pub use anyhow::Result;
 
+use anyhow::anyhow;
 pub use roblib;
 
-use roblib::{
-    cmd::{get_time, Cmd},
-    roland::DriveResult,
-};
+use roblib::{cmd::Cmd, roland::DriveResult};
 
 pub trait RemoteRobotTransport {
-    fn cmd(&self, cmd: Cmd) -> Result<String>;
+    fn cmd(&self, cmd: Cmd) -> Result<Option<String>>;
 
-    fn measure_latency(&self) -> Result<f64> {
-        let start = get_time()?;
-        self.cmd(Cmd::GetTime)?;
-        Ok(get_time()? - start)
+    fn measure_latency(&self) -> Result<Duration> {
+        let start = Instant::now();
+        self.cmd(Cmd::Nop)?;
+        Ok(Instant::now() - start)
+    }
+
+    fn get_server_uptime(&self) -> Result<Duration> {
+        let Some(d) = self.cmd(Cmd::GetUptime)? else {
+            return Err(anyhow!("Didn't get any data back"))
+        };
+
+        Ok(Duration::from_millis(
+            d.parse().map_err(|_| anyhow!("Couldn't parse uptime"))?,
+        ))
     }
 }
 
@@ -67,11 +77,17 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
     }
 
     fn track_sensor(&self) -> Result<[bool; 4]> {
-        roblib::cmd::parse_track_sensor_data(&self.transport.cmd(Cmd::TrackSensor)?)
+        let Some(d) = self.transport.cmd(Cmd::TrackSensor)? else {
+            return Err(anyhow!("Didn't get any data back"))
+        };
+        roblib::cmd::parse_track_sensor_data(&d)
     }
 
     fn ultra_sensor(&self) -> Result<f64> {
-        roblib::cmd::parse_ultra_sensor_data(&self.transport.cmd(Cmd::UltraSensor)?)
+        let Some(d) = self.transport.cmd(Cmd::UltraSensor)? else {
+            return Err(anyhow!("Didn't get any data back"))
+        };
+        roblib::cmd::parse_ultra_sensor_data(&d)
     }
 
     fn stop(&self) -> Result<()> {
@@ -83,7 +99,10 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
 #[cfg(feature = "gpio")]
 impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
     fn read_pin(&self, pin: u8) -> Result<bool> {
-        roblib::cmd::parse_pin_data(&self.transport.cmd(Cmd::ReadPin(pin))?)
+        let Some(d) = self.transport.cmd(Cmd::ReadPin(pin))? else {
+            return Err(anyhow!("Didn't get any data back"))
+        };
+        roblib::cmd::parse_pin_data(&d)
     }
 
     fn set_pin(&self, pin: u8, value: bool) -> Result<()> {
@@ -105,6 +124,9 @@ impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
 #[cfg(feature = "camloc")]
 impl<T: RemoteRobotTransport> Robot<T> {
     pub fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
-        roblib::cmd::parse_position_data(&self.transport.cmd(Cmd::GetPosition)?)
+        let Some(d) = self.transport.cmd(Cmd::GetPosition)? else {
+            return Err(anyhow!("Didn't get any data back"))
+        };
+        roblib::cmd::parse_position_data(&d)
     }
 }

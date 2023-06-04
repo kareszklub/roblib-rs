@@ -19,6 +19,12 @@ pub struct RobotWS {
     receiver: JoinHandle<()>,
 }
 
+impl Drop for RobotWS {
+    fn drop(&mut self) {
+        self.runtime.block_on(self.disconnect()).unwrap()
+    }
+}
+
 impl RobotWS {
     pub fn create(addr: &str) -> Result<Self> {
         let runtime = Runtime::new()?;
@@ -60,9 +66,7 @@ impl RobotWS {
         // sender task
         let sender = spawn(async move {
             while let Some(msg) = rx_t.next().await {
-                if (twx.send(msg).await).is_err() {
-                    break;
-                }
+                twx.send(msg).await.unwrap();
             }
         });
 
@@ -71,11 +75,10 @@ impl RobotWS {
             let mut tx = tx_ref;
             while let Some(Ok(msg)) = rwx.next().await {
                 match msg {
-                    Frame::Text(b) => {
-                        tx_r.send(String::from_utf8(b.to_vec()).unwrap())
-                            .await
-                            .unwrap();
-                    }
+                    Frame::Text(b) => tx_r
+                        .send(String::from_utf8(b.to_vec()).unwrap())
+                        .await
+                        .unwrap(),
 
                     Frame::Binary(_) => error!("received binary frame"),
 
@@ -100,16 +103,9 @@ impl RobotWS {
         Ok((tx_t.into(), rx_r.into(), sender, receiver))
     }
 
-    /// Send a raw command.
-    /// You probably don't need this.
-    pub async fn send(&self, cmd: &str) -> Result<String> {
+    async fn send(&self, cmd: &str) -> Result<Option<String>> {
         self.tx.lock().await.send(Message::Text(cmd.into())).await?;
-        self.rx
-            .lock()
-            .await
-            .next()
-            .await
-            .ok_or_else(|| anyhow!("no message received"))
+        Ok(self.rx.lock().await.next().await)
     }
 
     pub async fn disconnect(&self) -> Result<()> {
@@ -125,13 +121,15 @@ impl RobotWS {
 }
 
 impl RemoteRobotTransport for RobotWS {
-    fn cmd(&self, cmd: Cmd) -> Result<String> {
+    fn cmd(&self, cmd: Cmd) -> Result<Option<String>> {
         self.runtime.block_on(async {
             let s = cmd.to_string();
-            debug!("S: {s}");
+            info!("S: {s}");
 
             let r = self.send(&s).await?;
-            debug!("R: {r}");
+            if let Some(r) = &r {
+                info!("R: {r}");
+            }
 
             Ok(r)
         })

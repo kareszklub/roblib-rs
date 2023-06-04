@@ -7,14 +7,19 @@ fn main() -> Result<()> {
 
     let robot = Robot::new(RobotHTTP::create("http://localhost:1111")?);
 
+    println!("Leds");
     robot.led(true, false, false)?;
 
+    println!("Drive");
     robot.drive(40., 40.)?;
 
+    println!("Waiting...");
     sleep(Duration::from_secs(2));
 
+    println!("Stopping...");
     robot.stop()?;
 
+    println!("Latency");
     println!("{:?}", robot.transport.measure_latency()?);
 
     Ok(())

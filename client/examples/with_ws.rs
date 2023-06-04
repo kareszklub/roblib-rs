@@ -7,16 +7,21 @@ fn main() -> Result<()> {
 
     let robot = Robot::new(RobotWS::create("ws://localhost:1111/ws")?);
 
+    println!("Leds");
     robot.led(true, false, false)?;
 
+    println!("Drive");
     robot.drive(40., 40.)?;
 
+    println!("Waiting...");
     sleep(Duration::from_secs(2));
 
+    println!("Stop");
     robot.stop()?;
 
+    println!("Track sensor:");
     let data = robot.track_sensor()?;
-    println!("{:?}", data);
+    println!("    {:?}", data);
 
     Ok(())
 }

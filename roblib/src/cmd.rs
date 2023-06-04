@@ -4,14 +4,8 @@ use crate::gpio::Gpio;
 use crate::roland::Roland;
 
 use crate::Robot;
-
 use anyhow::{anyhow, Result};
-
-use std::{
-    fmt::Display,
-    str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{fmt::Display, str::FromStr, time::Instant};
 
 #[derive(Debug, PartialEq)]
 pub enum Cmd {
@@ -57,8 +51,10 @@ pub enum Cmd {
     #[cfg(feature = "camloc")]
     GetPosition,
 
+    /// n
+    Nop,
     /// z
-    GetTime,
+    GetUptime,
 }
 
 impl Cmd {
@@ -222,20 +218,21 @@ impl Cmd {
                 None
             }
 
-            Cmd::GetTime => Some(format!("{:.3}", get_time()?)),
+            Cmd::Nop => {
+                debug!("Nop");
+                None
+            }
+
+            Cmd::GetUptime => {
+                debug!("Get uptime");
+
+                Some(format!(
+                    "{}",
+                    (Instant::now() - robot.startup_time).as_millis()
+                ))
+            }
         };
         Ok(res)
-    }
-
-    pub async fn exec_str(s: &str, robot: &Robot) -> String {
-        let cmd = Cmd::from_str(s);
-        match cmd {
-            Ok(cmd) => match cmd.exec(robot).await {
-                Ok(opt) => opt.unwrap_or_else(|| "OK".into()),
-                Err(e) => e.to_string(),
-            },
-            Err(e) => e.to_string(),
-        }
     }
 }
 
@@ -281,43 +278,32 @@ impl Display for Cmd {
             #[cfg(feature = "camloc")]
             Cmd::GetPosition => write!(f, "P"),
 
-            Cmd::GetTime => write!(f, "z"),
+            Cmd::Nop => write!(f, "n"),
+
+            Cmd::GetUptime => write!(f, "z"),
         }
     }
 }
 
-#[allow(unused)]
-macro_rules! parse {
-    ($args:ident $l:literal) => {{
-        if $args.len() != $l {
-            Err(anyhow!(
-                "invalid number of arguments: expected {} got {}",
-                $l,
-                $args.len()
-            ))?
-        }
-
-        $args
-            .iter()
-            .map(|s| s.parse())
-            .collect::<Result<Vec<_>, _>>()?
-    }};
+fn assert_args_len<const N: usize, T>(slice: &[T]) -> Result<()> {
+    let len = slice.len();
+    if len == N {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "invalid number of arguments: expected {N} got {len}"
+        ))?
+    }
 }
-
-#[allow(unused)]
-macro_rules! parse_bool {
-    ($b:expr) => {
-        if $b == 1u8 {
-            true
-        } else if $b == 0u8 {
-            false
-        } else {
-            Err(anyhow!(
-                "invalid arg: {}, can be 1 for high or 0 for low",
-                $b
-            ))?
-        }
-    };
+fn parse_args<const N: usize, T: FromStr + std::fmt::Debug>(args: &[&str]) -> Result<[T; N]> {
+    assert_args_len::<N, &str>(args)?;
+    Ok(args
+        .iter()
+        .map(|s| s.parse())
+        .collect::<std::result::Result<Vec<T>, _>>()
+        .map_err(|_| anyhow!("Couldn't parse one of the arguments"))?
+        .try_into()
+        .unwrap())
 }
 
 impl FromStr for Cmd {
@@ -325,7 +311,6 @@ impl FromStr for Cmd {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split_whitespace().peekable();
-
         let c = iter.next().ok_or_else(|| anyhow!("missing command"))?;
 
         #[allow(unused)]
@@ -334,13 +319,13 @@ impl FromStr for Cmd {
         let res = match c {
             #[cfg(feature = "roland")]
             "m" => {
-                let x = parse!(args 2);
+                let x: [f64; 2] = parse_args(&args)?;
                 Cmd::MoveRobot(x[0], x[1])
             }
 
             #[cfg(feature = "roland")]
             "M" => {
-                let x = parse!(args 2);
+                let x: [f64; 2] = parse_args(&args)?;
                 Cmd::MoveRobotByAngle(x[0], x[1])
             }
 
@@ -349,50 +334,54 @@ impl FromStr for Cmd {
 
             #[cfg(feature = "roland")]
             "l" => {
-                let x: Vec<u8> = parse!(args 3);
-                Cmd::Led(parse_bool!(x[0]), parse_bool!(x[1]), parse_bool!(x[2]))
+                let x: [u8; 3] = parse_args(&args)?;
+                let x = x.map(|b| b != 0);
+                Cmd::Led(x[0], x[1], x[2])
             }
 
             #[cfg(feature = "roland")]
-            "v" => {
-                let x = parse!(args 1);
-                Cmd::ServoAbsolute(x[0])
-            }
+            "v" => Cmd::ServoAbsolute(parse_args::<1, f64>(&args)?[0]),
 
             #[cfg(feature = "roland")]
             "t" => Cmd::TrackSensor,
 
             #[cfg(feature = "roland")]
-            "b" => {
-                let x = parse!(args 1);
-                Cmd::Buzzer(x[0])
-            }
+            "b" => Cmd::Buzzer(parse_args::<1, f64>(&args)?[0]),
 
             #[cfg(feature = "roland")]
             "u" => Cmd::UltraSensor,
 
             #[cfg(feature = "gpio")]
+            "r" => Cmd::ReadPin(parse_args::<1, u8>(&args)?[0]),
+
+            #[cfg(feature = "gpio")]
             "p" => {
-                let x = parse!(args 2);
-                Cmd::SetPin(x[0], parse_bool!(x[1]))
+                let x: [u8; 2] = parse_args(&args)?;
+                Cmd::SetPin(x[0], x[1] != 0)
             }
 
             #[cfg(feature = "gpio")]
             "w" => {
-                let x = parse!(args 3);
-                Cmd::SetPwm(x[0] as u8, x[1], x[2])
+                assert_args_len::<3, &str>(&args)?;
+                let x1: [u8; 1] = parse_args(&args[..1])?;
+                let x2: [f64; 2] = parse_args(&args[1..])?;
+                Cmd::SetPwm(x1[0], x2[0], x2[1])
             }
 
             #[cfg(feature = "gpio")]
             "V" => {
-                let x: Vec<f64> = parse!(args 2);
-                Cmd::ServoBasic(x[0] as u8, x[1])
+                assert_args_len::<2, &str>(&args)?;
+                let x1: [u8; 1] = parse_args(&args[..1])?;
+                let x2: [f64; 1] = parse_args(&args[1..])?;
+                Cmd::ServoBasic(x1[0], x2[0])
             }
 
             #[cfg(feature = "camloc")]
             "P" => Cmd::GetPosition,
 
-            "z" => Cmd::GetTime,
+            "n" => Cmd::Nop,
+
+            "z" => Cmd::GetUptime,
 
             _ => Err(anyhow!("invalid command"))?,
         };
@@ -403,25 +392,9 @@ impl FromStr for Cmd {
 
 #[cfg(feature = "roland")]
 pub fn parse_track_sensor_data(s: &str) -> Result<[bool; 4]> {
-    println!("parsing track sensor data '{s}'");
-    let v = s
-        .split(',')
-        .map(|s| {
-            if s == "1" {
-                Ok(true)
-            } else if s == "0" {
-                Ok(false)
-            } else {
-                Err(anyhow!("invalid number"))
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let len = v.len();
-    match v.try_into() {
-        Ok(d) => Ok(d),
-        Err(_) => Err(anyhow!("Expected a Vec of length 4 but it was {}", len))?,
-    }
+    let args: Vec<&str> = s.split(',').collect();
+    let args: [u8; 4] = parse_args(&args)?;
+    Ok(args.map(|byte| byte != 0))
 }
 
 #[cfg(feature = "camloc")]
@@ -429,17 +402,16 @@ pub fn parse_position_data(s: &str) -> Result<Option<camloc_server::Position>> {
     if s.is_empty() {
         return Ok(None);
     }
-
-    let v: Result<Vec<f64>, _> = s.split(',').map(|s| s.parse::<f64>()).collect();
-    match v {
-        Ok(vec) if vec.len() == 3 => Ok(Some(camloc_server::Position::new(vec[0], vec[1], vec[2]))),
-        _ => Err(anyhow!("Expected three floats")),
-    }
+    let args: Vec<&str> = s.split(',').collect();
+    let args: [f64; 3] = parse_args(&args)?;
+    Ok(Some(camloc_server::Position::new(
+        args[0], args[1], args[2],
+    )))
 }
 
 #[cfg(feature = "roland")]
 pub fn parse_ultra_sensor_data(s: &str) -> Result<f64> {
-    s.parse().map_err(|_| anyhow!("Expected a float"))
+    s.parse().map_err(|_| anyhow!("expected a float"))
 }
 
 #[cfg(feature = "gpio")]
@@ -447,12 +419,6 @@ pub fn parse_pin_data(s: &str) -> Result<bool> {
     match s {
         "0" => Ok(false),
         "1" => Ok(true),
-        _ => Err(anyhow!("Expected 0 or 1")),
+        _ => Err(anyhow!("expected 0 or 1")),
     }
-}
-
-pub fn get_time() -> Result<f64> {
-    Ok(SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_micros() as f64 / 1000.0)?)
 }
