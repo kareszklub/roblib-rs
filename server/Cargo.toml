@@ -21,6 +21,6 @@ all = ["roland", "gpio", "camloc"]
 
 bare = []
 
-roland = ["roblib/roland"]
-gpio = ["roblib/gpio"]
+roland = ["roblib/roland", "roblib/gpio-backend"]
+gpio = ["roblib/gpio", "roblib/gpio-backend"]
 camloc = ["roblib/camloc"]

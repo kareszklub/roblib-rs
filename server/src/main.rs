@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate log;
 
+mod cmd;
 mod logger;
 mod ws;
 
+use crate::cmd::execute_command;
 use actix_web::{
     get,
     middleware::DefaultHeaders,
@@ -13,10 +15,21 @@ use actix_web::{
 };
 use actix_web_actors::ws::start as ws_start;
 use anyhow::{anyhow, Result};
-use roblib::{cmd::Cmd, Robot};
+use roblib::cmd::Cmd;
 use std::{str::FromStr, sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
+
+pub(crate) struct Robot {
+    pub startup_time: Instant,
+
+    #[cfg(feature = "gpio")]
+    pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
+    #[cfg(feature = "roland")]
+    pub roland: Option<roblib::roland::backend::RolandBackend>,
+    #[cfg(feature = "camloc")]
+    pub camloc_service: Option<roblib::camloc::server::service::LocationServiceHandle>,
+}
 
 struct AppState {
     robot: Arc<Robot>,
@@ -36,7 +49,7 @@ async fn ws_index(
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
     match Cmd::from_str(&body) {
-        Ok(cmd) => match cmd.exec(&state.robot).await {
+        Ok(cmd) => match execute_command(&cmd, &state.robot).await {
             Ok(s) => match s {
                 Some(s) => HttpResponse::Ok().body(s),
                 None => HttpResponse::Ok().into(),
@@ -100,7 +113,7 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "roland")]
     let roland = {
-        match roblib::roland::GPIORoland::try_init() {
+        match roblib::roland::backend::RolandBackend::try_init() {
             Ok(r) => {
                 info!("Roland operational");
                 Some(r)
@@ -115,7 +128,7 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "gpio")]
     let raw_gpio = {
-        match roblib::gpio::Robot::new() {
+        match roblib::gpio::backend::GpioBackend::new() {
             Ok(r) => {
                 info!("GPIO operational");
                 Some(r)

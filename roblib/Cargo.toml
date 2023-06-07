@@ -9,7 +9,7 @@ camloc-server = { git = "https://github.com/Kris030/camloc-server", optional = t
 anyhow = "1"
 lazy_static = "1.4.0"
 log = "0.4"
-rppal = "0.13.1"
+rppal = { version = "0.13.1", optional = true }
 
 [features]
 default = []
@@ -21,3 +21,4 @@ bare = []
 gpio = []
 roland = []
 camloc = ["dep:camloc-server"]
+gpio-backend = ["dep:rppal"]

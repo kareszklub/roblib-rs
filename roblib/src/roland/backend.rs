@@ -1,5 +1,3 @@
-#[cfg(feature = "camloc")]
-use camloc_server::MotionHint;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{
     sync::Mutex,
@@ -9,6 +7,8 @@ use std::{
 use crate::get_servo_pwm_durations;
 use anyhow::Result;
 use constants::*;
+
+use super::{DriveResult, Roland};
 
 pub mod constants {
     // motors
@@ -41,39 +41,6 @@ pub mod constants {
     pub const TRIG: u8 = 1;
 }
 
-pub enum LedColor {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-}
-impl From<LedColor> for (bool, bool, bool) {
-    fn from(value: LedColor) -> Self {
-        match value {
-            // 000
-            LedColor::Black => (false, false, false),
-            // 001
-            LedColor::Red => (true, false, false),
-            // 010
-            LedColor::Green => (false, true, false),
-            // 011
-            LedColor::Yellow => (true, true, false),
-            // 100
-            LedColor::Blue => (false, false, true),
-            // 101
-            LedColor::Magenta => (true, false, true),
-            // 110
-            LedColor::Cyan => (false, true, true),
-            // 111
-            LedColor::White => (true, true, true),
-        }
-    }
-}
-
 struct Leds {
     r: OutputPin,
     g: OutputPin,
@@ -101,7 +68,7 @@ struct UltraSensor {
     echo: InputPin,
 }
 
-pub struct GPIORoland {
+pub struct RolandBackend {
     ultra_sensor: Mutex<UltraSensor>,
     track_sensor: Mutex<TrackSensor>,
     buzzer: Mutex<OutputPin>,
@@ -110,14 +77,14 @@ pub struct GPIORoland {
     leds: Mutex<Leds>,
 }
 
-impl Drop for GPIORoland {
+impl Drop for RolandBackend {
     fn drop(&mut self) {
         self.cleanup().expect("Failed to clean up!!!");
     }
 }
 
-impl GPIORoland {
-    pub fn try_init() -> Result<GPIORoland> {
+impl RolandBackend {
+    pub fn try_init() -> Result<RolandBackend> {
         let gpio = Gpio::new()?;
 
         // MOTOR
@@ -139,7 +106,7 @@ impl GPIORoland {
         // BUZZER
         gpio.get(BUZZER)?.into_output_high();
 
-        let roland = GPIORoland {
+        let roland = RolandBackend {
             leds: Leds {
                 r: gpio.get(LED_R)?.into_output(),
                 g: gpio.get(LED_G)?.into_output(),
@@ -188,7 +155,9 @@ impl GPIORoland {
         left_sign: isize,
         right: f64,
         right_sign: isize,
-    ) -> Option<MotionHint> {
+    ) -> Option<crate::camloc::MotionHint> {
+        use crate::camloc::MotionHint;
+
         match (left_sign, right_sign) {
             (1, 1) | (1, 0) | (0, 1) => Some(MotionHint::MovingForwards),
 
@@ -199,12 +168,12 @@ impl GPIORoland {
             // turning in place
             (1, -1) | (-1, 1) if (left * 100.) as usize == (-right * 100.) as usize => None,
 
-            _ => unreachable!(),
+            _ => None,
         }
     }
 }
 
-impl Roland for GPIORoland {
+impl Roland for RolandBackend {
     fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
         let left = left.clamp(-1., 1.);
         let right = right.clamp(-1., 1.);
@@ -335,39 +304,5 @@ impl Roland for GPIORoland {
         let t2 = Instant::now();
 
         Ok((t2 - t1).as_secs_f64() * CONVERSION_FACTOR)
-    }
-}
-
-#[cfg(feature = "camloc")]
-pub type DriveResult = Option<MotionHint>;
-#[cfg(not(feature = "camloc"))]
-pub type DriveResult = ();
-
-pub trait Roland: Sized {
-    fn drive(&self, left: f64, right: f64) -> Result<DriveResult>;
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult>;
-    fn led(&self, r: bool, g: bool, b: bool) -> Result<()>;
-    fn servo(&self, degree: f64) -> Result<()>;
-    fn buzzer(&self, pw: f64) -> Result<()>;
-    fn track_sensor(&self) -> Result<[bool; 4]>;
-    fn ultra_sensor(&self) -> Result<f64>;
-
-    fn led_color(&self, color: LedColor) -> Result<()> {
-        let (r, g, b) = color.into();
-        self.led(r, g, b)
-    }
-
-    fn stop(&self) -> Result<()> {
-        self.drive(0., 0.)?;
-        Ok(())
-    }
-
-    fn cleanup(&self) -> Result<()> {
-        self.drive(0., 0.)?;
-        self.led(false, false, false)?;
-        self.servo(0.)?;
-        self.buzzer(100.0)?;
-
-        Ok(())
     }
 }

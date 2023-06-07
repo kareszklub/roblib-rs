@@ -26,11 +26,11 @@ impl DerefMut for RobotPin {
     }
 }
 
-pub struct Robot {
+pub struct GpioBackend {
     pins: Mutex<HashMap<u8, RobotPin>>,
 }
 
-impl Robot {
+impl GpioBackend {
     pub fn new() -> Result<Self> {
         // initalize everything, error on startup if something goes wrong
         drop(std::hint::black_box(gpio::Gpio::new()?));
@@ -76,7 +76,7 @@ impl Robot {
     }
 }
 
-impl Gpio for Robot {
+impl super::Gpio for GpioBackend {
     fn set_pin(&self, pin: u8, value: bool) -> Result<()> {
         self.use_pin(pin, Mode::Output, |p| {
             if value {
@@ -109,11 +109,4 @@ impl Gpio for Robot {
     fn read_pin(&self, pin: u8) -> Result<bool> {
         self.use_pin(pin, Mode::Input, |p| Ok(p.is_high()))
     }
-}
-
-pub trait Gpio {
-    fn read_pin(&self, pin: u8) -> Result<bool>;
-    fn set_pin(&self, pin: u8, value: bool) -> Result<()>;
-    fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()>;
-    fn servo(&self, pin: u8, degree: f64) -> Result<()>;
 }

@@ -1,17 +1,20 @@
 use actix::prelude::*;
 use actix::{Actor, ActorContext, AsyncContext, Handler, StreamHandler};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use roblib::{cmd::Cmd, Robot};
+use roblib::cmd::Cmd;
 use std::{
     str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
 
+use crate::cmd::execute_command;
+use crate::Robot;
+
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub struct WebSocket {
+pub(crate) struct WebSocket {
     last_heartbeat: Instant,
     roland: Arc<Robot>,
 }
@@ -61,9 +64,11 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
                 let robot_pointer = self.roland.clone();
 
                 let recipient = ctx.address().recipient();
-                async move { recipient.do_send(CmdResult(cmd.exec(&robot_pointer).await)) }
-                    .into_actor(self)
-                    .spawn(ctx);
+                async move {
+                    recipient.do_send(CmdResult(execute_command(&cmd, &robot_pointer).await))
+                }
+                .into_actor(self)
+                .spawn(ctx);
             }
 
             Message::Ping(msg) => {
