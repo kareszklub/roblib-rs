@@ -1,27 +1,39 @@
-use roblib_client::{http::Robot, Result};
-use std::io::Write;
+use roblib_client::{http::RobotHTTP, RemoteRobotTransport, Result};
+use std::io::{stdin, stdout, Write};
 
-#[roblib_client::main]
-async fn main() -> Result<()> {
-    let ip = std::env::args()
+fn main() -> Result<()> {
+    let addr = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
-    let robot = Robot::new(&format!("http://{ip}"));
 
+    let robot = RobotHTTP::create(&format!("http://{addr}"))?;
+
+    let mut inp = String::new();
     loop {
-        let mut inp = String::new();
         print!("> ");
-        std::io::stdout().flush().unwrap();
-        std::io::stdin().read_line(&mut inp).unwrap();
+        stdout().flush()?;
+
+        inp.clear();
+        stdin().read_line(&mut inp)?;
         let inp = inp.trim();
-        if inp.is_empty() {
-            continue;
+
+        let res = match inp {
+            "" => continue,
+            "exit" => break,
+            _ => {
+                let Ok(cmd) = inp.parse() else {
+                    println!("Couldn't parse command");
+                    continue;
+                };
+                robot.cmd(cmd)?
+            }
+        };
+
+        if let Some(res) = res {
+            println!("< {res}");
+        } else {
+            println!("<>");
         }
-        if inp == "exit" {
-            break;
-        }
-        let res = robot.send(inp.into()).await?;
-        println!("< {res}");
     }
 
     Ok(())

@@ -1,22 +1,26 @@
-use roblib_client::{cmd::Cmd, http::Robot, logger::init_log, sleep, Result};
-use std::time::Duration;
+use roblib::roland::Roland;
+use roblib_client::{http::RobotHTTP, logger::init_log, RemoteRobotTransport, Result, Robot};
+use std::{thread::sleep, time::Duration};
 
-#[roblib_client::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     init_log(Some("roblib_client=debug"));
 
-    let robot = Robot::new("http://localhost:1111");
+    let robot = Robot::new(RobotHTTP::create("http://localhost:1111")?);
 
-    robot.cmd(Cmd::Led(true, false, false)).await?;
+    println!("Leds");
+    robot.led(true, false, false)?;
 
-    robot.cmd(Cmd::MoveRobot(40, 40)).await?;
+    println!("Drive");
+    robot.drive(40., 40.)?;
 
-    sleep(Duration::from_secs(2)).await;
+    println!("Waiting...");
+    sleep(Duration::from_secs(2));
 
-    robot.cmd(Cmd::StopRobot).await?;
+    println!("Stopping...");
+    robot.stop()?;
 
-    let data = robot.get_sensor_data().await?;
-    println!("{:?}", data);
+    println!("Latency");
+    println!("{:?}", robot.transport.measure_latency()?);
 
     Ok(())
 }

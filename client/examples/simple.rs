@@ -1,26 +1,43 @@
-use roblib_client::{cmd::Cmd, sleep, ws::Robot, Result};
-use std::time::Duration;
+use roblib::roland::{LedColor, Roland};
+use roblib_client::{ws::RobotWS, Result, Robot};
+use std::{thread::sleep, time::Duration};
 
-#[roblib_client::main]
-async fn main() -> Result<()> {
-    let mut robot = Robot::connect("ws://localhost:1111/ws").await?;
+fn main() -> Result<()> {
+    let robot = Robot::new(RobotWS::create("ws://localhost:1111/ws")?);
 
-    robot.cmd(Cmd::Led(true, false, false)).await?;
+    println!("Leds");
+    robot.led_color(LedColor::Magenta)?;
 
-    robot.cmd(Cmd::MoveRobot(40, 40)).await?;
+    println!("Drive");
+    robot.drive(40., 40.)?;
 
-    sleep(Duration::from_secs(2)).await;
+    println!("Waiting...");
+    sleep(Duration::from_secs(2));
 
-    robot.cmd(Cmd::StopRobot).await?;
+    println!("Stopping");
+    robot.stop()?;
 
-    let data = robot.get_track_sensor_data().await?;
-    println!("{data:?}");
+    println!("Drive");
+    robot.drive(40., 40.)?;
 
-    let pos = robot.get_position().await?;
-    if let Some(pos) = pos {
-        println!("{pos}");
-    } else {
-        println!("Couldn't get position")
+    println!("Waiting...");
+    sleep(Duration::from_secs(2));
+
+    println!("Stopping");
+    robot.stop()?;
+
+    print!("Track sensor:");
+    let data = robot.track_sensor()?;
+    println!("    {data:?}");
+
+    #[cfg(feature = "camloc")]
+    {
+        println!("Position");
+        if let Some(pos) = robot.get_position()? {
+            println!("{pos}");
+        } else {
+            println!("Couldn't get position")
+        }
     }
 
     Ok(())

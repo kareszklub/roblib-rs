@@ -1,14 +1,25 @@
-#[macro_use]
 extern crate log;
+
+use std::time::Duration;
 
 pub mod cmd;
 
-#[cfg(all(unix, feature = "gpio"))]
+#[cfg(feature = "camloc")]
+pub mod camloc {
+    pub mod server {
+        pub use camloc_server::*;
+    }
+    pub use camloc_server::{service::Subscriber, MotionHint, Mutex, Position, MAIN_PORT};
+}
+
+#[cfg(feature = "gpio")]
 pub mod gpio;
 
-#[cfg(all(not(unix), feature = "gpio"))]
-pub mod gpio {
-    pub fn try_init() -> anyhow::Result<()> {
-        Err(anyhow::anyhow!("unsupported platform"))
-    }
+#[cfg(feature = "roland")]
+pub mod roland;
+
+#[cfg(feature = "gpio-backend")]
+pub(crate) fn get_servo_pwm_durations(degree: f64) -> (Duration, Duration) {
+    let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;
+    (Duration::from_millis(20), Duration::from_micros(degree)) // 50Hz
 }

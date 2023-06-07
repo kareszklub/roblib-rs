@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate log;
 
+mod cmd;
 mod logger;
 mod ws;
 
+use crate::cmd::execute_command;
 use actix_web::{
     get,
     middleware::DefaultHeaders,
@@ -12,23 +14,25 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws::start as ws_start;
-use roblib::{cmd::Cmd, gpio::Roland};
-use std::sync::Arc;
+use anyhow::{anyhow, Result};
+use roblib::cmd::Cmd;
+use std::{str::FromStr, sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
 
+pub(crate) struct Robot {
+    pub startup_time: Instant,
+
+    #[cfg(feature = "gpio")]
+    pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
+    #[cfg(feature = "roland")]
+    pub roland: Option<roblib::roland::backend::RolandBackend>,
+    #[cfg(feature = "camloc")]
+    pub camloc_service: Option<roblib::camloc::server::service::LocationServiceHandle>,
+}
+
 struct AppState {
-    roland: Arc<Option<Roland>>,
-}
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world")
-}
-
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
+    robot: Arc<Robot>,
 }
 
 /// websocket endpoint
@@ -39,59 +43,120 @@ async fn ws_index(
     stream: Payload,
     state: Data<AppState>,
 ) -> Result<HttpResponse, Error> {
-    ws_start(
-        ws::WebSocket::new(state.roland.clone()),
-        &req,
-        stream,
-    )
+    ws_start(ws::WebSocket::new(state.robot.clone()), &req, stream)
 }
 
-/// http endpoint intended for one-time commands
-/// for anything more complicated, use websockets
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().body(Cmd::exec_str(
-        &body,
-        state.roland.as_ref().as_ref(),
-    ))
+    match Cmd::from_str(&body) {
+        Ok(cmd) => match execute_command(&cmd, &state.robot).await {
+            Ok(s) => match s {
+                Some(s) => HttpResponse::Ok().body(s),
+                None => HttpResponse::Ok().into(),
+            },
+            Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        },
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=info,roblib=debug"));
 
     let port: u16 = match std::env::args().nth(1) {
-        Some(s) => s.parse().expect("port must be a valid number"),
+        Some(s) => s
+            .parse()
+            .map_err(|_| anyhow!("port must be a valid number"))?,
         None => DEFAULT_PORT,
     };
 
-    info!("Starting server on port {}", &port);
-    info!(
-        "Server edition: {}",
-        if cfg!(feature = "roland") {
-            "Roland"
-        } else {
-            "Generic pin commands only"
-        }
-    );
+    info!("Server starting up");
+    let features: Vec<&str> = vec![
+        #[cfg(feature = "roland")]
+        "roland",
+        #[cfg(feature = "gpio")]
+        "gpio",
+        #[cfg(feature = "camloc")]
+        "camloc",
+    ];
+    info!("Server features: {}", features.join(", "));
 
-    let roland = match Roland::try_init().await {
-        Ok(r) => {
-            info!("GPIO operational");
-            info!("Server launching in production mode");
-            Some(r)
-        }
+    #[cfg(feature = "camloc")]
+    let camloc_service = {
+        use roblib::camloc::server::{
+            extrapolations::{Extrapolation, LinearExtrapolation},
+            service::LocationService,
+        };
+        let serv = LocationService::start(
+            Some(Extrapolation::new::<LinearExtrapolation>(
+                std::time::Duration::from_millis(500),
+            )),
+            roblib::camloc::MAIN_PORT,
+            None,
+            std::time::Duration::from_millis(500),
+        )
+        .await;
 
-        Err(err) => {
-            info!("Failed to initialize GPIO: {}", err);
-            info!("Server launching in test mode");
-            None
+        match serv {
+            Ok(r) => {
+                info!("Camloc operational");
+                Some(r)
+            }
+
+            Err(err) => {
+                info!("Failed to initialize camloc: {err}");
+                None
+            }
         }
+    };
+
+    #[cfg(feature = "roland")]
+    let roland = {
+        match roblib::roland::backend::RolandBackend::try_init() {
+            Ok(r) => {
+                info!("Roland operational");
+                Some(r)
+            }
+
+            Err(err) => {
+                info!("Failed to initialize roland: {err}");
+                None
+            }
+        }
+    };
+
+    #[cfg(feature = "gpio")]
+    let raw_gpio = {
+        match roblib::gpio::backend::GpioBackend::new() {
+            Ok(r) => {
+                info!("GPIO operational");
+                Some(r)
+            }
+
+            Err(err) => {
+                info!("Failed to initialize GPIO: {err}");
+                None
+            }
+        }
+    };
+
+    let robot = Robot {
+        startup_time: Instant::now(),
+
+        #[cfg(feature = "camloc")]
+        camloc_service,
+        #[cfg(feature = "gpio")]
+        raw_gpio,
+        #[cfg(feature = "roland")]
+        roland,
     }
     .into();
 
-    let data = Data::new(AppState { roland });
-    HttpServer::new(move || {
+    let data = Data::new(AppState { robot });
+
+    info!("Webserver starting on port {}", &port);
+    Ok(HttpServer::new(move || {
         App::new()
             .wrap(
                 DefaultHeaders::new()
@@ -100,12 +165,10 @@ async fn main() -> std::io::Result<()> {
             )
             .wrap(logger::actix_log())
             .app_data(data.clone())
-            .service(hello)
-            .service(echo)
             .service(ws_index)
             .service(cmd_index)
     })
     .bind(("0.0.0.0", port))?
     .run()
-    .await
+    .await?)
 }

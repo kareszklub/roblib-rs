@@ -1,21 +1,14 @@
-#[cfg(all(unix, feature = "gpio"))]
-use crate::gpio::{self, roland::Roland};
 use anyhow::{anyhow, Result};
-use camloc_server::Position;
-use std::{
-    fmt::Display,
-    str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, PartialEq)]
 pub enum Cmd {
     /// m
     #[cfg(feature = "roland")]
-    MoveRobot(i8, i8),
+    MoveRobot(f64, f64),
     /// M
     #[cfg(feature = "roland")]
-    MoveRobotByAngle(f64, i8),
+    MoveRobotByAngle(f64, f64),
     /// s
     #[cfg(feature = "roland")]
     StopRobot,
@@ -24,213 +17,108 @@ pub enum Cmd {
     Led(bool, bool, bool),
     /// v
     #[cfg(feature = "roland")]
-    ServoAbsolute(i8),
+    ServoAbsolute(f64),
     /// b
     #[cfg(feature = "roland")]
     Buzzer(f64),
     /// t
     #[cfg(feature = "roland")]
     TrackSensor,
-
-    /// P
+    /// u
     #[cfg(feature = "roland")]
-    GetPosition,
+    UltraSensor,
 
+    /// r
+    #[cfg(feature = "gpio")]
+    ReadPin(u8),
     /// p
+    #[cfg(feature = "gpio")]
     SetPin(u8, bool),
     /// w
+    #[cfg(feature = "gpio")]
     SetPwm(u8, f64, f64),
     /// V
-    ServoBasic(u8, i8),
+    #[cfg(feature = "gpio")]
+    ServoBasic(u8, f64),
+
+    /// P
+    #[cfg(feature = "camloc")]
+    GetPosition,
+
+    /// n
+    Nop,
     /// z
-    GetTime,
-}
-
-impl Cmd {
-    #[allow(unused_variables)]
-    pub fn exec(&self, roland: Option<&Roland>) -> anyhow::Result<Option<String>> {
-        let res = match self {
-            #[cfg(feature = "roland")]
-            Cmd::MoveRobot(left, right) => {
-                debug!("Moving robot: {left}:{right}");
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(r) = roland {
-                    r.drive(*left, *right)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::MoveRobotByAngle(angle, speed) => {
-                debug!("Moving robot by angle: {}:{}", angle, speed);
-
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(r) = roland {
-                    r.drive_by_angle(*angle, *speed)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::StopRobot => {
-                debug!("Stopping robot");
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(r) = roland {
-                    r.drive(0, 0)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::Led(r, g, b) => {
-                debug!("LED: {r}:{g}:{b}");
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(roland) = roland {
-                    roland.led(*r, *g, *b)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::ServoAbsolute(deg) => {
-                debug!("Servo absolute: {deg}");
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(r) = roland {
-                    r.servo(*deg)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::Buzzer(pw) => {
-                debug!("Buzzer: {pw}");
-                #[cfg(all(unix, feature = "gpio"))]
-                if let Some(r) = roland {
-                    r.buzzer(*pw)?
-                };
-                None
-            }
-            #[cfg(feature = "roland")]
-            Cmd::TrackSensor => {
-                debug!("Track sensor");
-                #[cfg(all(unix, feature = "gpio"))]
-                let res = if let Some(r) = roland {
-                    r.track_sensor()?
-                } else {
-                    [false, false, false, false]
-                };
-                #[cfg(not(all(unix, feature = "gpio")))]
-                let res = [false, false, false, false];
-                Some(format!("{},{},{},{}", res[0], res[1], res[2], res[3]))
-            }
-
-            #[cfg(feature = "roland")]
-            Cmd::GetPosition => {
-                debug!("Get position");
-                #[cfg(all(unix, feature = "gpio"))]
-                let res = if let Some(r) = roland {
-                    r.get_position()
-                } else {
-                    None
-                };
-
-                #[cfg(not(all(unix, feature = "gpio")))]
-                let res = None;
-
-                Some(if let Some(pos) = res {
-                    format!(
-                        "{},{},{}",
-                        pos.position.x, pos.position.y, pos.position.rotation
-                    )
-                } else {
-                    String::new()
-                })
-            }
-
-            Cmd::SetPin(pin, value) => {
-                debug!("Set pin: {pin}:{value}");
-                #[cfg(all(unix, feature = "gpio"))]
-                gpio::set(*pin, *value)?;
-                None
-            }
-            Cmd::SetPwm(pin, hz, cycle) => {
-                debug!("Set pwm: {pin}:{hz}:{cycle}");
-                #[cfg(all(unix, feature = "gpio"))]
-                gpio::pwm(*pin, *hz, *cycle)?;
-                None
-            }
-            Cmd::ServoBasic(pin, deg) => {
-                debug!("Servo basic: {deg}");
-                #[cfg(all(unix, feature = "gpio"))]
-                gpio::servo(*pin, *deg)?;
-                None
-            }
-            Cmd::GetTime => Some(format!("{:.3}", get_time()?)),
-        };
-        Ok(res)
-    }
-
-    pub fn exec_str(s: &str, roland: Option<&Roland>) -> String {
-        match Cmd::from_str(s).and_then(|c| c.exec(roland)) {
-            Ok(r) => r.unwrap_or_else(|| "OK".into()),
-            Err(e) => e.to_string(),
-        }
-        // Cmd::from_str(s)?.exec()
-    }
+    GetUptime,
 }
 
 impl Display for Cmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             #[cfg(feature = "roland")]
-            Cmd::MoveRobot(left, right) => write!(f, "m {} {}", left, right),
+            Cmd::MoveRobot(left, right) => write!(f, "m {left} {right}"),
+
             #[cfg(feature = "roland")]
-            Cmd::MoveRobotByAngle(angle, speed) => write!(f, "M {} {} 0", angle, speed),
+            Cmd::MoveRobotByAngle(angle, speed) => write!(f, "M {angle} {speed}"),
+
             #[cfg(feature = "roland")]
             Cmd::StopRobot => write!(f, "s"),
+
             #[cfg(feature = "roland")]
             Cmd::Led(r, g, b) => write!(f, "l {} {} {}", *r as u8, *g as u8, *b as u8),
+
             #[cfg(feature = "roland")]
-            Cmd::ServoAbsolute(deg) => write!(f, "v {}", deg),
+            Cmd::ServoAbsolute(deg) => write!(f, "v {deg}"),
+
             #[cfg(feature = "roland")]
-            Cmd::Buzzer(pw) => write!(f, "b {}", pw),
+            Cmd::Buzzer(pw) => write!(f, "b {pw}"),
+
             #[cfg(feature = "roland")]
             Cmd::TrackSensor => write!(f, "t"),
+
             #[cfg(feature = "roland")]
+            Cmd::UltraSensor => write!(f, "u"),
+
+            #[cfg(feature = "gpio")]
+            Cmd::ReadPin(pin) => write!(f, "r {pin}"),
+
+            #[cfg(feature = "gpio")]
+            Cmd::SetPin(pin, value) => write!(f, "p {} {}", pin, *value as u8),
+
+            #[cfg(feature = "gpio")]
+            Cmd::SetPwm(pin, hz, cycle) => write!(f, "w {pin} {hz} {cycle}"),
+
+            #[cfg(feature = "gpio")]
+            Cmd::ServoBasic(pin, deg) => write!(f, "V {pin} {deg}"),
+
+            #[cfg(feature = "camloc")]
             Cmd::GetPosition => write!(f, "P"),
 
-            Cmd::SetPin(pin, value) => write!(f, "p {} {}", pin, *value as u8),
-            Cmd::SetPwm(pin, hz, cycle) => write!(f, "w {} {} {}", pin, hz, cycle),
-            Cmd::ServoBasic(pin, deg) => write!(f, "V {} {}", pin, deg),
-            Cmd::GetTime => write!(f, "z"),
+            Cmd::Nop => write!(f, "n"),
+
+            Cmd::GetUptime => write!(f, "z"),
         }
     }
 }
 
-macro_rules! parse {
-    ($args:ident $l:literal) => {{
-        if $args.len() != $l {
-            Err(anyhow!(
-                "invalid number of arguments: expected {} got {}",
-                $l,
-                $args.len()
-            ))?
-        }
-
-        $args
-            .iter()
-            .map(|s| s.parse())
-            .collect::<Result<Vec<_>, _>>()?
-    }};
+fn assert_args_len<const N: usize, T>(slice: &[T]) -> Result<()> {
+    let len = slice.len();
+    if len == N {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "invalid number of arguments: expected {N} got {len}"
+        ))?
+    }
 }
-macro_rules! parse_bool {
-    ($b:expr) => {
-        if $b == 1 {
-            true
-        } else if $b == 0 {
-            false
-        } else {
-            Err(anyhow!(
-                "invalid arg: {}, can be 1 for high or 0 for low",
-                $b
-            ))?
-        }
-    };
+fn parse_args<const N: usize, T: FromStr + std::fmt::Debug>(args: &[&str]) -> Result<[T; N]> {
+    assert_args_len::<N, &str>(args)?;
+    Ok(args
+        .iter()
+        .map(|s| s.parse())
+        .collect::<std::result::Result<Vec<T>, _>>()
+        .map_err(|_| anyhow!("Couldn't parse one of the arguments"))?
+        .try_into()
+        .unwrap())
 }
 
 impl FromStr for Cmd {
@@ -238,170 +126,114 @@ impl FromStr for Cmd {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split_whitespace().peekable();
-
         let c = iter.next().ok_or_else(|| anyhow!("missing command"))?;
-        let args = iter.collect::<Vec<_>>();
+
+        #[allow(unused)]
+        let args: Vec<&str> = iter.collect();
 
         let res = match c {
             #[cfg(feature = "roland")]
             "m" => {
-                let x = parse!(args 2);
+                let x: [f64; 2] = parse_args(&args)?;
                 Cmd::MoveRobot(x[0], x[1])
             }
+
+            #[cfg(feature = "roland")]
             "M" => {
-                if args.len() < 3 {
-                    Err(anyhow!("Didn't provide angle, speed",))?
-                }
-
-                let angle = args[0].parse::<f64>()?;
-                let speed = args[1].parse::<i8>()?;
-
-                Cmd::MoveRobotByAngle(angle, speed)
+                let x: [f64; 2] = parse_args(&args)?;
+                Cmd::MoveRobotByAngle(x[0], x[1])
             }
+
             #[cfg(feature = "roland")]
             "s" => Cmd::StopRobot,
+
             #[cfg(feature = "roland")]
             "l" => {
-                let x: Vec<u8> = parse!(args 3);
-                Cmd::Led(parse_bool!(x[0]), parse_bool!(x[1]), parse_bool!(x[2]))
+                let x: [u8; 3] = parse_args(&args)?;
+                let x = x.map(|b| b != 0);
+                Cmd::Led(x[0], x[1], x[2])
             }
+
             #[cfg(feature = "roland")]
-            "v" => {
-                let x = parse!(args 1);
-                Cmd::ServoAbsolute(x[0])
-            }
+            "v" => Cmd::ServoAbsolute(parse_args::<1, f64>(&args)?[0]),
+
             #[cfg(feature = "roland")]
             "t" => Cmd::TrackSensor,
+
             #[cfg(feature = "roland")]
-            "b" => {
-                let x = parse!(args 1);
-                Cmd::Buzzer(x[0])
+            "b" => Cmd::Buzzer(parse_args::<1, f64>(&args)?[0]),
+
+            #[cfg(feature = "roland")]
+            "u" => Cmd::UltraSensor,
+
+            #[cfg(feature = "gpio")]
+            "r" => Cmd::ReadPin(parse_args::<1, u8>(&args)?[0]),
+
+            #[cfg(feature = "gpio")]
+            "p" => {
+                let x: [u8; 2] = parse_args(&args)?;
+                Cmd::SetPin(x[0], x[1] != 0)
             }
-            #[cfg(feature = "roland")]
+
+            #[cfg(feature = "gpio")]
+            "w" => {
+                assert_args_len::<3, &str>(&args)?;
+                let x1: [u8; 1] = parse_args(&args[..1])?;
+                let x2: [f64; 2] = parse_args(&args[1..])?;
+                Cmd::SetPwm(x1[0], x2[0], x2[1])
+            }
+
+            #[cfg(feature = "gpio")]
+            "V" => {
+                assert_args_len::<2, &str>(&args)?;
+                let x1: [u8; 1] = parse_args(&args[..1])?;
+                let x2: [f64; 1] = parse_args(&args[1..])?;
+                Cmd::ServoBasic(x1[0], x2[0])
+            }
+
+            #[cfg(feature = "camloc")]
             "P" => Cmd::GetPosition,
 
-            "p" => {
-                let x = parse!(args 2);
-                Cmd::SetPin(x[0], parse_bool!(x[1]))
-            }
-            "w" => {
-                let x = parse!(args 3);
-                Cmd::SetPwm(x[0] as u8, x[1], x[2])
-            }
-            "V" => {
-                let x: Vec<i16> = parse!(args 2);
-                Cmd::ServoBasic(x[0] as u8, x[1] as i8)
-            }
-            "z" => Cmd::GetTime,
+            "n" => Cmd::Nop,
+
+            "z" => Cmd::GetUptime,
 
             _ => Err(anyhow!("invalid command"))?,
         };
+
         Ok(res)
     }
 }
 
-pub type SensorData = [bool; 4];
-// parse incoming data for the client
-pub fn parse_track_sensor_data(s: &str) -> Result<SensorData> {
-    let v = s
-        .split(',')
-        .map(|s| {
-            if s == "1" {
-                Ok(true)
-            } else if s == "0" {
-                Ok(false)
-            } else {
-                Err(anyhow!("invalid number"))
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let len = v.len();
-    match v.try_into() {
-        Ok(d) => Ok(d),
-        Err(_) => Err(anyhow!("Expected a Vec of length {} but it was {len}", 4))?,
-    }
+#[cfg(feature = "roland")]
+pub fn parse_track_sensor_data(s: &str) -> Result<[bool; 4]> {
+    let args: Vec<&str> = s.split(',').collect();
+    let args: [u8; 4] = parse_args(&args)?;
+    Ok(args.map(|byte| byte != 0))
 }
 
-pub fn parse_position_data(s: &str) -> Result<Option<Position>> {
+#[cfg(feature = "camloc")]
+pub fn parse_position_data(s: &str) -> Result<Option<camloc_server::Position>> {
     if s.is_empty() {
         return Ok(None);
     }
-
-    let v: Result<Vec<f64>, _> = s.split(',').map(|s| s.parse::<f64>()).collect();
-    match v {
-        Ok(vec) if vec.len() == 3 => Ok(Some(Position::new(vec[0], vec[1], vec[2]))),
-        _ => Err(anyhow!("Expected three floats")),
-    }
+    let args: Vec<&str> = s.split(',').collect();
+    let args: [f64; 3] = parse_args(&args)?;
+    Ok(Some(camloc_server::Position::new(
+        args[0], args[1], args[2],
+    )))
 }
 
-pub fn get_time() -> Result<f64> {
-    Ok(SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_micros() as f64 / 1000.0)?)
+#[cfg(feature = "roland")]
+pub fn parse_ultra_sensor_data(s: &str) -> Result<f64> {
+    s.parse().map_err(|_| anyhow!("expected a float"))
 }
 
-mod tests {
-    #![allow(unused_imports)]
-    use std::str::FromStr;
-
-    #[test]
-    fn parse_sensor_data() {
-        let s = "1,0,1,0";
-        let res = super::parse_track_sensor_data(s);
-        assert_eq!(res.unwrap(), [true, false, true, false]);
-    }
-
-    #[test]
-    fn parse_sensor_data_err() {
-        for s in ["", " ", "1,1,1", "0,0,0,", "1,h,0,1", "1,0,1,1,1"] {
-            let res = super::parse_track_sensor_data(s);
-            dbg!(&res);
-            assert!(res.is_err());
-        }
-    }
-
-    #[test]
-    fn get_time() -> anyhow::Result<()> {
-        let t = super::get_time()?;
-        assert!(t > 0.0);
-        Ok(())
-    }
-
-    #[test]
-    fn cmd_from_str() {
-        let s = "p 1 0";
-        let res = super::Cmd::from_str(s);
-        assert!(res.is_ok());
-        let cmd = res.unwrap();
-        assert_eq!(cmd, super::Cmd::SetPin(1, false));
-    }
-
-    #[test]
-    fn cmd_from_str_err() {
-        let s = "m 1";
-        let res = super::Cmd::from_str(s);
-        assert!(res.is_err());
-
-        assert!(super::Cmd::from_str("").is_err());
-        assert!(super::Cmd::from_str(" ").is_err());
-        assert!(super::Cmd::from_str("p 1 2").is_err());
-    }
-
-    #[test]
-    fn cmd_to_string() {
-        let cmd = super::Cmd::SetPwm(1, 6.9, 4.20);
-        assert_eq!(cmd.to_string(), "w 1 6.9 4.2");
-    }
-
-    #[test]
-    fn str_to_str() {
-        assert_eq!(super::Cmd::from_str("m 1 2").unwrap().to_string(), "m 1 2");
-    }
-
-    #[test]
-    fn cmd_to_cmd() {
-        let cmd = super::Cmd::SetPwm(1, 6.9, 4.20);
-        let cmd2 = super::Cmd::from_str(cmd.to_string().as_str()).unwrap();
-        assert_eq!(cmd, cmd2);
+#[cfg(feature = "gpio")]
+pub fn parse_pin_data(s: &str) -> Result<bool> {
+    match s {
+        "0" => Ok(false),
+        "1" => Ok(true),
+        _ => Err(anyhow!("expected 0 or 1")),
     }
 }
