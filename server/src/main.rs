@@ -23,9 +23,9 @@ const DEFAULT_PORT: u16 = 1111;
 pub(crate) struct Robot {
     pub startup_time: Instant,
 
-    #[cfg(feature = "gpio")]
+    #[cfg(all(feature = "gpio", feature = "backend"))]
     pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
-    #[cfg(feature = "roland")]
+    #[cfg(all(feature = "roland", feature = "backend"))]
     pub roland: Option<roblib::roland::backend::RolandBackend>,
     #[cfg(feature = "camloc")]
     pub camloc_service: Option<roblib::camloc::server::service::LocationServiceHandle>,
@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    #[cfg(feature = "roland")]
+    #[cfg(all(feature = "roland", feature = "backend"))]
     let roland = {
         match roblib::roland::backend::RolandBackend::try_init() {
             Ok(r) => {
@@ -126,7 +126,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    #[cfg(feature = "gpio")]
+    #[cfg(all(feature = "gpio", feature = "backend"))]
     let raw_gpio = {
         match roblib::gpio::backend::GpioBackend::new() {
             Ok(r) => {
@@ -146,9 +146,11 @@ async fn main() -> Result<()> {
 
         #[cfg(feature = "camloc")]
         camloc_service,
-        #[cfg(feature = "gpio")]
+
+        #[cfg(all(feature = "gpio", feature = "backend"))]
         raw_gpio,
-        #[cfg(feature = "roland")]
+
+        #[cfg(all(feature = "roland", feature = "backend"))]
         roland,
     }
     .into();

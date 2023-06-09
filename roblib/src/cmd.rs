@@ -100,6 +100,7 @@ impl Display for Cmd {
     }
 }
 
+#[allow(unused)]
 fn assert_args_len<const N: usize, T>(slice: &[T]) -> Result<()> {
     let len = slice.len();
     if len == N {
@@ -110,6 +111,7 @@ fn assert_args_len<const N: usize, T>(slice: &[T]) -> Result<()> {
         ))?
     }
 }
+#[allow(unused)]
 fn parse_args<const N: usize, T: FromStr + std::fmt::Debug>(args: &[&str]) -> Result<[T; N]> {
     assert_args_len::<N, &str>(args)?;
     Ok(args
