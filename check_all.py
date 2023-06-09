@@ -1,6 +1,7 @@
 #!/bin/env python3
 
 import itertools
+import argparse
 import sys
 import os
 
@@ -11,31 +12,27 @@ def flatten(l):
 	]
 
 def main():
-	sys.argv.pop(0)
-	do_it = len(sys.argv) > 0 and sys.argv[0] == '--do'
+	p = argparse.ArgumentParser(description='Test all combinations of flags', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-	if do_it:
-		sys.argv.pop(0)
-	else:
-		print("--do not provided, running dry")
+	p.add_argument('-d', '--do', action='store_true', help='actually run cargo check')
+	p.add_argument('-v', '--verbose', action='store_true', help='increase verbosity')
+	p.add_argument('-e', '--examples', action='store_true', help='run for examples')
+	p.add_argument('crate', choices=['roblib', 'roblib-server', 'roblib-client'], help='The crate to test')
+	p.add_argument('features', nargs='+', help='The features to test')
 
-	default_features = len(sys.argv) == 0
+	config = p.parse_args()
 
-	features = ['roland', 'gpio', 'camloc'] if default_features else sys.argv
-
-	feature_combinations = [
-		itertools.combinations(features, i + 1)
-			for i in range(len(features))
-	]
-
-	feature_combinations = flatten(feature_combinations)
-	
-	if default_features:
-		feature_combinations.insert(0, ('bare',))
+	feature_combinations = flatten([
+		itertools.combinations(config.features, i + 1)
+			for i in range(len(config.features))
+	])
 
 	for f in feature_combinations:
-		cmd = f'cargo clippy --features "{" ".join(f)}" --examples'
-		if do_it:
+		cmd = f"cargo clippy -p {config.crate} --features '{' '.join(f)}'"
+		if config.examples:
+			cmd += ' --examples'
+
+		if config.do:
 			print(f'\n\n{cmd}:')
 			if os.system(cmd) != 0:
 				exit(1)

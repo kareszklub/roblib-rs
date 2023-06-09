@@ -1,7 +1,5 @@
 extern crate log;
 
-use std::time::Duration;
-
 pub mod cmd;
 
 #[cfg(feature = "camloc")]
@@ -18,8 +16,11 @@ pub mod gpio;
 #[cfg(feature = "roland")]
 pub mod roland;
 
-#[cfg(feature = "gpio-backend")]
-pub(crate) fn get_servo_pwm_durations(degree: f64) -> (Duration, Duration) {
+#[allow(unused)]
+pub(crate) fn get_servo_pwm_durations(degree: f64) -> (std::time::Duration, std::time::Duration) {
     let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;
-    (Duration::from_millis(20), Duration::from_micros(degree)) // 50Hz
+    (
+        std::time::Duration::from_millis(20),
+        std::time::Duration::from_micros(degree),
+    ) // 50Hz
 }

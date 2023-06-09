@@ -15,12 +15,14 @@ anyhow = "1.0.59"
 futures-util = "0.3"
 
 [features]
-default = ["roland"]
+default = []
 
 all = ["roland", "gpio", "camloc"]
 
 bare = []
 
-roland = ["roblib/roland", "roblib/gpio-backend"]
-gpio = ["roblib/gpio", "roblib/gpio-backend"]
+backend = ["roblib/gpio-backend"]
+
+roland = ["roblib/roland"]
+gpio = ["roblib/gpio"]
 camloc = ["roblib/camloc"]
