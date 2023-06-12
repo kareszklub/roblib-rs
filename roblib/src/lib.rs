@@ -16,7 +16,7 @@ pub mod gpio;
 #[cfg(feature = "roland")]
 pub mod roland;
 
-#[cfg(feature = "gpio-backend")]
+#[allow(unused)]
 pub(crate) fn get_servo_pwm_durations(degree: f64) -> (std::time::Duration, std::time::Duration) {
     let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;
     (
