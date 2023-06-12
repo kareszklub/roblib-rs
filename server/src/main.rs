@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+mod camloc;
+
 mod cmd;
 mod logger;
 mod ws;
@@ -23,12 +25,12 @@ const DEFAULT_PORT: u16 = 1111;
 pub(crate) struct Robot {
     pub startup_time: Instant,
 
-    #[cfg(all(feature = "gpio", feature = "backend"))]
+    #[cfg(feature = "gpio")]
     pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
-    #[cfg(all(feature = "roland", feature = "backend"))]
+    #[cfg(feature = "roland")]
     pub roland: Option<roblib::roland::backend::RolandBackend>,
     #[cfg(feature = "camloc")]
-    pub camloc_service: Option<roblib::camloc::server::service::LocationServiceHandle>,
+    pub camloc: Option<camloc::Camloc>,
 }
 
 struct AppState {
@@ -80,18 +82,14 @@ async fn main() -> Result<()> {
         #[cfg(feature = "camloc")]
         "camloc",
     ];
-    info!("Server features: {}", features.join(", "));
+    info!("Compiled with features: {}", features.join(", "));
 
     #[cfg(feature = "camloc")]
-    let camloc_service = {
-        use roblib::camloc::server::{
-            extrapolations::{Extrapolation, LinearExtrapolation},
-            service::LocationService,
-        };
-        let serv = LocationService::start(
-            Some(Extrapolation::new::<LinearExtrapolation>(
-                std::time::Duration::from_millis(500),
-            )),
+    let camloc = {
+        use roblib::camloc::server::{extrapolations::LinearExtrapolation, service};
+
+        let serv = service::start(
+            Some(LinearExtrapolation::new()),
             roblib::camloc::MAIN_PORT,
             None,
             std::time::Duration::from_millis(500),
@@ -99,9 +97,9 @@ async fn main() -> Result<()> {
         .await;
 
         match serv {
-            Ok(r) => {
+            Ok(s) => {
                 info!("Camloc operational");
-                Some(r)
+                Some(camloc::Camloc::new(s))
             }
 
             Err(err) => {
@@ -145,12 +143,12 @@ async fn main() -> Result<()> {
         startup_time: Instant::now(),
 
         #[cfg(feature = "camloc")]
-        camloc_service,
+        camloc,
 
-        #[cfg(all(feature = "gpio", feature = "backend"))]
+        #[cfg(feature = "gpio")]
         raw_gpio,
 
-        #[cfg(all(feature = "roland", feature = "backend"))]
+        #[cfg(feature = "roland")]
         roland,
     }
     .into();
