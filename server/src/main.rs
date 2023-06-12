@@ -27,9 +27,11 @@ pub(crate) struct Robot {
 
     #[cfg(feature = "gpio")]
     pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
-    #[cfg(feature = "roland")]
+
+    #[cfg(all(feature = "roland", feature = "backend"))]
     pub roland: Option<roblib::roland::backend::RolandBackend>,
-    #[cfg(feature = "camloc")]
+
+    #[cfg(all(feature = "camloc", feature = "backend"))]
     pub camloc: Option<camloc::Camloc>,
 }
 
@@ -142,20 +144,20 @@ async fn main() -> Result<()> {
     let robot = Robot {
         startup_time: Instant::now(),
 
-        #[cfg(feature = "camloc")]
-        camloc,
+        #[cfg(all(feature = "roland", feature = "backend"))]
+        roland,
 
-        #[cfg(feature = "gpio")]
+        #[cfg(all(feature = "gpio", feature = "backend"))]
         raw_gpio,
 
-        #[cfg(feature = "roland")]
-        roland,
+        #[cfg(feature = "camloc")]
+        camloc,
     }
     .into();
 
-    let data = Data::new(AppState { robot });
+    info!("Webserver starting on port {port}");
 
-    info!("Webserver starting on port {}", &port);
+    let data = Data::new(AppState { robot });
     Ok(HttpServer::new(move || {
         App::new()
             .wrap(
