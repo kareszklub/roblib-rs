@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     println!("Stopping");
     robot.stop()?;
 
-    print!("Track sensor:");
+    println!("Track sensor:");
     let data = robot.track_sensor()?;
     println!("    {data:?}");
 

@@ -110,7 +110,7 @@ pub(crate) async fn execute_command(cmd: &Cmd, robot: &Robot) -> anyhow::Result<
             #[cfg(not(feature = "backend"))]
             let res = [false, false, false];
 
-            Some(format!("{},{},{},{}", res[0], res[1], res[2], res[3]))
+            Some(format!("{} {} {} {}", res[0], res[1], res[2], res[3]))
         }
 
         #[cfg(feature = "roland")]
@@ -140,7 +140,11 @@ pub(crate) async fn execute_command(cmd: &Cmd, robot: &Robot) -> anyhow::Result<
                 None
             };
 
-            Some(todo!())
+            Some(if let Some(p) = res {
+                format!("1 {} {} {}", p.x, p.y, p.rotation)
+            } else {
+                "0".to_string()
+            })
         }
 
         #[cfg(feature = "gpio")]
