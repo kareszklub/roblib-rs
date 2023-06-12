@@ -1,5 +1,3 @@
-use anyhow::Result;
-
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 
@@ -8,26 +6,27 @@ pub type DriveResult = Option<crate::camloc::MotionHint>;
 #[cfg(not(feature = "camloc"))]
 pub type DriveResult = ();
 
+#[cfg(feature = "gpio-backend")]
 pub trait Roland: Sized {
-    fn drive(&self, left: f64, right: f64) -> Result<DriveResult>;
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult>;
-    fn led(&self, r: bool, g: bool, b: bool) -> Result<()>;
-    fn servo(&self, degree: f64) -> Result<()>;
-    fn buzzer(&self, pw: f64) -> Result<()>;
-    fn track_sensor(&self) -> Result<[bool; 4]>;
-    fn ultra_sensor(&self) -> Result<f64>;
+    fn drive(&self, left: f64, right: f64) -> anyhow::Result<DriveResult>;
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<DriveResult>;
+    fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
+    fn servo(&self, degree: f64) -> anyhow::Result<()>;
+    fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
+    fn track_sensor(&self) -> anyhow::Result<[bool; 4]>;
+    fn ultra_sensor(&self) -> anyhow::Result<f64>;
 
-    fn led_color(&self, color: LedColor) -> Result<()> {
+    fn led_color(&self, color: LedColor) -> anyhow::Result<()> {
         let (r, g, b) = color.into();
         self.led(r, g, b)
     }
 
-    fn stop(&self) -> Result<()> {
+    fn stop(&self) -> anyhow::Result<()> {
         self.drive(0., 0.)?;
         Ok(())
     }
 
-    fn cleanup(&self) -> Result<()> {
+    fn cleanup(&self) -> anyhow::Result<()> {
         self.drive(0., 0.)?;
         self.led(false, false, false)?;
         self.servo(0.)?;

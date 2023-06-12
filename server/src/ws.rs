@@ -15,8 +15,8 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub(crate) struct WebSocket {
+    robot: Arc<Robot>,
     last_heartbeat: Instant,
-    roland: Arc<Robot>,
 }
 
 #[derive(Debug, Message)]
@@ -25,10 +25,11 @@ struct CmdResult(anyhow::Result<Option<String>>);
 
 impl Handler<CmdResult> for WebSocket {
     type Result = ();
+
     fn handle(&mut self, CmdResult(msg): CmdResult, ctx: &mut Self::Context) {
         match msg {
             Ok(Some(res)) => ctx.text(res),
-            Ok(None) => ctx.text(""),
+            Ok(None) => (),
             Err(e) => {
                 let e = e.to_string();
                 error!("{e}");
@@ -60,12 +61,17 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
         debug!("WS: {msg:?}");
         match msg {
             Message::Text(text) => {
-                let cmd = Cmd::from_str(&text).unwrap();
-                let robot_pointer = self.roland.clone();
+                let cmd = Cmd::from_str(&text);
+                let robot_pointer = self.robot.clone();
 
                 let recipient = ctx.address().recipient();
                 async move {
-                    recipient.do_send(CmdResult(execute_command(&cmd, &robot_pointer).await))
+                    let res = match cmd {
+                        Ok(cmd) => execute_command(&cmd, &robot_pointer).await,
+                        Err(e) => Err(e),
+                    };
+
+                    recipient.do_send(CmdResult(res))
                 }
                 .into_actor(self)
                 .spawn(ctx);
@@ -91,14 +97,13 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
 }
 
 impl WebSocket {
-    pub fn new(roland: Arc<Robot>) -> Self {
+    pub fn new(robot: Arc<Robot>) -> Self {
         Self {
             last_heartbeat: Instant::now(),
-            roland,
+            robot,
         }
     }
 
-    /// helper method that sends pings to the client.
     fn start_heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {

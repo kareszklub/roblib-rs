@@ -11,7 +11,10 @@ pub use anyhow::Result;
 use anyhow::anyhow;
 pub use roblib;
 
-use roblib::{cmd::Cmd, roland::DriveResult};
+use roblib::{
+    cmd::{Cmd, ARGUMENT_SEPARATOR},
+    roland::DriveResult,
+};
 
 pub trait RemoteRobotTransport {
     fn cmd(&self, cmd: Cmd) -> Result<Option<String>>;
@@ -51,8 +54,10 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
         }
 
         self.transport.cmd(Cmd::MoveRobot(left, right))?;
+
         #[cfg(feature = "camloc")]
         return Ok(None);
+
         #[cfg(not(feature = "camloc"))]
         return Ok(());
     }
@@ -63,8 +68,10 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
         }
 
         self.transport.cmd(Cmd::MoveRobotByAngle(angle, speed))?;
+
         #[cfg(feature = "camloc")]
         return Ok(None);
+
         #[cfg(not(feature = "camloc"))]
         return Ok(());
     }
@@ -88,14 +95,14 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
         let Some(d) = self.transport.cmd(Cmd::TrackSensor)? else {
             return Err(anyhow!("Didn't get any data back"))
         };
-        roblib::cmd::parse_track_sensor_data(&d)
+        Cmd::parse_TrackSensor_data_text(&mut d.split(ARGUMENT_SEPARATOR))
     }
 
     fn ultra_sensor(&self) -> Result<f64> {
         let Some(d) = self.transport.cmd(Cmd::UltraSensor)? else {
             return Err(anyhow!("Didn't get any data back"))
         };
-        roblib::cmd::parse_ultra_sensor_data(&d)
+        Cmd::parse_UltraSensor_data_text(&mut d.split(ARGUMENT_SEPARATOR))
     }
 
     fn stop(&self) -> Result<()> {
@@ -110,7 +117,7 @@ impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
         let Some(d) = self.transport.cmd(Cmd::ReadPin(pin))? else {
             return Err(anyhow!("Didn't get any data back"))
         };
-        roblib::cmd::parse_pin_data(&d)
+        Cmd::parse_ReadPin_data_text(&mut d.split(ARGUMENT_SEPARATOR))
     }
 
     fn set_pin(&self, pin: u8, value: bool) -> Result<()> {
@@ -135,6 +142,6 @@ impl<T: RemoteRobotTransport> Robot<T> {
         let Some(d) = self.transport.cmd(Cmd::GetPosition)? else {
             return Err(anyhow!("Didn't get any data back"))
         };
-        roblib::cmd::parse_position_data(&d)
+        Cmd::parse_GetPosition_data_text(&mut d.split(ARGUMENT_SEPARATOR))
     }
 }

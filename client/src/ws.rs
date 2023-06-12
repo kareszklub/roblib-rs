@@ -103,9 +103,14 @@ impl RobotWS {
         Ok((tx_t.into(), rx_r.into(), sender, receiver))
     }
 
-    async fn send(&self, cmd: &str) -> Result<Option<String>> {
+    async fn send(&self, cmd: &str, wait_for_response: bool) -> Result<Option<String>> {
         self.tx.lock().await.send(Message::Text(cmd.into())).await?;
-        Ok(self.rx.lock().await.next().await)
+
+        Ok(if wait_for_response {
+            self.rx.lock().await.next().await
+        } else {
+            None
+        })
     }
 
     pub async fn disconnect(&self) -> Result<()> {
@@ -126,7 +131,7 @@ impl RemoteRobotTransport for RobotWS {
             let s = cmd.to_string();
             info!("S: {s}");
 
-            let r = self.send(&s).await?;
+            let r = self.send(&s, cmd.has_return()).await?;
             if let Some(r) = &r {
                 info!("R: {r}");
             }

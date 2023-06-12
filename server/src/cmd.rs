@@ -20,9 +20,10 @@ pub(crate) async fn execute_command(cmd: &Cmd, robot: &Robot) -> anyhow::Result<
             if let Some(r) = &robot.roland {
                 #[allow(clippy::let_unit_value)]
                 let hint = r.drive(left, right)?;
+
                 #[cfg(feature = "camloc")]
-                if let Some(r) = &robot.camloc_service {
-                    r.set_motion_hint(hint).await;
+                if let Some(c) = &robot.camloc {
+                    c.service.set_motion_hint(hint).await;
                 }
             }
 
@@ -37,9 +38,10 @@ pub(crate) async fn execute_command(cmd: &Cmd, robot: &Robot) -> anyhow::Result<
             if let Some(r) = &robot.roland {
                 #[allow(clippy::let_unit_value)]
                 let hint = r.drive_by_angle(angle, speed)?;
+
                 #[cfg(feature = "camloc")]
-                if let Some(r) = &robot.camloc_service {
-                    r.set_motion_hint(hint).await;
+                if let Some(c) = &robot.camloc {
+                    c.service.set_motion_hint(hint).await;
                 }
             }
             None
@@ -132,17 +134,13 @@ pub(crate) async fn execute_command(cmd: &Cmd, robot: &Robot) -> anyhow::Result<
         Cmd::GetPosition => {
             debug!("Get position");
 
-            use roblib::camloc::Position;
-            let res = if let Some(r) = &robot.camloc_service {
-                r.get_position()
-                    .await
-                    .map(|tp| tp.position)
-                    .unwrap_or(Position::new(f64::NAN, f64::NAN, f64::NAN))
+            let res = if let Some(c) = &robot.camloc {
+                c.service.get_position().await.map(|tp| tp.position)
             } else {
-                Position::new(f64::NAN, f64::NAN, f64::NAN)
+                None
             };
 
-            Some(format!("{},{},{}", res.x, res.y, res.rotation))
+            Some(todo!())
         }
 
         #[cfg(feature = "gpio")]
