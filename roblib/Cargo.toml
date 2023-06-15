@@ -17,8 +17,6 @@ default = []
 
 all = ["gpio", "roland", "camloc"]
 
-bare = []
-
 gpio = []
 roland = []
 camloc = ["dep:camloc-server"]

@@ -1,13 +1,14 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(feature = "camloc")]
 mod camloc;
 
 mod cmd;
 mod logger;
 mod ws;
 
-use crate::cmd::execute_command;
+use crate::cmd::execute_command_text;
 use actix_web::{
     get,
     middleware::DefaultHeaders,
@@ -17,15 +18,17 @@ use actix_web::{
 };
 use actix_web_actors::ws::start as ws_start;
 use anyhow::{anyhow, Result};
-use roblib::cmd::Cmd;
-use std::{str::FromStr, sync::Arc, time::Instant};
+use roblib::cmd::{parsing::Writable, SEPARATOR};
+use std::{sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
 
+// FIXME: REMOVE
+#[allow(unused)]
 pub(crate) struct Robot {
     pub startup_time: Instant,
 
-    #[cfg(feature = "gpio")]
+    #[cfg(all(feature = "gpio", feature = "backend"))]
     pub raw_gpio: Option<roblib::gpio::backend::GpioBackend>,
 
     #[cfg(all(feature = "roland", feature = "backend"))]
@@ -52,15 +55,16 @@ async fn ws_index(
 
 #[post("/cmd")]
 async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    match Cmd::from_str(&body) {
-        Ok(cmd) => match execute_command(&cmd, &state.robot).await {
-            Ok(s) => match s {
-                Some(s) => HttpResponse::Ok().body(s),
-                None => HttpResponse::Ok().into(),
-            },
-            Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-        },
-        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    match execute_command_text(&mut body.split(SEPARATOR), state.robot.clone()).await {
+        Ok(Some(s)) => {
+            let mut b = String::new();
+            match Writable::write_str(&*s, &mut b) {
+                Ok(()) => HttpResponse::Ok().body(b),
+                Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            }
+        }
+        Ok(None) => HttpResponse::Ok().into(),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
 

@@ -1,9 +1,8 @@
 #!/bin/env python3
 
-import itertools
+from itertools import combinations
+from os import system
 import argparse
-import sys
-import os
 
 def flatten(l):
     return [
@@ -23,21 +22,26 @@ def main():
 	config = p.parse_args()
 
 	feature_combinations = flatten([
-		itertools.combinations(config.features, i + 1)
+		combinations(config.features, i + 1)
 			for i in range(len(config.features))
-	])
+	]) + ()
 
 	for f in feature_combinations:
-		cmd = f"cargo clippy -p {config.crate} --features '{' '.join(f)}'"
+		cmd = f'cargo clippy -p {config.crate}!'
+
+		if len(f) != 0:
+			cmd += f'--features \'{" ".join(f)}\''
+			
 		if config.examples:
 			cmd += ' --examples'
 
+		print(cmd)
+
 		if config.do:
-			print(f'\n\n{cmd}:')
-			if os.system(cmd) != 0:
+			exit_code = system(cmd)
+			if exit_code != 0:
 				exit(1)
-		else:
-			print(cmd)
+			print('\n\n')
 
 if __name__ == '__main__':
 	main()
