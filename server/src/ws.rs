@@ -1,14 +1,14 @@
 use actix::prelude::*;
 use actix::{Actor, ActorContext, AsyncContext, Handler, StreamHandler};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use roblib::cmd::Cmd;
+use roblib::cmd::parsing::Writable;
+use roblib::cmd::SEPARATOR;
 use std::{
-    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crate::cmd::execute_command;
+use crate::cmd::execute_command_text;
 use crate::Robot;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -19,16 +19,22 @@ pub(crate) struct WebSocket {
     last_heartbeat: Instant,
 }
 
-#[derive(Debug, Message)]
+#[derive(Message)]
 #[rtype(result = "()")]
-struct CmdResult(anyhow::Result<Option<String>>);
+struct CmdResult(anyhow::Result<Option<Box<dyn Writable + Send>>>);
 
 impl Handler<CmdResult> for WebSocket {
     type Result = ();
 
-    fn handle(&mut self, CmdResult(msg): CmdResult, ctx: &mut Self::Context) {
-        match msg {
-            Ok(Some(res)) => ctx.text(res),
+    fn handle(&mut self, res: CmdResult, ctx: &mut Self::Context) {
+        match res.0 {
+            Ok(Some(ret)) => {
+                let mut s = String::new();
+                match ret.write_str(&mut s) {
+                    Ok(()) => ctx.text(s),
+                    Err(e) => ctx.text(e.to_string()),
+                }
+            }
             Ok(None) => (),
             Err(e) => {
                 let e = e.to_string();
@@ -61,17 +67,13 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
         debug!("WS: {msg:?}");
         match msg {
             Message::Text(text) => {
-                let cmd = Cmd::from_str(&text);
+                let recipient = ctx.address().recipient();
                 let robot_pointer = self.robot.clone();
 
-                let recipient = ctx.address().recipient();
                 async move {
-                    let res = match cmd {
-                        Ok(cmd) => execute_command(&cmd, &robot_pointer).await,
-                        Err(e) => Err(e),
-                    };
+                    let ret = execute_command_text(&mut text.split(SEPARATOR), robot_pointer).await;
 
-                    recipient.do_send(CmdResult(res))
+                    recipient.do_send(CmdResult(ret))
                 }
                 .into_actor(self)
                 .spawn(ctx);

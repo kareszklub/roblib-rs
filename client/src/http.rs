@@ -1,6 +1,6 @@
 use actix_rt::Runtime;
-use anyhow::anyhow;
 use awc::Client;
+use roblib::cmd::{parsing::Readable, Command, SEPARATOR};
 
 use crate::RemoteRobotTransport;
 
@@ -19,37 +19,48 @@ impl RobotHTTP {
         })
     }
 
-    async fn send(&self, cmd: String, wait_for_response: bool) -> anyhow::Result<Option<String>> {
-        let mut req = match self.client.post(&self.base_url).send_body(cmd).await {
+    async fn send<C: Command>(&self, cmd: C) -> anyhow::Result<C::Return>
+    where
+        C::Return: Readable,
+    {
+        let mut out = format!("{}{}", C::PREFIX, SEPARATOR);
+        cmd.write_str(&mut out)?;
+
+        println!("sending {out}");
+
+        let req = self
+            .client
+            .post(&self.base_url)
+            .send_body(out.to_string())
+            .await;
+
+        let mut res = match req {
             Ok(x) => x,
-            Err(e) => return Err(anyhow!("didn't recieve HTTP response, because: {e}")),
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "didn't recieve HTTP response, because: {e}",
+                ))
+            }
         };
 
-        if !wait_for_response {
-            return Ok(None);
-        }
+        let body = res.body().await?;
+        let body = String::from_utf8(body.to_vec())?;
 
-        let body = req.body().await?;
-        if body.is_empty() {
-            return Ok(None);
-        }
-
-        Ok(Some(String::from_utf8(body.to_vec())?))
+        Readable::parse_str(&mut body.split(SEPARATOR))
     }
 }
 
 impl RemoteRobotTransport for RobotHTTP {
-    fn cmd(&self, cmd: roblib::cmd::Cmd) -> anyhow::Result<Option<String>> {
+    fn cmd<C: Command>(&self, cmd: C) -> anyhow::Result<C::Return>
+    where
+        C::Return: Readable,
+    {
         self.runtime.block_on(async {
-            let s = cmd.to_string();
+            let mut s = String::new();
+            cmd.write_str(&mut s)?;
             debug!("S: {s}");
 
-            let r = self.send(s, cmd.has_return()).await?;
-            if let Some(r) = &r {
-                debug!("R: {r}");
-            }
-
-            Ok(r)
+            self.send(cmd).await
         })
     }
 }

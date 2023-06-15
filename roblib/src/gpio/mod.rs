@@ -1,5 +1,7 @@
 use anyhow::Result;
 
+pub mod cmd;
+
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 

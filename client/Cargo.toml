@@ -18,11 +18,9 @@ anyhow = "1.0.57"
 env_logger = "0.9.0"
 
 [features]
-default = ["roland"]
+default = []
 
 all = ["roland", "gpio", "camloc"]
-
-bare = []
 
 roland = ["roblib/roland"]
 gpio = ["roblib/gpio"]
@@ -30,4 +28,16 @@ camloc = ["roblib/camloc"]
 
 [[example]]
 name = "controller"
+required-features = ["all"]
+
+[[example]]
+name = "simple"
+required-features = ["all"]
+
+[[example]]
+name = "with_http"
+required-features = ["all"]
+
+[[example]]
+name = "with_ws"
 required-features = ["all"]

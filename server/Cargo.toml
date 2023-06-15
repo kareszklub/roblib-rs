@@ -19,8 +19,6 @@ default = []
 
 all = ["roland", "gpio", "camloc", "backend"]
 
-bare = []
-
 backend = ["roblib/gpio-backend"]
 
 roland = ["roblib/roland"]

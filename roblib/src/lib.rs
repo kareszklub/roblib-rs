@@ -3,18 +3,18 @@ extern crate log;
 pub mod cmd;
 
 #[cfg(feature = "camloc")]
-pub mod camloc {
-    pub mod server {
-        pub use camloc_server::*;
-    }
-    pub use camloc_server::{service::Subscriber, MotionHint, Mutex, Position, MAIN_PORT};
-}
+pub mod camloc;
 
 #[cfg(feature = "gpio")]
 pub mod gpio;
 
 #[cfg(feature = "roland")]
 pub mod roland;
+
+pub trait RoblibRobot {
+    fn nop(&self) -> anyhow::Result<()>;
+    fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
+}
 
 #[allow(unused)]
 pub(crate) fn get_servo_pwm_durations(degree: f64) -> (std::time::Duration, std::time::Duration) {

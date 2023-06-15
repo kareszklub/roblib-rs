@@ -1,3 +1,5 @@
+pub mod cmd;
+
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 
@@ -6,7 +8,6 @@ pub type DriveResult = Option<crate::camloc::MotionHint>;
 #[cfg(not(feature = "camloc"))]
 pub type DriveResult = ();
 
-#[cfg(feature = "gpio-backend")]
 pub trait Roland: Sized {
     fn drive(&self, left: f64, right: f64) -> anyhow::Result<DriveResult>;
     fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<DriveResult>;

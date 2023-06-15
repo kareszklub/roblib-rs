@@ -9,7 +9,10 @@ use futures::{
     SinkExt,
 };
 use futures_util::{lock::Mutex, stream::StreamExt};
-use roblib::cmd::Cmd;
+use roblib::cmd::{
+    parsing::{Readable, Writable},
+    Command, SEPARATOR,
+};
 
 pub struct RobotWS {
     runtime: Runtime,
@@ -103,13 +106,28 @@ impl RobotWS {
         Ok((tx_t.into(), rx_r.into(), sender, receiver))
     }
 
-    async fn send(&self, cmd: &str, wait_for_response: bool) -> Result<Option<String>> {
-        self.tx.lock().await.send(Message::Text(cmd.into())).await?;
+    async fn send<C: Command>(&self, cmd: &C) -> Result<C::Return>
+    where
+        C: Writable,
+        C::Return: Readable + Sized,
+    {
+        let mut s = format!("{}{}", C::PREFIX, SEPARATOR);
+        cmd.write_str(&mut s)?;
 
-        Ok(if wait_for_response {
-            self.rx.lock().await.next().await
+        self.tx.lock().await.send(Message::Binary(s.into())).await?;
+
+        Ok(if std::mem::size_of::<C>() == 0 {
+            let bs = self
+                .rx
+                .lock()
+                .await
+                .next()
+                .await
+                .ok_or(anyhow::Error::msg("Didn't recieve response"))?;
+
+            Readable::parse_str(&mut bs.split(SEPARATOR))?
         } else {
-            None
+            unsafe { std::mem::zeroed() }
         })
     }
 
@@ -126,15 +144,16 @@ impl RobotWS {
 }
 
 impl RemoteRobotTransport for RobotWS {
-    fn cmd(&self, cmd: Cmd) -> Result<Option<String>> {
+    fn cmd<C: Command>(&self, cmd: C) -> Result<C::Return>
+    where
+        C::Return: Readable,
+    {
         self.runtime.block_on(async {
-            let s = cmd.to_string();
-            info!("S: {s}");
+            let mut s = String::new();
+            cmd.write_str(&mut s)?;
+            debug!("S: {s}");
 
-            let r = self.send(&s, cmd.has_return()).await?;
-            if let Some(r) = &r {
-                info!("R: {r}");
-            }
+            let r = self.send(&cmd).await?;
 
             Ok(r)
         })
