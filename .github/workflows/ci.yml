@@ -5,26 +5,23 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        toolchain: [stable]
-        experimental: [false]
-        include:
-          - os: ubuntu-latest
-            toolchain: nightly
-            experimental: true
+        os: [ubuntu-latest]
+        toolchain: [stable, nightly]
     
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
-    name: Test - ${{ matrix.os }} - ${{ matrix.toolchain }}
+    continue-on-error: ${{ matrix.toolchain == 'nightly' }}
+    name: Test - ${{ matrix.os }}/${{ matrix.toolchain }}
 
     steps:
     - uses: actions/checkout@v3
@@ -36,15 +33,6 @@ jobs:
         profile: minimal
         components: clippy
 
-    - uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --workspace --verbose
-    - uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --verbose --all-features
-
     - uses: actions-rs/clippy-check@v1
       if: matrix.toolchain == 'stable'
       with:
@@ -52,18 +40,23 @@ jobs:
         args: --all-features
 
   build:
-    needs: [test]
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
+        profile: [base, roland]
         include:
-         - os: windows-latest
-           target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            profile: base
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            profile: roland
 
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    name: Build - ${{ matrix.target }}
+    name: Build - ${{ matrix.profile }}/${{ matrix.target }}
 
     steps:
       - uses: actions/checkout@v3
@@ -74,41 +67,29 @@ jobs:
           default: true
           profile: minimal
           target: ${{ matrix.target }}
-      
-      - name: Build base version
+
+      - name: Calculate features
+        id: features
+        shell: bash
+        run: python3 features.py ${{ matrix.os }} ${{ matrix.profile }} >> "$GITHUB_OUTPUT"
+
+      - name: Build
         uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf' }}
           command: build
-          args: --release -p roblib-server --verbose --target ${{ matrix.target }}
-
-      - name: Upload base version
-        uses: actions/upload-artifact@v3
-        with:
-          name: roblib-server-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/roblib-server
-            target/${{ matrix.target }}/release/roblib-server.exe
-          if-no-files-found: error
-
-      - name: Build Roland version
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: ${{ matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf' }}
-          command: build
-          args: --release -p roblib-server --verbose --target ${{ matrix.target }} --features roland
+          args: --release -p roblib-server --verbose --target ${{ matrix.target }} --features ${{ steps.features.outputs.f }}
       
-      - name: rename file
+      - name: Rename file
         shell: bash
         run: |
           [ ${{ matrix.os }} = "windows-latest" ] && EXT='.exe' || EXT=''
-          mv target/${{ matrix.target }}/release/roblib-server$EXT target/${{ matrix.target }}/release/roblib-server-roland$EXT
-      
-      - name: Upload Roland version
+          mv -v target/${{ matrix.target }}/release/roblib-server$EXT roblib-server-${{ matrix.profile }}$EXT
+
+      - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: roland-server-${{ matrix.target }}
+          name: roblib-server-${{ matrix.profile }}
           path: |
-            target/${{ matrix.target }}/release/roblib-server-roland
-            target/${{ matrix.target }}/release/roblib-server-roland.exe
+            roblib-server-${{ matrix.profile }}${{ startsWith(matrix.os, 'windows') && '.exe' || '' }}
           if-no-files-found: error
