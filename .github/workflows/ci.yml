@@ -73,6 +73,13 @@ jobs:
         shell: bash
         run: python3 features.py ${{ matrix.os }} ${{ matrix.profile }} >> "$GITHUB_OUTPUT"
 
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path: target
+          key: ${{ matrix.profile }}/${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.profile }}/${{ matrix.target }}-
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -84,7 +91,7 @@ jobs:
         shell: bash
         run: |
           [ ${{ matrix.os }} = "windows-latest" ] && EXT='.exe' || EXT=''
-          mv -v target/${{ matrix.target }}/release/roblib-server$EXT roblib-server-${{ matrix.profile }}$EXT
+          cp -v target/${{ matrix.target }}/release/roblib-server$EXT roblib-server-${{ matrix.profile }}$EXT
 
       - name: Upload
         uses: actions/upload-artifact@v3
