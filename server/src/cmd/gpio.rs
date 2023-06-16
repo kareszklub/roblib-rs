@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables)]
 use roblib::{
     cmd::{ReadPin, ServoBasic, SetPin, SetPwm},
     gpio::Gpio,
@@ -44,6 +45,7 @@ impl Execute for SetPin {
             if let Some(r) = &robot.raw_gpio {
                 r.set_pin(pin, value)?;
             }
+
             Ok(())
         })
     }

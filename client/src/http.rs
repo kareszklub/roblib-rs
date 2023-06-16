@@ -23,10 +23,11 @@ impl RobotHTTP {
     where
         C::Return: Readable,
     {
-        let mut out = format!("{}{}", C::PREFIX, SEPARATOR);
-        cmd.write_str(&mut out)?;
-
-        println!("sending {out}");
+        let mut out = C::PREFIX.to_string();
+        cmd.write_str(&mut |r| {
+            out.push(SEPARATOR);
+            out.push_str(r);
+        })?;
 
         let req = self
             .client
@@ -55,12 +56,6 @@ impl RemoteRobotTransport for RobotHTTP {
     where
         C::Return: Readable,
     {
-        self.runtime.block_on(async {
-            let mut s = String::new();
-            cmd.write_str(&mut s)?;
-            debug!("S: {s}");
-
-            self.send(cmd).await
-        })
+        self.runtime.block_on(self.send(cmd))
     }
 }

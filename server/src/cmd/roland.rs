@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables)]
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use roblib::{
@@ -22,23 +23,16 @@ impl Execute for MoveRobot {
 
             #[cfg(feature = "backend")]
             if let Some(r) = &robot.roland {
-                #[allow(clippy::let_unit_value)]
-                let hint = r.drive(left, right)?;
+                r.drive(left, right)?;
 
                 #[cfg(feature = "camloc")]
                 if let Some(c) = &robot.camloc {
+                    let hint = roblib::camloc::get_motion_hint(left, right);
                     c.service.set_motion_hint(hint).await;
                 }
-
-                Ok(hint)
-            } else {
-                #[cfg(feature = "camloc")]
-                let ret = None;
-                #[cfg(not(feature = "camloc"))]
-                let ret = ();
-
-                Ok(ret)
             }
+
+            Ok(())
         })
     }
 }
@@ -55,22 +49,17 @@ impl Execute for MoveRobotByAngle {
 
             #[cfg(feature = "backend")]
             if let Some(r) = &robot.roland {
-                #[allow(clippy::let_unit_value)]
-                let hint = r.drive_by_angle(angle, speed)?;
+                r.drive_by_angle(angle, speed)?;
 
                 #[cfg(feature = "camloc")]
                 if let Some(c) = &robot.camloc {
+                    let (left, right) = roblib::roland::convert_move(angle, speed);
+                    let hint = roblib::camloc::get_motion_hint(left, right);
                     c.service.set_motion_hint(hint).await;
                 }
-                Ok(hint)
-            } else {
-                #[cfg(feature = "camloc")]
-                let ret = None;
-                #[cfg(not(feature = "camloc"))]
-                let ret = ();
-
-                Ok(ret)
             }
+
+            Ok(())
         })
     }
 }
@@ -87,6 +76,7 @@ impl Execute for StopRobot {
             if let Some(r) = &robot.roland {
                 r.drive(0., 0.)?;
             }
+
             Ok(())
         })
     }
@@ -106,6 +96,7 @@ impl Execute for Led {
             if let Some(rr) = &robot.roland {
                 rr.led(r, g, b)?;
             }
+
             Ok(())
         })
     }
@@ -145,6 +136,7 @@ impl Execute for Buzzer {
             if let Some(r) = &robot.roland {
                 r.buzzer(pw)?
             }
+
             Ok(())
         })
     }

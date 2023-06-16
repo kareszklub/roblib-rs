@@ -57,14 +57,14 @@ impl<T: RemoteRobotTransport> RoblibRobot for Robot<T> {
 
 #[cfg(feature = "roland")]
 impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
-    fn drive(&self, left: f64, right: f64) -> Result<roblib::roland::DriveResult> {
+    fn drive(&self, left: f64, right: f64) -> Result<()> {
         if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
             warn!("Drive values are now [-1, 1] not [-100, 100]");
         }
         self.transport.cmd(cmd::MoveRobot(left, right))
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<roblib::roland::DriveResult> {
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
         if !(-1. ..=1.).contains(&speed) {
             warn!("Drive values are now [-1, 1] not [-100, 100]");
         }

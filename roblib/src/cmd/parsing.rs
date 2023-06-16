@@ -1,7 +1,5 @@
 use std::{mem::size_of, time::Duration};
 
-use crate::cmd::SEPARATOR;
-
 pub trait Readable
 where
     Self: Sized,
@@ -10,7 +8,7 @@ where
     fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self>;
 }
 pub trait Writable {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result;
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result;
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()>;
 }
 
@@ -150,82 +148,82 @@ pub mod commands {
             })
         }
 
-        pub fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        pub fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
             match self {
                 #[cfg(feature = "roland")]
                 Self::MoveRobot(c) => {
-                    f.write_char(cmd::MoveRobot::PREFIX)?;
+                    f(&cmd::MoveRobot::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::MoveRobotByAngle(c) => {
-                    f.write_char(cmd::MoveRobotByAngle::PREFIX)?;
+                    f(&cmd::MoveRobotByAngle::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::StopRobot(c) => {
-                    f.write_char(cmd::StopRobot::PREFIX)?;
+                    f(&cmd::StopRobot::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::Led(c) => {
-                    f.write_char(cmd::Led::PREFIX)?;
+                    f(&cmd::Led::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::ServoAbsolute(c) => {
-                    f.write_char(cmd::ServoAbsolute::PREFIX)?;
+                    f(&cmd::ServoAbsolute::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::Buzzer(c) => {
-                    f.write_char(cmd::Buzzer::PREFIX)?;
+                    f(&cmd::Buzzer::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::TrackSensor(c) => {
-                    f.write_char(cmd::TrackSensor::PREFIX)?;
+                    f(&cmd::TrackSensor::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "roland")]
                 Self::UltraSensor(c) => {
-                    f.write_char(cmd::UltraSensor::PREFIX)?;
+                    f(&cmd::UltraSensor::PREFIX.to_string());
                     c.write_str(f)?;
                 }
 
                 #[cfg(feature = "gpio")]
                 Self::ReadPin(c) => {
-                    f.write_char(cmd::ReadPin::PREFIX)?;
+                    f(&cmd::ReadPin::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "gpio")]
                 Self::SetPin(c) => {
-                    f.write_char(cmd::SetPin::PREFIX)?;
+                    f(&cmd::SetPin::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "gpio")]
                 Self::SetPwm(c) => {
-                    f.write_char(cmd::SetPwm::PREFIX)?;
+                    f(&cmd::SetPwm::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 #[cfg(feature = "gpio")]
                 Self::ServoBasic(c) => {
-                    f.write_char(cmd::ServoBasic::PREFIX)?;
+                    f(&cmd::ServoBasic::PREFIX.to_string());
                     c.write_str(f)?;
                 }
 
                 #[cfg(feature = "camloc")]
                 Self::GetPosition(c) => {
-                    f.write_char(cmd::GetPosition::PREFIX)?;
+                    f(&cmd::GetPosition::PREFIX.to_string());
                     c.write_str(f)?;
                 }
 
                 Self::Nop(c) => {
-                    f.write_char(cmd::Nop::PREFIX)?;
+                    f(&cmd::Nop::PREFIX.to_string());
                     c.write_str(f)?;
                 }
                 Self::GetUptime(c) => {
-                    f.write_char(cmd::GetUptime::PREFIX)?;
+                    f(&cmd::GetUptime::PREFIX.to_string());
                     c.write_str(f)?;
                 }
             }
@@ -351,10 +349,22 @@ impl Readable for crate::camloc::Position {
 }
 #[cfg(feature = "camloc")]
 impl Writable for crate::camloc::Position {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(f, "{}", self.x)?;
-        write!(f, "{}", self.y)?;
-        write!(f, "{}", self.rotation)
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        use std::fmt::Write;
+        let mut s = String::new();
+
+        write!(&mut s, "{}", self.x)?;
+        f(&s);
+        s.clear();
+
+        write!(&mut s, "{}", self.y)?;
+        f(&s);
+        s.clear();
+
+        write!(&mut s, "{}", self.rotation)?;
+        f(&s);
+
+        Ok(())
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -375,7 +385,7 @@ impl Readable for () {
     }
 }
 impl Writable for () {
-    fn write_str(&self, _: &mut dyn std::fmt::Write) -> std::fmt::Result {
+    fn write_str(&self, _: &mut dyn FnMut(&str)) -> std::fmt::Result {
         Ok(())
     }
 
@@ -401,8 +411,9 @@ impl Readable for Duration {
     }
 }
 impl Writable for Duration {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(f, "{}", self.as_millis())
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(&self.as_millis().to_string());
+        Ok(())
     }
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
         w.write_all(&self.as_millis().to_be_bytes())?;
@@ -437,12 +448,12 @@ impl<T: Readable> Readable for Option<T> {
     }
 }
 impl<T: Writable> Writable for Option<T> {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         if let Some(v) = self {
-            write!(f, "1{}", SEPARATOR)?;
+            f("1");
             v.write_str(f)?;
         } else {
-            write!(f, "0")?;
+            f("0");
         }
         Ok(())
     }
@@ -478,8 +489,9 @@ impl Readable for bool {
     }
 }
 impl Writable for bool {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(f, "{}", *self as u8)
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(if *self { "1" } else { "0" });
+        Ok(())
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -516,16 +528,13 @@ impl Readable for crate::camloc::MotionHint {
 }
 #[cfg(feature = "camloc")]
 impl Writable for crate::camloc::MotionHint {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::MovingForwards => 'f',
-                Self::MovingBackwards => 'b',
-                Self::Stationary => 's',
-            }
-        )
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(match self {
+            Self::MovingForwards => "f",
+            Self::MovingBackwards => "b",
+            Self::Stationary => "s",
+        });
+        Ok(())
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -579,10 +588,9 @@ impl<T: Readable, const N: usize> Readable for [T; N] {
     }
 }
 impl<T: Writable, const N: usize> Writable for [T; N] {
-    fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(f, "{}", N as u64)?;
+    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(&(N as u64).to_string());
         for t in self {
-            write!(f, "{}", SEPARATOR)?;
             t.write_str(f)?;
         }
         Ok(())
@@ -615,8 +623,9 @@ macro_rules! primitve_impl {
             }
         }
         impl Writable for $t {
-            fn write_str(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
-                write!(f, "{}", self)
+            fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+                f(&self.to_string());
+                Ok(())
             }
 
             fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -642,4 +651,48 @@ primitve_impl!(i128);
 primitve_impl!(f32);
 primitve_impl!(f64);
 
-// TODO: tuples
+macro_rules! impl_parsable_tuple {
+    ($($idx:tt $t:tt),+) => {
+        impl<$($t,)+> Readable for ($($t,)+)
+        where
+            $($t: Readable,)+
+        {
+            fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+                Ok(($(
+                    $t :: parse_str(s)?,
+                )+))
+            }
+            fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
+                Ok(($(
+                    $t :: parse_binary(r)?,
+                )+))
+            }
+        }
+        impl<$($t,)+> Writable for ($($t,)+)
+        where
+            $($t: Writable,)+
+        {
+            fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+                $(
+                    self. $idx .write_str(f)?;
+                )+
+
+                Ok(())
+            }
+
+            fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
+                $(
+                    self. $idx .write_binary(w)?;
+                )+
+
+                Ok(())
+            }
+        }
+    };
+}
+
+impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
+impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E);
+impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D);
+impl_parsable_tuple!(0 A, 1 B, 2 C);
+impl_parsable_tuple!(0 A, 1 B);

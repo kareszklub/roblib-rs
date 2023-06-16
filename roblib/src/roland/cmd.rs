@@ -5,20 +5,18 @@ use crate::cmd::{
     Command,
 };
 
-use super::DriveResult;
-
 #[derive(Readable, Writable)]
 pub struct MoveRobot(pub f64, pub f64);
 impl Command for MoveRobot {
     const PREFIX: char = 'm';
-    type Return = DriveResult;
+    type Return = ();
 }
 
 #[derive(Readable, Writable)]
 pub struct MoveRobotByAngle(pub f64, pub f64);
 impl Command for MoveRobotByAngle {
     const PREFIX: char = 'M';
-    type Return = DriveResult;
+    type Return = ();
 }
 
 #[derive(Readable, Writable)]

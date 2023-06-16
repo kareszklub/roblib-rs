@@ -24,18 +24,18 @@ def main():
 	feature_combinations = flatten([
 		combinations(config.features, i + 1)
 			for i in range(len(config.features))
-	]) + ()
+	]) + [()]
 
-	for f in feature_combinations:
-		cmd = f'cargo clippy -p {config.crate}!'
+	for (i, f) in enumerate(feature_combinations):
+		cmd = f'cargo clippy -p {config.crate}'
 
 		if len(f) != 0:
-			cmd += f'--features \'{" ".join(f)}\''
+			cmd += f' --features \'{" ".join(f)}\''
 			
 		if config.examples:
 			cmd += ' --examples'
 
-		print(cmd)
+		print(f'{i + 1}/{len(feature_combinations)} {cmd}')
 
 		if config.do:
 			exit_code = system(cmd)

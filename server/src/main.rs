@@ -6,6 +6,9 @@ mod camloc;
 
 mod cmd;
 mod logger;
+
+// mod tcp;
+// mod udp;
 mod ws;
 
 use crate::cmd::execute_command_text;
@@ -34,7 +37,7 @@ pub(crate) struct Robot {
     #[cfg(all(feature = "roland", feature = "backend"))]
     pub roland: Option<roblib::roland::backend::RolandBackend>,
 
-    #[cfg(all(feature = "camloc", feature = "backend"))]
+    #[cfg(all(feature = "camloc"))]
     pub camloc: Option<camloc::Camloc>,
 }
 
@@ -58,8 +61,15 @@ async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
     match execute_command_text(&mut body.split(SEPARATOR), state.robot.clone()).await {
         Ok(Some(s)) => {
             let mut b = String::new();
-            match Writable::write_str(&*s, &mut b) {
-                Ok(()) => HttpResponse::Ok().body(b),
+
+            match Writable::write_str(&*s, &mut |r| {
+                b.push_str(r);
+                b.push(SEPARATOR);
+            }) {
+                Ok(()) => {
+                    b.pop();
+                    HttpResponse::Ok().body(b)
+                }
                 Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
             }
         }
@@ -70,9 +80,9 @@ async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    logger::init_log(Some("actix_web=info,roblib_server=info,roblib=debug"));
+    logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
 
-    let port: u16 = match std::env::args().nth(1) {
+    let web_port: u16 = match std::env::args().nth(1) {
         Some(s) => s
             .parse()
             .map_err(|_| anyhow!("port must be a valid number"))?,
@@ -145,7 +155,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    let robot = Robot {
+    let robot = Arc::new(Robot {
         startup_time: Instant::now(),
 
         #[cfg(all(feature = "roland", feature = "backend"))]
@@ -156,10 +166,17 @@ async fn main() -> Result<()> {
 
         #[cfg(feature = "camloc")]
         camloc,
-    }
-    .into();
+    });
 
-    info!("Webserver starting on port {port}");
+    // let tcp_port = 12_345;
+    // info!("TCP starting on port {tcp_port}");
+    // tcp::start(tcp_port, robot.clone()).await?;
+
+    // let udp_port = tcp_port + 1;
+    // info!("UDP starting on port {udp_port}");
+    // udp::start(udp_port, robot.clone()).await?;
+
+    info!("Webserver starting on port {web_port}");
 
     let data = Data::new(AppState { robot });
     Ok(HttpServer::new(move || {
@@ -174,7 +191,7 @@ async fn main() -> Result<()> {
             .service(ws_index)
             .service(cmd_index)
     })
-    .bind(("0.0.0.0", port))?
+    .bind(("0.0.0.0", web_port))?
     .run()
     .await?)
 }

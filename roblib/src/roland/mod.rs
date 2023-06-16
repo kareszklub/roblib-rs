@@ -3,14 +3,9 @@ pub mod cmd;
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 
-#[cfg(feature = "camloc")]
-pub type DriveResult = Option<crate::camloc::MotionHint>;
-#[cfg(not(feature = "camloc"))]
-pub type DriveResult = ();
-
 pub trait Roland: Sized {
-    fn drive(&self, left: f64, right: f64) -> anyhow::Result<DriveResult>;
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<DriveResult>;
+    fn drive(&self, left: f64, right: f64) -> anyhow::Result<()>;
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()>;
     fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
     fn servo(&self, degree: f64) -> anyhow::Result<()>;
     fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
@@ -68,4 +63,16 @@ impl From<LedColor> for (bool, bool, bool) {
             LedColor::White => (true, true, true),
         }
     }
+}
+
+pub fn convert_move(angle: f64, speed: f64) -> (f64, f64) {
+    let angle = angle.clamp(-90.0, 90.0);
+    let speed = speed.clamp(-1., 1.);
+
+    let a = (angle + 90.0) / 180.0;
+
+    let left = (a * 100.0) * speed;
+    let right = (100.0 - (a * 100.0)) * speed;
+
+    (left, right)
 }

@@ -8,7 +8,7 @@ use crate::get_servo_pwm_durations;
 use anyhow::Result;
 use constants::*;
 
-use super::{DriveResult, Roland};
+use super::{convert_move, Roland};
 
 pub mod constants {
     // motors
@@ -148,33 +148,10 @@ impl RolandBackend {
 
         Ok(roland)
     }
-
-    #[cfg(feature = "camloc")]
-    fn get_motion_hint(
-        left: f64,
-        left_sign: isize,
-        right: f64,
-        right_sign: isize,
-    ) -> Option<crate::camloc::MotionHint> {
-        use crate::camloc::MotionHint;
-
-        match (left_sign, right_sign) {
-            (1, 1) | (1, 0) | (0, 1) => Some(MotionHint::MovingForwards),
-
-            (0, 0) => Some(MotionHint::Stationary),
-
-            (-1, -1) | (-1, 0) | (0, -1) => Some(MotionHint::MovingBackwards),
-
-            // turning in place
-            (1, -1) | (-1, 1) if (left * 100.) as usize == (-right * 100.) as usize => None,
-
-            _ => None,
-        }
-    }
 }
 
 impl Roland for RolandBackend {
-    fn drive(&self, left: f64, right: f64) -> Result<DriveResult> {
+    fn drive(&self, left: f64, right: f64) -> Result<()> {
         let left = left.clamp(-1., 1.);
         let right = right.clamp(-1., 1.);
         let mut m = self.motor.lock().unwrap();
@@ -216,23 +193,11 @@ impl Roland for RolandBackend {
             _ => unreachable!(),
         }
 
-        #[cfg(feature = "camloc")]
-        let ret = Ok(Self::get_motion_hint(left, left_sign, right, right_sign));
-        #[cfg(not(feature = "camloc"))]
-        let ret = Ok(());
-
-        ret
+        Ok(())
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<DriveResult> {
-        let angle = angle.clamp(-90.0, 90.0);
-        let speed = speed.clamp(-1., 1.);
-
-        let a = (angle + 90.0) / 180.0;
-
-        let left = (a * 100.0) * speed;
-        let right = (100.0 - (a * 100.0)) * speed;
-
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
+        let (left, right) = convert_move(angle, speed);
         self.drive(left, right)
     }
 
