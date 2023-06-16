@@ -97,6 +97,8 @@ async fn main() -> Result<()> {
         "gpio",
         #[cfg(feature = "camloc")]
         "camloc",
+        #[cfg(feature = "backend")]
+        "backend",
     ];
     info!("Compiled with features: {}", features.join(", "));
 

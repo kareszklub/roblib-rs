@@ -159,8 +159,7 @@ impl Roland for RolandBackend {
         m.pwm_l.set_pwm_frequency(2000.0, left.abs())?;
         m.pwm_r.set_pwm_frequency(2000.0, right.abs())?;
 
-        let left_sign = (left as isize).signum();
-        match left_sign {
+        match left.signum() as isize {
             1 => {
                 m.fwd_l.set_high();
                 m.bwd_l.set_low();
@@ -176,8 +175,7 @@ impl Roland for RolandBackend {
             _ => unreachable!(),
         }
 
-        let right_sign = (right as isize).signum();
-        match right_sign {
+        match right.signum() as isize {
             1 => {
                 m.fwd_r.set_high();
                 m.bwd_r.set_low();
