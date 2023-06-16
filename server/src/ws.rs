@@ -30,8 +30,12 @@ impl Handler<CmdResult> for WebSocket {
         match res.0 {
             Ok(Some(ret)) => {
                 let mut s = String::new();
-                match ret.write_str(&mut s) {
-                    Ok(()) => ctx.text(s),
+
+                match ret.write_str(&mut |r| {
+                    s.push(SEPARATOR);
+                    s.push_str(r);
+                }) {
+                    Ok(()) => ctx.text(&s[1..]),
                     Err(e) => ctx.text(e.to_string()),
                 }
             }
@@ -49,6 +53,7 @@ impl Actor for WebSocket {
     type Context = WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.set_mailbox_capacity(128);
         self.start_heartbeat(ctx);
     }
 }
@@ -64,16 +69,15 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
             }
         };
 
-        debug!("WS: {msg:?}");
         match msg {
             Message::Text(text) => {
                 let recipient = ctx.address().recipient();
                 let robot_pointer = self.robot.clone();
 
                 async move {
-                    let ret = execute_command_text(&mut text.split(SEPARATOR), robot_pointer).await;
-
-                    recipient.do_send(CmdResult(ret))
+                    recipient.do_send(CmdResult(
+                        execute_command_text(&mut text.split(SEPARATOR), robot_pointer).await,
+                    ))
                 }
                 .into_actor(self)
                 .spawn(ctx);

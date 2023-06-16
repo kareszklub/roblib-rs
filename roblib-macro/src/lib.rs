@@ -16,7 +16,6 @@ fn nth_name(m: usize) -> char {
     (b'a' + m as u8) as char
 }
 
-// TODO: implement derive macro for Readable
 #[proc_macro_error]
 #[proc_macro_derive(Readable)]
 pub fn derive_readable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -30,26 +29,54 @@ pub fn derive_readable(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         abort!(inp.span(), "You can only use this on an enum")
     };
 
-    let mut from_text_impl = TokenStream::new();
-    let mut read_impl = TokenStream::new();
+    let mut parse_str_impl = TokenStream::new();
+    let mut parse_binary_impl = TokenStream::new();
+
+    let mut field_names = TokenStream::new();
+    let mut tuple = false;
+
+    for (i, field) in struct_data.fields.into_iter().enumerate() {
+        let name = if let Some(name) = &field.ident {
+            tuple = false;
+            name.clone()
+        } else {
+            tuple = true;
+            format_ident!("_{i}")
+        };
+
+        field_names.append_all(quote! { #name, });
+        parse_str_impl.append_all(quote! {
+            let #name = Readable::parse_str(s)?;
+        });
+        parse_binary_impl.append_all(quote! {
+            let #name = Readable::parse_binary(r)?;
+        });
+    }
+
+    let ret = if tuple {
+        quote! { Self(#field_names) }
+    } else {
+        quote! {Self {
+            #field_names
+        }}
+    };
 
     let res = quote! {
         impl Readable for #enum_ident {
             fn parse_str<'a>(s: &mut impl ::std::iter::Iterator<Item = &'a str>) -> ::anyhow::Result<Self> {
-                #from_text_impl
-                todo!()
+                #parse_str_impl
+                Ok(#ret)
             }
             fn parse_binary(r: &mut impl ::std::io::Read) -> ::anyhow::Result<Self> {
-                #read_impl
-                todo!()
+                #parse_binary_impl
+                Ok(#ret)
             }
         }
     };
-
+    // println!("{res}");
     proc_macro::TokenStream::from(res)
 }
 
-// TODO: implement derive macro for Writable
 #[proc_macro_error]
 #[proc_macro_derive(Writable)]
 pub fn derive_writable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -63,21 +90,37 @@ pub fn derive_writable(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         abort!(inp.span(), "You can only use this on an enum")
     };
 
-    let mut display_impl = TokenStream::new();
-    let mut write_impl = TokenStream::new();
+    let mut write_str_impl = TokenStream::new();
+    let mut write_binary_impl = TokenStream::new();
+
+    for (i, field) in struct_data.fields.into_iter().enumerate() {
+        let name = if let Some(name) = field.ident {
+            name.to_token_stream()
+        } else {
+            let i = syn::Index::from(i);
+            quote! { self.#i }
+        };
+
+        write_str_impl.append_all(quote! {
+            #name.write_str(f)?;
+        });
+        write_binary_impl.append_all(quote! {
+            #name.write_binary(w)?;
+        });
+    }
 
     let res = quote! {
         impl Writable for #enum_ident {
-            fn write_str(&self, f: &mut dyn ::std::fmt::Write) -> ::std::fmt::Result {
-                #display_impl
-                todo!()
+            fn write_str(&self, f: &mut dyn ::std::ops::FnMut(&str)) -> ::std::fmt::Result {
+                #write_str_impl
+                Ok(())
             }
             fn write_binary(&self, w: &mut dyn ::std::io::Write) -> ::anyhow::Result<()> {
-                #write_impl
-                todo!()
+                #write_binary_impl
+                Ok(())
             }
         }
     };
-
+    // println!("{res}");
     proc_macro::TokenStream::from(res)
 }

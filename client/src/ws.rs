@@ -111,12 +111,15 @@ impl RobotWS {
         C: Writable,
         C::Return: Readable + Sized,
     {
-        let mut s = format!("{}{}", C::PREFIX, SEPARATOR);
-        cmd.write_str(&mut s)?;
+        let mut s = C::PREFIX.to_string();
+        cmd.write_str(&mut |r| {
+            s.push(SEPARATOR);
+            s.push_str(r);
+        })?;
 
-        self.tx.lock().await.send(Message::Binary(s.into())).await?;
+        self.tx.lock().await.send(Message::Text(s.into())).await?;
 
-        Ok(if std::mem::size_of::<C>() == 0 {
+        Ok(if std::mem::size_of::<C::Return>() != 0 {
             let bs = self
                 .rx
                 .lock()
@@ -148,14 +151,6 @@ impl RemoteRobotTransport for RobotWS {
     where
         C::Return: Readable,
     {
-        self.runtime.block_on(async {
-            let mut s = String::new();
-            cmd.write_str(&mut s)?;
-            debug!("S: {s}");
-
-            let r = self.send(&cmd).await?;
-
-            Ok(r)
-        })
+        self.runtime.block_on(self.send(&cmd))
     }
 }
