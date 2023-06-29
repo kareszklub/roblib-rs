@@ -1,13 +1,9 @@
-use std::{future::Future, io::Read, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 use crate::Robot;
 
-use anyhow::Result;
 use roblib::{
-    cmd::{
-        parsing::{commands::Concrete, Writable},
-        Command, GetUptime, Nop,
-    },
+    cmd::{parsing::Writable, Command, Concrete, GetUptime, Nop},
     RoblibRobot,
 };
 
@@ -20,18 +16,16 @@ mod gpio;
 #[cfg(feature = "camloc")]
 mod camloc;
 
+#[async_trait::async_trait]
 pub(crate) trait Execute: Command {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>>;
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return>;
 }
 
-async fn execute_concrete(
+pub(crate) async fn execute_concrete(
     concrete: Concrete,
     robot: Arc<Robot>,
-) -> anyhow::Result<Option<Box<dyn Writable + Send>>> {
-    type R = Box<dyn Writable + Send>;
+) -> anyhow::Result<Option<Box<dyn Writable + Send + Sync>>> {
+    type R = Box<dyn Writable + Send + Sync>;
 
     Ok(match concrete {
         #[cfg(feature = "roland")]
@@ -98,21 +92,6 @@ async fn execute_concrete(
     })
 }
 
-#[allow(unused)]
-pub(crate) async fn execute_command_text<'a>(
-    input: &mut impl Iterator<Item = &'a str>,
-    robot: Arc<Robot>,
-) -> Result<Option<Box<dyn Writable + Send>>> {
-    execute_concrete(Concrete::parse_str(input)?, robot).await
-}
-#[allow(unused)]
-pub(crate) async fn execute_command_binary(
-    input: &mut impl Read,
-    robot: Arc<Robot>,
-) -> Result<Option<Box<dyn Writable + Send>>> {
-    execute_concrete(Concrete::parse_binary(input)?, robot).await
-}
-
 impl RoblibRobot for Robot {
     fn nop(&self) -> anyhow::Result<()> {
         Ok(())
@@ -122,26 +101,18 @@ impl RoblibRobot for Robot {
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for Nop {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
-        Box::pin(async move {
-            debug!("Nop");
-            robot.nop()
-        })
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Nop");
+        robot.nop()
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for GetUptime {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
-        Box::pin(async move {
-            debug!("Get uptime");
-            robot.get_uptime()
-        })
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Get uptime");
+        robot.get_uptime()
     }
 }

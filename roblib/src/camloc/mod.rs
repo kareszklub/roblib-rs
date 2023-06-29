@@ -3,7 +3,18 @@ pub mod cmd;
 pub mod server {
     pub use camloc_server::*;
 }
-pub use camloc_server::{service::Subscriber, MotionHint, Mutex, Position, MAIN_PORT};
+
+pub use camloc_server::{service::Subscriber, MotionHint, Position, MAIN_PORT};
+
+pub trait Camloc {
+    fn get_position(&self) -> anyhow::Result<Option<Position>>;
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait CamlocAsync {
+    async fn get_position(&self) -> anyhow::Result<Option<Position>>;
+}
 
 #[cfg(all(feature = "roland", feature = "gpio-backend"))]
 pub fn get_motion_hint(left: f64, right: f64) -> Option<MotionHint> {

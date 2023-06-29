@@ -1,5 +1,5 @@
 #![allow(unused_imports, unused_variables)]
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 use roblib::{
     cmd::{
@@ -11,179 +11,151 @@ use roblib::{
 
 use super::{Execute, Robot};
 
+#[async_trait::async_trait]
 impl Execute for MoveRobot {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         let MoveRobot(left, right) = *self;
 
-        Box::pin(async move {
-            debug!("Moving robot: {left}:{right}");
+        debug!("Moving robot: {left}:{right}");
 
-            #[cfg(feature = "backend")]
-            if let Some(r) = &robot.roland {
-                r.drive(left, right)?;
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.roland {
+            r.drive(left, right)?;
 
-                #[cfg(feature = "camloc")]
-                if let Some(c) = &robot.camloc {
-                    let hint = roblib::camloc::get_motion_hint(left, right);
-                    c.service.set_motion_hint(hint).await;
-                }
+            #[cfg(feature = "camloc")]
+            if let Some(c) = &robot.camloc {
+                let hint = roblib::camloc::get_motion_hint(left, right);
+                c.service.set_motion_hint(hint).await;
             }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for MoveRobotByAngle {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         let MoveRobotByAngle(angle, speed) = *self;
 
-        Box::pin(async move {
-            debug!("Moving robot by angle: {}:{}", angle, speed);
+        debug!("Moving robot by angle: {}:{}", angle, speed);
 
-            #[cfg(feature = "backend")]
-            if let Some(r) = &robot.roland {
-                r.drive_by_angle(angle, speed)?;
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.roland {
+            r.drive_by_angle(angle, speed)?;
 
-                #[cfg(feature = "camloc")]
-                if let Some(c) = &robot.camloc {
-                    let (left, right) = roblib::roland::convert_move(angle, speed);
-                    let hint = roblib::camloc::get_motion_hint(left, right);
-                    c.service.set_motion_hint(hint).await;
-                }
+            #[cfg(feature = "camloc")]
+            if let Some(c) = &robot.camloc {
+                let (left, right) = roblib::roland::convert_move(angle, speed);
+                let hint = roblib::camloc::get_motion_hint(left, right);
+                c.service.set_motion_hint(hint).await;
             }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for StopRobot {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
-        Box::pin(async move {
-            debug!("Stopping robot");
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Stopping robot");
 
-            #[cfg(feature = "backend")]
-            if let Some(r) = &robot.roland {
-                r.drive(0., 0.)?;
-            }
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.roland {
+            r.drive(0., 0.)?;
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for Led {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         let Led(r, g, b) = *self;
 
-        Box::pin(async move {
-            debug!("LED: {r}:{g}:{b}");
+        debug!("LED: {r}:{g}:{b}");
 
-            #[cfg(feature = "backend")]
-            if let Some(rr) = &robot.roland {
-                rr.led(r, g, b)?;
-            }
+        #[cfg(feature = "backend")]
+        if let Some(rr) = &robot.roland {
+            rr.led(r, g, b)?;
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for ServoAbsolute {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         let ServoAbsolute(deg) = *self;
 
-        Box::pin(async move {
-            debug!("Servo absolute: {deg}");
+        debug!("Servo absolute: {deg}");
 
-            #[cfg(feature = "backend")]
-            if let Some(r) = &robot.roland {
-                r.servo(deg)?;
-            }
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.roland {
+            r.servo(deg)?;
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for Buzzer {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         let Buzzer(pw) = *self;
 
-        Box::pin(async move {
-            debug!("Buzzer: {pw}");
+        debug!("Buzzer: {pw}");
 
-            #[cfg(feature = "backend")]
-            if let Some(r) = &robot.roland {
-                r.buzzer(pw)?
-            }
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.roland {
+            r.buzzer(pw)?
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for TrackSensor {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
-        Box::pin(async move {
-            debug!("Track sensor");
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Track sensor");
 
-            #[cfg(feature = "backend")]
-            let res = if let Some(r) = &robot.roland {
-                r.track_sensor()?
-            } else {
-                [false, false, false, false]
-            };
+        #[cfg(feature = "backend")]
+        let res = if let Some(r) = &robot.roland {
+            r.track_sensor()?
+        } else {
+            [false, false, false, false]
+        };
 
-            #[cfg(not(feature = "backend"))]
-            let res = [false, false, false, false];
+        #[cfg(not(feature = "backend"))]
+        let res = [false, false, false, false];
 
-            Ok(res)
-        })
+        Ok(res)
     }
 }
 
+#[async_trait::async_trait]
 impl Execute for UltraSensor {
-    fn execute(
-        &self,
-        robot: Arc<Robot>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<Self::Return>>>> {
-        Box::pin(async move {
-            debug!("Ultra sensor");
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Ultra sensor");
 
-            #[cfg(feature = "backend")]
-            let res = if let Some(r) = &robot.roland {
-                r.ultra_sensor()?
-            } else {
-                f64::NAN
-            };
+        #[cfg(feature = "backend")]
+        let res = if robot.roland.is_some() {
+            // because it uses std::thread::sleep
+            actix_web::rt::task::spawn_blocking(move || {
+                robot.roland.as_ref().unwrap().ultra_sensor()
+            })
+            .await??
+        } else {
+            f64::NAN
+        };
 
-            #[cfg(not(feature = "backend"))]
-            let res = f64::NAN;
+        #[cfg(not(feature = "backend"))]
+        let res = f64::NAN;
 
-            Ok(res)
-        })
+        Ok(res)
     }
 }

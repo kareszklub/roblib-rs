@@ -16,6 +16,13 @@ pub trait RoblibRobot {
     fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait RoblibRobotAsync {
+    async fn nop(&self) -> anyhow::Result<()>;
+    async fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
+}
+
 #[allow(unused)]
 pub(crate) fn get_servo_pwm_durations(degree: f64) -> (std::time::Duration, std::time::Duration) {
     let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;

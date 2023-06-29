@@ -6,38 +6,34 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 roblib = { path = "../roblib" }
-actix-http = "3"
-actix-web = "4.0"
-actix-rt = "2.6"
-awc = "3.0.0"
-futures = "0.3.21"
-futures-util = "0.3.21"
-bytestring = "1.0.0"
-log = "0.4.14"
-anyhow = "1.0.57"
-env_logger = "0.9.0"
+actix-http = "3.3"
+actix-web = "4.3"
+actix-rt = "2.8"
+awc = "3.1"
+futures = "0.3"
+futures-util = "0.3"
+log = "0.4"
+anyhow = "1"
+env_logger = "0.10"
+tokio = { version = "1.29", features = ["net"] }
+async-trait = { version = "0.1", optional = true }
+tokio-util = { version = "0.7", features = ["compat"] }
 
 [features]
 default = []
 
-all = ["roland", "gpio", "camloc"]
+all = ["roland", "gpio", "camloc", "async"]
 
-roland = ["roblib/roland"]
-gpio = ["roblib/gpio"]
-camloc = ["roblib/camloc"]
+async = ["dep:async-trait"]
 
-[[example]]
-name = "controller"
-required-features = ["all"]
+roland = []
+gpio = []
+camloc = []
 
 [[example]]
 name = "simple"
-required-features = ["all"]
+required-features = ["roland"]
 
 [[example]]
-name = "with_http"
-required-features = ["all"]
-
-[[example]]
-name = "with_ws"
-required-features = ["all"]
+name = "controller"
+required-features = ["roland", "gpio", "camloc"]

@@ -229,12 +229,13 @@ impl Roland for RolandBackend {
 
     fn buzzer(&self, pw: f64) -> Result<()> {
         let mut pin = self.buzzer.lock().unwrap();
+        let pw = pw.clamp(0., 1.);
 
-        if pw == 100.0 {
+        if pw >= 1. {
             pin.clear_pwm()?;
             pin.set_high();
         } else {
-            pin.set_pwm_frequency(100.0, pw / 100.0)?;
+            pin.set_pwm_frequency(100.0, pw)?;
         }
 
         Ok(())

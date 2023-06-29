@@ -1,321 +1,39 @@
-use std::{mem::size_of, time::Duration};
+#[cfg(feature = "async")]
+use futures::{AsyncReadExt, AsyncWriteExt};
 
-pub trait Readable
-where
-    Self: Sized,
-{
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self>;
+use std::time::Duration;
+
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait Readable: Sized {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self>;
     fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self>;
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self>
+    where
+        Self: Send;
 }
+
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait Writable {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result;
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result;
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()>;
-}
 
-pub mod commands {
-    use crate::cmd::{self, Command};
-
-    use super::{Readable, Writable};
-
-    pub enum Concrete {
-        #[cfg(feature = "roland")]
-        MoveRobot(cmd::MoveRobot),
-        #[cfg(feature = "roland")]
-        MoveRobotByAngle(cmd::MoveRobotByAngle),
-        #[cfg(feature = "roland")]
-        StopRobot(cmd::StopRobot),
-        #[cfg(feature = "roland")]
-        Led(cmd::Led),
-        #[cfg(feature = "roland")]
-        ServoAbsolute(cmd::ServoAbsolute),
-        #[cfg(feature = "roland")]
-        Buzzer(cmd::Buzzer),
-        #[cfg(feature = "roland")]
-        TrackSensor(cmd::TrackSensor),
-        #[cfg(feature = "roland")]
-        UltraSensor(cmd::UltraSensor),
-
-        #[cfg(feature = "gpio")]
-        ReadPin(cmd::ReadPin),
-        #[cfg(feature = "gpio")]
-        SetPin(cmd::SetPin),
-        #[cfg(feature = "gpio")]
-        SetPwm(cmd::SetPwm),
-        #[cfg(feature = "gpio")]
-        ServoBasic(cmd::ServoBasic),
-
-        #[cfg(feature = "camloc")]
-        GetPosition(cmd::GetPosition),
-
-        Nop(cmd::Nop),
-        GetUptime(cmd::GetUptime),
-    }
-
-    impl Concrete {
-        pub fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
-            let Some(prefix) = s.next() else {
-                return Err(anyhow::Error::msg("Missing prefix"));
-            };
-            let Some(prefix) = prefix.chars().next() else {
-                return Err(anyhow::Error::msg("Prefix can't be empty"));
-            };
-
-            Ok(match prefix {
-                #[cfg(feature = "roland")]
-                cmd::MoveRobot::PREFIX => Self::MoveRobot(cmd::MoveRobot::parse_str(s)?),
-                #[cfg(feature = "roland")]
-                cmd::MoveRobotByAngle::PREFIX => {
-                    Self::MoveRobotByAngle(cmd::MoveRobotByAngle::parse_str(s)?)
-                }
-                #[cfg(feature = "roland")]
-                cmd::StopRobot::PREFIX => Self::StopRobot(cmd::StopRobot::parse_str(s)?),
-                #[cfg(feature = "roland")]
-                cmd::Led::PREFIX => Self::Led(cmd::Led::parse_str(s)?),
-                #[cfg(feature = "roland")]
-                cmd::ServoAbsolute::PREFIX => {
-                    Self::ServoAbsolute(cmd::ServoAbsolute::parse_str(s)?)
-                }
-                #[cfg(feature = "roland")]
-                cmd::Buzzer::PREFIX => Self::Buzzer(cmd::Buzzer::parse_str(s)?),
-                #[cfg(feature = "roland")]
-                cmd::TrackSensor::PREFIX => Self::TrackSensor(cmd::TrackSensor::parse_str(s)?),
-                #[cfg(feature = "roland")]
-                cmd::UltraSensor::PREFIX => Self::UltraSensor(cmd::UltraSensor::parse_str(s)?),
-
-                #[cfg(feature = "gpio")]
-                cmd::ReadPin::PREFIX => Self::ReadPin(cmd::ReadPin::parse_str(s)?),
-                #[cfg(feature = "gpio")]
-                cmd::SetPin::PREFIX => Self::SetPin(cmd::SetPin::parse_str(s)?),
-                #[cfg(feature = "gpio")]
-                cmd::SetPwm::PREFIX => Self::SetPwm(cmd::SetPwm::parse_str(s)?),
-                #[cfg(feature = "gpio")]
-                cmd::ServoBasic::PREFIX => Self::ServoBasic(cmd::ServoBasic::parse_str(s)?),
-
-                #[cfg(feature = "camloc")]
-                cmd::GetPosition::PREFIX => Self::GetPosition(cmd::GetPosition::parse_str(s)?),
-
-                cmd::Nop::PREFIX => Self::Nop(cmd::Nop::parse_str(s)?),
-                cmd::GetUptime::PREFIX => Self::GetUptime(cmd::GetUptime::parse_str(s)?),
-
-                _ => return Err(anyhow::Error::msg("Unknown prefix")),
-            })
-        }
-        pub fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
-            let mut prefix = [0; std::mem::size_of::<char>()];
-            r.read_exact(&mut prefix)?;
-            let Some(prefix) = char::from_u32(u32::from_be_bytes(prefix)) else {
-                return Err(anyhow::Error::msg("Invalid prefix"));
-            };
-
-            Ok(match prefix {
-                #[cfg(feature = "roland")]
-                cmd::MoveRobot::PREFIX => Self::MoveRobot(cmd::MoveRobot::parse_binary(r)?),
-                #[cfg(feature = "roland")]
-                cmd::MoveRobotByAngle::PREFIX => {
-                    Self::MoveRobotByAngle(cmd::MoveRobotByAngle::parse_binary(r)?)
-                }
-                #[cfg(feature = "roland")]
-                cmd::StopRobot::PREFIX => Self::StopRobot(cmd::StopRobot::parse_binary(r)?),
-                #[cfg(feature = "roland")]
-                cmd::Led::PREFIX => Self::Led(cmd::Led::parse_binary(r)?),
-                #[cfg(feature = "roland")]
-                cmd::ServoAbsolute::PREFIX => {
-                    Self::ServoAbsolute(cmd::ServoAbsolute::parse_binary(r)?)
-                }
-                #[cfg(feature = "roland")]
-                cmd::Buzzer::PREFIX => Self::Buzzer(cmd::Buzzer::parse_binary(r)?),
-                #[cfg(feature = "roland")]
-                cmd::TrackSensor::PREFIX => Self::TrackSensor(cmd::TrackSensor::parse_binary(r)?),
-                #[cfg(feature = "roland")]
-                cmd::UltraSensor::PREFIX => Self::UltraSensor(cmd::UltraSensor::parse_binary(r)?),
-
-                #[cfg(feature = "gpio")]
-                cmd::ReadPin::PREFIX => Self::ReadPin(cmd::ReadPin::parse_binary(r)?),
-                #[cfg(feature = "gpio")]
-                cmd::SetPin::PREFIX => Self::SetPin(cmd::SetPin::parse_binary(r)?),
-                #[cfg(feature = "gpio")]
-                cmd::SetPwm::PREFIX => Self::SetPwm(cmd::SetPwm::parse_binary(r)?),
-                #[cfg(feature = "gpio")]
-                cmd::ServoBasic::PREFIX => Self::ServoBasic(cmd::ServoBasic::parse_binary(r)?),
-
-                #[cfg(feature = "camloc")]
-                cmd::GetPosition::PREFIX => Self::GetPosition(cmd::GetPosition::parse_binary(r)?),
-
-                cmd::Nop::PREFIX => Self::Nop(cmd::Nop::parse_binary(r)?),
-                cmd::GetUptime::PREFIX => Self::GetUptime(cmd::GetUptime::parse_binary(r)?),
-
-                _ => return Err(anyhow::Error::msg("Unknown prefix")),
-            })
-        }
-
-        pub fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-            match self {
-                #[cfg(feature = "roland")]
-                Self::MoveRobot(c) => {
-                    f(&cmd::MoveRobot::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::MoveRobotByAngle(c) => {
-                    f(&cmd::MoveRobotByAngle::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::StopRobot(c) => {
-                    f(&cmd::StopRobot::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::Led(c) => {
-                    f(&cmd::Led::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::ServoAbsolute(c) => {
-                    f(&cmd::ServoAbsolute::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::Buzzer(c) => {
-                    f(&cmd::Buzzer::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::TrackSensor(c) => {
-                    f(&cmd::TrackSensor::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::UltraSensor(c) => {
-                    f(&cmd::UltraSensor::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-
-                #[cfg(feature = "gpio")]
-                Self::ReadPin(c) => {
-                    f(&cmd::ReadPin::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::SetPin(c) => {
-                    f(&cmd::SetPin::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::SetPwm(c) => {
-                    f(&cmd::SetPwm::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::ServoBasic(c) => {
-                    f(&cmd::ServoBasic::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-
-                #[cfg(feature = "camloc")]
-                Self::GetPosition(c) => {
-                    f(&cmd::GetPosition::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-
-                Self::Nop(c) => {
-                    f(&cmd::Nop::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-                Self::GetUptime(c) => {
-                    f(&cmd::GetUptime::PREFIX.to_string());
-                    c.write_str(f)?;
-                }
-            }
-            Ok(())
-        }
-        pub fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-            match self {
-                #[cfg(feature = "roland")]
-                Self::MoveRobot(c) => {
-                    w.write_all(&(cmd::MoveRobot::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::MoveRobotByAngle(c) => {
-                    w.write_all(&(cmd::MoveRobotByAngle::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::StopRobot(c) => {
-                    w.write_all(&(cmd::StopRobot::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::Led(c) => {
-                    w.write_all(&(cmd::Led::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::ServoAbsolute(c) => {
-                    w.write_all(&(cmd::ServoAbsolute::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::Buzzer(c) => {
-                    w.write_all(&(cmd::Buzzer::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::TrackSensor(c) => {
-                    w.write_all(&(cmd::TrackSensor::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "roland")]
-                Self::UltraSensor(c) => {
-                    w.write_all(&(cmd::UltraSensor::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-
-                #[cfg(feature = "gpio")]
-                Self::ReadPin(c) => {
-                    w.write_all(&(cmd::ReadPin::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::SetPin(c) => {
-                    w.write_all(&(cmd::SetPin::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::SetPwm(c) => {
-                    w.write_all(&(cmd::SetPwm::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                #[cfg(feature = "gpio")]
-                Self::ServoBasic(c) => {
-                    w.write_all(&(cmd::ServoBasic::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-
-                #[cfg(feature = "camloc")]
-                Self::GetPosition(c) => {
-                    w.write_all(&(cmd::GetPosition::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-
-                Self::Nop(c) => {
-                    w.write_all(&(cmd::Nop::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-                Self::GetUptime(c) => {
-                    w.write_all(&(cmd::GetUptime::PREFIX as u32).to_be_bytes())?;
-                    c.write_binary(w)?;
-                }
-            }
-            Ok(())
-        }
-    }
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()>
+    where
+        Self: Sync;
 }
 
 #[cfg(feature = "camloc")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for crate::camloc::Position {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         use anyhow::Error;
         Ok(Self {
             x: s.next()
@@ -344,12 +62,31 @@ impl Readable for crate::camloc::Position {
         let mut f = [0; 8];
         r.read_exact(&mut f)?;
         let rotation = f64::from_be_bytes(f);
+
+        Ok(Self { x, y, rotation })
+    }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut f = [0; 8];
+        r.read_exact(&mut f).await?;
+        let x = f64::from_be_bytes(f);
+        let mut f = [0; 8];
+        r.read_exact(&mut f).await?;
+        let y = f64::from_be_bytes(f);
+        let mut f = [0; 8];
+        r.read_exact(&mut f).await?;
+        let rotation = f64::from_be_bytes(f);
+
         Ok(Self { x, y, rotation })
     }
 }
 #[cfg(feature = "camloc")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for crate::camloc::Position {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         use std::fmt::Write;
         let mut s = String::new();
 
@@ -374,28 +111,58 @@ impl Writable for crate::camloc::Position {
 
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        w.write_all(&self.x.to_be_bytes()).await?;
+        w.write_all(&self.y.to_be_bytes()).await?;
+        w.write_all(&self.rotation.to_be_bytes()).await?;
+
+        Ok(())
+    }
 }
 
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for () {
-    fn parse_str<'a>(_: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+    fn parse_text<'a>(_: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         Ok(())
     }
     fn parse_binary(_: &mut impl std::io::Read) -> anyhow::Result<Self> {
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        _: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        Ok(())
+    }
 }
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for () {
-    fn write_str(&self, _: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, _: &mut dyn FnMut(&str)) -> std::fmt::Result {
         Ok(())
     }
 
     fn write_binary(&self, _: &mut dyn std::io::Write) -> anyhow::Result<()> {
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        _: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for Duration {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         let Some(s) = s.next() else {
             return Err(anyhow::Error::msg("Not enough arguments"))
         };
@@ -409,27 +176,47 @@ impl Readable for Duration {
         r.read_exact(&mut millis)?;
         Ok(Duration::from_millis(u64::from_be_bytes(millis)))
     }
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut millis = [0; std::mem::size_of::<u64>()];
+        r.read_exact(&mut millis).await?;
+        Ok(Duration::from_millis(u64::from_be_bytes(millis)))
+    }
 }
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for Duration {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(&self.as_millis().to_string());
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(&(self.as_millis() as u64).to_string());
         Ok(())
     }
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-        w.write_all(&self.as_millis().to_be_bytes())?;
+        w.write_all(&(self.as_millis() as u64).to_be_bytes())?;
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        w.write_all(&(self.as_millis() as u64).to_be_bytes())
+            .await?;
         Ok(())
     }
 }
 
-impl<T: Readable> Readable for Option<T> {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: Readable + Send> Readable for Option<T> {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         let Some(v) = s.next() else {
             return Err(anyhow::Error::msg("Not enough arguments"))
         };
 
         match v {
             "0" => Ok(None),
-            "1" => Ok(Some(T::parse_str(s)?)),
+            "1" => Ok(Some(T::parse_text(s)?)),
             _ => Err(anyhow::Error::msg(
                 "Option variant needs to be indicated with a 0 or a 1",
             )),
@@ -446,12 +233,26 @@ impl<T: Readable> Readable for Option<T> {
 
         Ok(Some(T::parse_binary(r)?))
     }
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut v = [0; std::mem::size_of::<u8>()];
+        r.read_exact(&mut v).await?;
+
+        if u8::from_be_bytes(v) == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(T::parse_binary_async(r).await?))
+    }
 }
-impl<T: Writable> Writable for Option<T> {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: Writable + Sync> Writable for Option<T> {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         if let Some(v) = self {
             f("1");
-            v.write_str(f)?;
+            v.write_text(f)?;
         } else {
             f("0");
         }
@@ -467,10 +268,25 @@ impl<T: Writable> Writable for Option<T> {
         }
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        if let Some(v) = self {
+            w.write_all(&[1]).await?;
+            v.write_binary_async(w).await?;
+        } else {
+            w.write_all(&[0]).await?;
+        }
+        Ok(())
+    }
 }
 
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for bool {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         let Some(s) = s.next() else {
             return Err(anyhow::Error::msg("Not enough arguments"))
         };
@@ -487,9 +303,19 @@ impl Readable for bool {
         r.read_exact(&mut b)?;
         Ok(u8::from_be_bytes(b) != 0)
     }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut b = [0];
+        r.read_exact(&mut b).await?;
+        Ok(u8::from_be_bytes(b) != 0)
+    }
 }
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for bool {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         f(if *self { "1" } else { "0" });
         Ok(())
     }
@@ -498,11 +324,21 @@ impl Writable for bool {
         w.write_all(&(*self as u8).to_be_bytes())?;
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        w.write_all(&(*self as u8).to_be_bytes()).await?;
+        Ok(())
+    }
 }
 
 #[cfg(feature = "camloc")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for crate::camloc::MotionHint {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         let Some(s) = s.next() else {
             return Err(anyhow::Error::msg("Not enough arguments"))
         };
@@ -525,10 +361,25 @@ impl Readable for crate::camloc::MotionHint {
             _ => Err(anyhow::Error::msg("Couldn't parse motion hint")),
         }
     }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut c = [0];
+        r.read_exact(&mut c).await?;
+        match u8::from_be_bytes(c) as char {
+            'f' => Ok(Self::MovingForwards),
+            'b' => Ok(Self::MovingBackwards),
+            's' => Ok(Self::Stationary),
+            _ => Err(anyhow::Error::msg("Couldn't parse motion hint")),
+        }
+    }
 }
 #[cfg(feature = "camloc")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for crate::camloc::MotionHint {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         f(match self {
             Self::MovingForwards => "f",
             Self::MovingBackwards => "b",
@@ -546,23 +397,28 @@ impl Writable for crate::camloc::MotionHint {
         w.write_all(&(c as u32).to_be_bytes())?;
         Ok(())
     }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        let c = match self {
+            Self::MovingForwards => 'f',
+            Self::MovingBackwards => 'b',
+            Self::Stationary => 's',
+        };
+        w.write_all(&(c as u32).to_be_bytes()).await?;
+        Ok(())
+    }
 }
 
-impl<T: Readable, const N: usize> Readable for [T; N] {
-    fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
-        let Some(n) = s.next() else {
-            return Err(anyhow::Error::msg("Missing array length"));
-        };
-        let Ok(n) = n.parse::<u64>() else {
-            return Err(anyhow::Error::msg("Couldn't parse array length"));
-        };
-        if n as usize != N {
-            return Err(anyhow::Error::msg("Array length doesn't match"));
-        }
-
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: Readable + Send, const N: usize> Readable for [T; N] {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
         let mut v = vec![];
         for _ in 0..N {
-            v.push(T::parse_str(s)?);
+            v.push(T::parse_text(s)?);
         }
 
         // because no debug...
@@ -570,14 +426,6 @@ impl<T: Readable, const N: usize> Readable for [T; N] {
     }
 
     fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
-        let mut n = [0; size_of::<u64>()];
-        r.read_exact(&mut n)?;
-        let n = u64::from_be_bytes(n);
-
-        if n as usize != N {
-            return Err(anyhow::Error::msg("Array length doesn't match"));
-        }
-
         let mut v = vec![];
         for _ in 0..N {
             v.push(T::parse_binary(r)?);
@@ -586,20 +434,42 @@ impl<T: Readable, const N: usize> Readable for [T; N] {
         // because no debug...
         Ok(unsafe { v.try_into().unwrap_unchecked() })
     }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut v = vec![];
+        for _ in 0..N {
+            v.push(T::parse_binary_async(r).await?);
+        }
+
+        // because no debug...
+        Ok(unsafe { v.try_into().unwrap_unchecked() })
+    }
 }
-impl<T: Writable, const N: usize> Writable for [T; N] {
-    fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(&(N as u64).to_string());
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: Writable + Sync, const N: usize> Writable for [T; N] {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
         for t in self {
-            t.write_str(f)?;
+            t.write_text(f)?;
+        }
+        Ok(())
+    }
+    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
+        for t in self {
+            t.write_binary(w)?;
         }
         Ok(())
     }
 
-    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-        w.write_all(&(N as u64).to_be_bytes())?;
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
         for t in self {
-            t.write_binary(w)?;
+            t.write_binary_async(w).await?;
         }
         Ok(())
     }
@@ -607,29 +477,49 @@ impl<T: Writable, const N: usize> Writable for [T; N] {
 
 macro_rules! primitve_impl {
     ($t:tt) => {
+        #[cfg_attr(feature = "async", async_trait::async_trait)]
         impl Readable for $t {
-            fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+            fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
                 let Some(s) = s.next() else {
                                             return Err(anyhow::Error::msg("Not enough arguments"))
                                         };
 
                 s.parse()
-                    .map_err(|_| anyhow::Error::msg("Couldn't parse millis"))
+                    .map_err(|_| anyhow::Error::msg("Couldn't parse primitive"))
             }
             fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
                 let mut buf = [0; std::mem::size_of::<Self>()];
                 r.read_exact(&mut buf)?;
                 Ok(Self::from_be_bytes(buf))
             }
+
+            #[cfg(feature = "async")]
+            async fn parse_binary_async(
+                r: &mut (impl futures::AsyncRead + Send + Unpin),
+            ) -> anyhow::Result<Self> {
+                let mut buf = [0; std::mem::size_of::<Self>()];
+                r.read_exact(&mut buf).await?;
+                Ok(Self::from_be_bytes(buf))
+            }
         }
+        #[cfg_attr(feature = "async", async_trait::async_trait)]
         impl Writable for $t {
-            fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+            fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
                 f(&self.to_string());
                 Ok(())
             }
 
             fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
                 w.write_all(&self.to_be_bytes())?;
+                Ok(())
+            }
+
+            #[cfg(feature = "async")]
+            async fn write_binary_async(
+                &self,
+                w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+            ) -> anyhow::Result<()> {
+                w.write_all(&self.to_be_bytes()).await?;
                 Ok(())
             }
         }
@@ -651,15 +541,16 @@ primitve_impl!(i128);
 primitve_impl!(f32);
 primitve_impl!(f64);
 
-macro_rules! impl_parsable_tuple {
+macro_rules! tuple_impl {
     ($($idx:tt $t:tt),+) => {
+        #[cfg_attr(feature = "async", async_trait::async_trait)]
         impl<$($t,)+> Readable for ($($t,)+)
         where
-            $($t: Readable,)+
+            $($t: Readable + Send,)+
         {
-            fn parse_str<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+            fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
                 Ok(($(
-                    $t :: parse_str(s)?,
+                    $t :: parse_text(s)?,
                 )+))
             }
             fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
@@ -667,14 +558,23 @@ macro_rules! impl_parsable_tuple {
                     $t :: parse_binary(r)?,
                 )+))
             }
+            #[cfg(feature = "async")]
+            async fn parse_binary_async(
+                r: &mut (impl futures::AsyncRead + Send + Unpin),
+            ) -> anyhow::Result<Self> {
+                Ok(($(
+                    $t :: parse_binary_async(r).await?,
+                )+))
+            }
         }
+        #[cfg_attr(feature = "async", async_trait::async_trait)]
         impl<$($t,)+> Writable for ($($t,)+)
         where
-            $($t: Writable,)+
+            $($t: Writable + Sync + Send,)+
         {
-            fn write_str(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+            fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
                 $(
-                    self. $idx .write_str(f)?;
+                    self. $idx .write_text(f)?;
                 )+
 
                 Ok(())
@@ -687,12 +587,24 @@ macro_rules! impl_parsable_tuple {
 
                 Ok(())
             }
+
+            #[cfg(feature = "async")]
+            async fn write_binary_async(
+                &self,
+                w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+            ) -> anyhow::Result<()> {
+                $(
+                    self. $idx .write_binary_async(w).await?;
+                )+
+
+                Ok(())
+            }
         }
     };
 }
 
-impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
-impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E);
-impl_parsable_tuple!(0 A, 1 B, 2 C, 3 D);
-impl_parsable_tuple!(0 A, 1 B, 2 C);
-impl_parsable_tuple!(0 A, 1 B);
+tuple_impl!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
+tuple_impl!(0 A, 1 B, 2 C, 3 D, 4 E);
+tuple_impl!(0 A, 1 B, 2 C, 3 D);
+tuple_impl!(0 A, 1 B, 2 C);
+tuple_impl!(0 A, 1 B);

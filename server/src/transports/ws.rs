@@ -1,18 +1,35 @@
-use actix::prelude::*;
-use actix::{Actor, ActorContext, AsyncContext, Handler, StreamHandler};
+use actix::{prelude::*, Actor, ActorContext, AsyncContext, Handler, StreamHandler};
+use actix_web::{
+    get,
+    web::{Data, Payload},
+    HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use roblib::cmd::parsing::Writable;
-use roblib::cmd::SEPARATOR;
+use roblib::cmd::{
+    parsing::{Readable, Writable},
+    Concrete, SEPARATOR,
+};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crate::cmd::execute_command_text;
-use crate::Robot;
+use crate::cmd::execute_concrete;
+use crate::{AppState, Robot};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// websocket endpoint
+/// will attempt to upgrade to websocket connection
+#[get("/ws")]
+pub(crate) async fn index(
+    req: HttpRequest,
+    stream: Payload,
+    state: Data<AppState>,
+) -> Result<HttpResponse, actix_web::Error> {
+    actix_web_actors::ws::start(WebSocket::new(state.robot.clone()), &req, stream)
+}
 
 pub(crate) struct WebSocket {
     robot: Arc<Robot>,
@@ -21,7 +38,7 @@ pub(crate) struct WebSocket {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-struct CmdResult(anyhow::Result<Option<Box<dyn Writable + Send>>>);
+struct CmdResult(anyhow::Result<Option<Box<dyn Writable + Send + Sync>>>);
 
 impl Handler<CmdResult> for WebSocket {
     type Result = ();
@@ -31,7 +48,7 @@ impl Handler<CmdResult> for WebSocket {
             Ok(Some(ret)) => {
                 let mut s = String::new();
 
-                match ret.write_str(&mut |r| {
+                match ret.write_text(&mut |r| {
                     s.push(SEPARATOR);
                     s.push_str(r);
                 }) {
@@ -74,10 +91,13 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
                 let recipient = ctx.address().recipient();
                 let robot_pointer = self.robot.clone();
 
+                // FIXME: commands get executed all at once, on disconnect
                 async move {
-                    recipient.do_send(CmdResult(
-                        execute_command_text(&mut text.split(SEPARATOR), robot_pointer).await,
-                    ))
+                    let res = match Concrete::parse_text(&mut text.split(SEPARATOR)) {
+                        Ok(c) => execute_concrete(c, robot_pointer).await,
+                        Err(e) => Err(e),
+                    };
+                    recipient.do_send(CmdResult(res))
                 }
                 .into_actor(self)
                 .spawn(ctx);

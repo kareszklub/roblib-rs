@@ -3,49 +3,40 @@ extern crate log;
 
 pub mod logger;
 
-pub mod http;
-pub mod tcp;
-pub mod udp;
-pub mod ws;
+pub mod transports;
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub use anyhow::Result;
 
 pub use roblib;
 
-use roblib::{
-    cmd::{self, parsing::Readable, Command},
-    RoblibRobot,
-};
-
-pub trait RemoteRobotTransport {
-    fn cmd<C: Command>(&self, cmd: C) -> Result<C::Return>
-    where
-        C::Return: Readable;
-
-    fn measure_latency(&self) -> Result<Duration> {
-        let start = Instant::now();
-        self.cmd(cmd::GetUptime)?;
-        Ok(Instant::now() - start)
-    }
-
-    fn get_server_uptime(&self) -> Result<Duration> {
-        self.cmd(cmd::GetUptime)
-    }
-}
+use roblib::{cmd, RoblibRobot};
+use transports::Transport;
 
 pub struct Robot<T> {
     pub transport: T,
 }
 
-impl<T: RemoteRobotTransport> Robot<T> {
+impl<T: Transport> Robot<T> {
     pub fn new(transport: T) -> Self {
         Self { transport }
     }
 }
 
-impl<T: RemoteRobotTransport> RoblibRobot for Robot<T> {
+#[cfg(feature = "async")]
+pub struct RobotAsync<T> {
+    pub transport: T,
+}
+
+#[cfg(feature = "async")]
+impl<T: transports::TransportAsync> RobotAsync<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+}
+
+impl<T: Transport> RoblibRobot for Robot<T> {
     fn nop(&self) -> anyhow::Result<()> {
         self.transport.cmd(cmd::Nop)
     }
@@ -56,7 +47,7 @@ impl<T: RemoteRobotTransport> RoblibRobot for Robot<T> {
 }
 
 #[cfg(feature = "roland")]
-impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
+impl<T: Transport> roblib::roland::Roland for Robot<T> {
     fn drive(&self, left: f64, right: f64) -> Result<()> {
         if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
             warn!("Drive values are now [-1, 1] not [-100, 100]");
@@ -97,7 +88,7 @@ impl<T: RemoteRobotTransport> roblib::roland::Roland for Robot<T> {
 }
 
 #[cfg(feature = "gpio")]
-impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
+impl<T: Transport> roblib::gpio::Gpio for Robot<T> {
     fn read_pin(&self, pin: u8) -> Result<bool> {
         self.transport.cmd(cmd::ReadPin(pin))
     }
@@ -116,8 +107,96 @@ impl<T: RemoteRobotTransport> roblib::gpio::Gpio for Robot<T> {
 }
 
 #[cfg(feature = "camloc")]
-impl<T: RemoteRobotTransport> Robot<T> {
-    pub fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
+impl<T: Transport> roblib::camloc::Camloc for Robot<T> {
+    fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
         self.transport.cmd(cmd::GetPosition)
+    }
+}
+
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: transports::TransportAsync> roblib::RoblibRobotAsync for RobotAsync<T> {
+    async fn nop(&self) -> Result<()> {
+        self.transport.cmd_async(cmd::Nop).await
+    }
+
+    async fn get_uptime(&self) -> Result<Duration> {
+        self.transport.cmd_async(cmd::GetUptime).await
+    }
+}
+
+#[cfg(all(feature = "roland", feature = "async"))]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: transports::TransportAsync> roblib::roland::RolandAsync for RobotAsync<T> {
+    async fn drive(&self, left: f64, right: f64) -> Result<()> {
+        if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
+            warn!("Drive values are now [-1, 1] not [-100, 100]");
+        }
+        let r = self
+            .transport
+            .cmd_async(cmd::MoveRobot(left, right))
+            .await?;
+        Ok(r)
+    }
+
+    async fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
+        if !(-1. ..=1.).contains(&speed) {
+            warn!("Drive values are now [-1, 1] not [-100, 100]");
+        }
+        self.transport
+            .cmd_async(cmd::MoveRobotByAngle(angle, speed))
+            .await
+    }
+
+    async fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
+        self.transport.cmd_async(cmd::Led(r, g, b)).await
+    }
+
+    async fn servo(&self, degree: f64) -> Result<()> {
+        self.transport.cmd_async(cmd::ServoAbsolute(degree)).await
+    }
+
+    async fn buzzer(&self, pw: f64) -> Result<()> {
+        self.transport.cmd_async(cmd::Buzzer(pw)).await
+    }
+
+    async fn track_sensor(&self) -> Result<[bool; 4]> {
+        self.transport.cmd_async(cmd::TrackSensor).await
+    }
+
+    async fn ultra_sensor(&self) -> Result<f64> {
+        self.transport.cmd_async(cmd::UltraSensor).await
+    }
+
+    async fn stop(&self) -> Result<()> {
+        self.transport.cmd_async(cmd::StopRobot).await
+    }
+}
+
+#[cfg(all(feature = "gpio", feature = "async"))]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: transports::TransportAsync> roblib::gpio::GpioAsync for RobotAsync<T> {
+    async fn read_pin(&self, pin: u8) -> Result<bool> {
+        self.transport.cmd_async(cmd::ReadPin(pin)).await
+    }
+
+    async fn set_pin(&self, pin: u8, value: bool) -> Result<()> {
+        self.transport.cmd_async(cmd::SetPin(pin, value)).await
+    }
+
+    async fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()> {
+        self.transport.cmd_async(cmd::SetPwm(pin, hz, cycle)).await
+    }
+
+    async fn servo(&self, pin: u8, degree: f64) -> Result<()> {
+        self.transport.cmd_async(cmd::ServoBasic(pin, degree)).await
+    }
+}
+
+#[cfg(all(feature = "camloc", feature = "async"))]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl<T: transports::TransportAsync> roblib::camloc::CamlocAsync for RobotAsync<T> {
+    async fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
+        self.transport.cmd_async(cmd::GetPosition).await
     }
 }

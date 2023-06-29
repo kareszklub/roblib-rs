@@ -1,4 +1,7 @@
-use roblib_client::{ws::RobotWS, RemoteRobotTransport, Result};
+use roblib_client::{
+    transports::{ws::Ws, Transport},
+    Result,
+};
 use std::{
     env::args,
     thread::sleep,
@@ -15,7 +18,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let robot = RobotWS::create(&format!("ws://{}/ws", ip))?;
+    let robot = Ws::connect(&format!("ws://{}/ws", ip))?;
 
     // boring arg parsing
     let mut args = args().skip(1);

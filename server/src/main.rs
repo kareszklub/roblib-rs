@@ -7,21 +7,12 @@ mod camloc;
 mod cmd;
 mod logger;
 
-// mod tcp;
-// mod udp;
-mod ws;
+mod transports;
+use transports::{http, tcp, udp, ws};
 
-use crate::cmd::execute_command_text;
-use actix_web::{
-    get,
-    middleware::DefaultHeaders,
-    post,
-    web::{Data, Payload},
-    App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
-};
-use actix_web_actors::ws::start as ws_start;
+use actix_web::{middleware::DefaultHeaders, web::Data, App, HttpServer};
+
 use anyhow::{anyhow, Result};
-use roblib::cmd::{parsing::Writable, SEPARATOR};
 use std::{sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
@@ -43,39 +34,6 @@ pub(crate) struct Robot {
 
 struct AppState {
     robot: Arc<Robot>,
-}
-
-/// websocket endpoint
-/// will attempt to upgrade to websocket connection
-#[get("/ws")]
-async fn ws_index(
-    req: HttpRequest,
-    stream: Payload,
-    state: Data<AppState>,
-) -> Result<HttpResponse, Error> {
-    ws_start(ws::WebSocket::new(state.robot.clone()), &req, stream)
-}
-
-#[post("/cmd")]
-async fn cmd_index(body: String, state: Data<AppState>) -> impl Responder {
-    match execute_command_text(&mut body.split(SEPARATOR), state.robot.clone()).await {
-        Ok(Some(s)) => {
-            let mut b = String::new();
-
-            match Writable::write_str(&*s, &mut |r| {
-                b.push_str(r);
-                b.push(SEPARATOR);
-            }) {
-                Ok(()) => {
-                    b.pop();
-                    HttpResponse::Ok().body(b)
-                }
-                Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-            }
-        }
-        Ok(None) => HttpResponse::Ok().into(),
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
-    }
 }
 
 #[actix_web::main]
@@ -170,13 +128,13 @@ async fn main() -> Result<()> {
         camloc,
     });
 
-    // let tcp_port = 12_345;
-    // info!("TCP starting on port {tcp_port}");
-    // tcp::start(tcp_port, robot.clone()).await?;
+    let tcp_port = 12_345;
+    info!("TCP starting on port {tcp_port}");
+    tcp::start(tcp_port, robot.clone()).await?;
 
-    // let udp_port = tcp_port + 1;
-    // info!("UDP starting on port {udp_port}");
-    // udp::start(udp_port, robot.clone()).await?;
+    let udp_port = tcp_port + 1;
+    info!("UDP starting on port {udp_port}");
+    udp::start(udp_port, robot.clone()).await?;
 
     info!("Webserver starting on port {web_port}");
 
@@ -190,8 +148,8 @@ async fn main() -> Result<()> {
             )
             .wrap(logger::actix_log())
             .app_data(data.clone())
-            .service(ws_index)
-            .service(cmd_index)
+            .service(http::index)
+            .service(ws::index)
     })
     .bind(("0.0.0.0", web_port))?
     .run()

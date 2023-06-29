@@ -32,6 +32,36 @@ pub trait Roland: Sized {
     }
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait RolandAsync {
+    async fn drive(&self, left: f64, right: f64) -> anyhow::Result<()>;
+    async fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()>;
+    async fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
+    async fn servo(&self, degree: f64) -> anyhow::Result<()>;
+    async fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
+    async fn track_sensor(&self) -> anyhow::Result<[bool; 4]>;
+    async fn ultra_sensor(&self) -> anyhow::Result<f64>;
+
+    async fn led_color(&self, color: LedColor) -> anyhow::Result<()> {
+        let (r, g, b) = color.into();
+        self.led(r, g, b).await
+    }
+
+    async fn stop(&self) -> anyhow::Result<()> {
+        self.drive(0., 0.).await
+    }
+
+    async fn cleanup(&self) -> anyhow::Result<()> {
+        self.drive(0., 0.).await?;
+        self.led(false, false, false).await?;
+        self.servo(0.).await?;
+        self.buzzer(100.0).await?;
+
+        Ok(())
+    }
+}
+
 pub enum LedColor {
     Black,
     Red,

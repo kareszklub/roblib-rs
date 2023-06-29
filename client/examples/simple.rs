@@ -1,15 +1,22 @@
-use roblib::roland::{LedColor, Roland};
-use roblib_client::{ws::RobotWS, Result, Robot};
+use roblib::{
+    camloc::Camloc,
+    roland::{LedColor, Roland},
+};
+use roblib_client::{transports::tcp::Tcp, Result, Robot};
 use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<()> {
-    let robot = Robot::new(RobotWS::create("ws://localhost:1111/ws")?);
+    let ip = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "localhost:1111".into());
+
+    let robot = Robot::new(Tcp::connect(ip)?);
 
     println!("Leds");
     robot.led_color(LedColor::Magenta)?;
 
     println!("Drive");
-    robot.drive(40., 40.)?;
+    robot.drive(0.4, 0.4)?;
 
     println!("Waiting...");
     sleep(Duration::from_secs(2));
@@ -18,7 +25,7 @@ fn main() -> Result<()> {
     robot.stop()?;
 
     println!("Drive");
-    robot.drive(40., 40.)?;
+    robot.drive(0.4, 0.4)?;
 
     println!("Waiting...");
     sleep(Duration::from_secs(2));

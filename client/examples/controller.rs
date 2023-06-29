@@ -1,5 +1,8 @@
-use roblib::cmd::{parsing::commands::Concrete, SEPARATOR};
-use roblib_client::{http::RobotHTTP, RemoteRobotTransport, Result};
+use roblib::cmd::{parsing::Readable, Concrete, SEPARATOR};
+use roblib_client::{
+    transports::{tcp::Tcp, Transport},
+    Result,
+};
 use std::io::{stdin, stdout, Write};
 
 fn main() -> Result<()> {
@@ -7,7 +10,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let robot = RobotHTTP::create(&format!("http://{addr}"))?;
+    let robot = Tcp::connect(addr)?;
 
     let mut inp = String::new();
     loop {
@@ -22,7 +25,7 @@ fn main() -> Result<()> {
             "" => continue,
             "exit" => break,
             inp => {
-                let Ok(cmd) = roblib::cmd::parsing::commands::Concrete::parse_str(&mut inp.split(SEPARATOR)) else {
+                let Ok(cmd) = Concrete::parse_text(&mut inp.split(SEPARATOR)) else {
                     println!("Couldn't parse command");
                     continue;
                 };
