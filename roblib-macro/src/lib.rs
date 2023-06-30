@@ -13,7 +13,11 @@ fn get_readable_enum(ident: &Ident, data: &syn::DataEnum) -> TokenStream {
 
     let tag_type = Ident::new(
         match data.variants.len() {
-            0x0..=0xFF => "u8",
+            0 => abort!(
+                ident.span(),
+                "Can't implement Writable for enum without variants"
+            ),
+            0x01..=0xFF => "u8",
             0x01_00..=0xFF_FF => "u16",
             0x01_00_00..=0xFF_FF_FF_FF => "u32",
             0x01_00_00_00_00..=0xFF_FF_FF_FF_FF_FF_FF_FF => "u64",
@@ -266,7 +270,11 @@ fn get_writable_enum(ident: &Ident, data: &syn::DataEnum) -> TokenStream {
 
     let tag_type = Ident::new(
         match data.variants.len() {
-            0x0..=0xFF => "u8",
+            0 => abort!(
+                ident.span(),
+                "Can't implement Writable for enum without variants"
+            ),
+            0x01..=0xFF => "u8",
             0x01_00..=0xFF_FF => "u16",
             0x01_00_00..=0xFF_FF_FF_FF => "u32",
             0x01_00_00_00_00..=0xFF_FF_FF_FF_FF_FF_FF_FF => "u64",
