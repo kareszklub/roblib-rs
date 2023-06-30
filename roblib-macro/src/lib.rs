@@ -227,17 +227,17 @@ fn get_writable_struct(struct_ident: &Ident, struct_data: &syn::DataStruct) -> T
             name.to_token_stream()
         } else {
             let i = syn::Index::from(i);
-            quote! { self.#i }
+            quote! { #i }
         };
 
         text.append_all(quote! {
-            ::roblib_parsing::Writable::write_text(&#name, w)?;
+            ::roblib_parsing::Writable::write_text(&self. #name, w)?;
         });
         binary.append_all(quote! {
-            ::roblib_parsing::Writable::write_binary(&#name, w)?;
+            ::roblib_parsing::Writable::write_binary(&self. #name, w)?;
         });
         binary_async.append_all(quote! {
-            ::roblib_parsing::Writable::write_binary_async(&#name, w).await?;
+            ::roblib_parsing::Writable::write_binary_async(&self. #name, w).await?;
         });
     }
 
