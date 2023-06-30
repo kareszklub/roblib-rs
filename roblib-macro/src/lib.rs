@@ -393,14 +393,14 @@ pub fn derive_command(item: proc_macro::TokenStream) -> proc_macro::TokenStream 
         #readable
         #writable
 
-        impl From<#ident> for roblib::cmd::Concrete {
+        impl From<#ident> for crate::cmd::Concrete {
             fn from(value: #ident) -> Self {
-                roblib::cmd::Concrete::#ident(value)
+                crate::cmd::Concrete::#ident(value)
             }
         }
-        impl From<roblib::cmd::Concrete> for #ident {
-            fn from(value: roblib::cmd::Concrete) -> Self {
-                if let roblib::cmd::Concrete::#ident(m) = value {
+        impl From<crate::cmd::Concrete> for #ident {
+            fn from(value: crate::cmd::Concrete) -> Self {
+                if let crate::cmd::Concrete::#ident(m) = value {
                     m
                 } else {
                     panic!("Tried to convert an unknown command to a concrete command")
@@ -426,14 +426,14 @@ pub fn derive_event(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #readable
         #writable
 
-        impl From<#ident> for roblib::event::Concrete {
+        impl From<#ident> for crate::event::Concrete {
             fn from(value: #ident) -> Self {
-                roblib::event::Concrete::#ident(value)
+                crate::event::Concrete::#ident(value)
             }
         }
-        impl From<roblib::event::Concrete> for #ident {
-            fn from(value: roblib::event::Concrete) -> Self {
-                if let roblib::event::Concrete::#ident(m) = value {
+        impl From<crate::event::Concrete> for #ident {
+            fn from(value: crate::event::Concrete) -> Self {
+                if let crate::event::Concrete::#ident(m) = value {
                     m
                 } else {
                     panic!("Tried to convert an unknown command to a concrete command")
