@@ -6,45 +6,66 @@ use std::{
 
 use crate::get_servo_pwm_durations;
 use anyhow::Result;
-use constants::*;
 
-use super::{convert_move, Roland};
+use super::Roland;
 
 pub mod constants {
-    // motors
-    pub const FWD_L: u8 = 20; // left forward
-    pub const BWD_L: u8 = 21; // left backward
-    pub const FWD_R: u8 = 19; // right forward
-    pub const BWD_R: u8 = 26; // right backward
-    pub const PWM_L: u8 = 16; // left speed (pwm)
-    pub const PWM_R: u8 = 13; // right speed (pwm)
+    pub mod motors {
+        /// left forward
+        pub const FWD_L: u8 = 20;
+        /// left backward
+        pub const BWD_L: u8 = 21;
+        /// right forward
+        pub const FWD_R: u8 = 19;
+        /// right backward
+        pub const BWD_R: u8 = 26;
+        /// left speed (pwm)
+        pub const PWM_L: u8 = 16;
+        /// right speed (pwm)
+        pub const PWM_R: u8 = 13;
+    }
 
-    // led
-    pub const LED_R: u8 = 22;
-    pub const LED_G: u8 = 27;
-    pub const LED_B: u8 = 24;
+    pub mod led {
+        pub const LED_R: u8 = 22;
+        pub const LED_G: u8 = 27;
+        pub const LED_B: u8 = 24;
+    }
 
-    // servo motor
-    pub const SERVO: u8 = 23;
+    pub mod servo {
+        pub const SERVO: u8 = 23;
+    }
 
-    // buzzer
-    pub const BUZZER: u8 = 8;
+    pub mod buzzer {
+        pub const BUZZER: u8 = 8;
+    }
 
-    // infrared sensor pins
-    pub const TRACK_L1: u8 = 3;
-    pub const TRACK_L2: u8 = 5;
-    pub const TRACK_R1: u8 = 4;
-    pub const TRACK_R2: u8 = 18;
+    pub mod track_sensor {
+        pub const TRACK_L1: u8 = 3;
+        pub const TRACK_L2: u8 = 5;
+        pub const TRACK_R1: u8 = 4;
+        pub const TRACK_R2: u8 = 18;
+    }
 
-    // ultrasonic
-    pub const ECHO: u8 = 0;
-    pub const TRIG: u8 = 1;
+    pub mod ultra_sensor {
+        pub const ECHO: u8 = 0;
+        pub const TRIG: u8 = 1;
+    }
 }
 
 struct Leds {
     r: OutputPin,
     g: OutputPin,
     b: OutputPin,
+}
+impl Leds {
+    fn new(gpio: &Gpio) -> Result<Self> {
+        use constants::led::*;
+        Ok(Self {
+            r: gpio.get(LED_R)?.into_output_low(),
+            g: gpio.get(LED_G)?.into_output_low(),
+            b: gpio.get(LED_B)?.into_output_low(),
+        })
+    }
 }
 
 struct TrackSensor {
@@ -53,14 +74,55 @@ struct TrackSensor {
     r1: InputPin,
     r2: InputPin,
 }
+impl TrackSensor {
+    fn new(gpio: &Gpio) -> Result<Self> {
+        use constants::track_sensor::*;
+        Ok(Self {
+            l1: gpio.get(TRACK_L1)?.into_input(),
+            l2: gpio.get(TRACK_L2)?.into_input(),
+            r1: gpio.get(TRACK_R1)?.into_input(),
+            r2: gpio.get(TRACK_R2)?.into_input(),
+        })
+    }
+}
 
-struct Motor {
+struct Buzzer(OutputPin);
+impl Buzzer {
+    pub fn new(gpio: &Gpio) -> Result<Self> {
+        Ok(Self(
+            gpio.get(constants::buzzer::BUZZER)?.into_output_high(),
+        ))
+    }
+}
+
+struct Servo(OutputPin);
+impl Servo {
+    pub fn new(gpio: &Gpio) -> Result<Self> {
+        Ok(Self(gpio.get(constants::servo::SERVO)?.into_output_high()))
+    }
+}
+struct Motors {
     fwd_l: OutputPin,
     bwd_l: OutputPin,
     pwm_l: OutputPin,
+
     fwd_r: OutputPin,
     bwd_r: OutputPin,
     pwm_r: OutputPin,
+}
+impl Motors {
+    fn new(gpio: &Gpio) -> Result<Self> {
+        use constants::motors::*;
+        Ok(Self {
+            fwd_l: gpio.get(FWD_L)?.into_output_low(),
+            bwd_l: gpio.get(BWD_L)?.into_output_low(),
+            pwm_l: gpio.get(PWM_L)?.into_output_high(),
+
+            fwd_r: gpio.get(FWD_R)?.into_output_low(),
+            bwd_r: gpio.get(BWD_R)?.into_output_low(),
+            pwm_r: gpio.get(PWM_R)?.into_output_high(),
+        })
+    }
 }
 
 struct UltraSensor {
@@ -68,12 +130,22 @@ struct UltraSensor {
     echo: InputPin,
 }
 
+impl UltraSensor {
+    fn new(gpio: &Gpio) -> Result<Self> {
+        use constants::ultra_sensor::*;
+        Ok(Self {
+            echo: gpio.get(ECHO)?.into_input(),
+            trig: gpio.get(TRIG)?.into_output_low(),
+        })
+    }
+}
+
 pub struct RolandBackend {
     ultra_sensor: Mutex<UltraSensor>,
     track_sensor: Mutex<TrackSensor>,
-    buzzer: Mutex<OutputPin>,
-    servo: Mutex<OutputPin>,
-    motor: Mutex<Motor>,
+    buzzer: Mutex<Buzzer>,
+    servo: Mutex<Servo>,
+    motor: Mutex<Motors>,
     leds: Mutex<Leds>,
 }
 
@@ -84,63 +156,18 @@ impl Drop for RolandBackend {
 }
 
 impl RolandBackend {
-    pub fn try_init() -> Result<RolandBackend> {
+    pub fn try_init() -> Result<Self> {
         let gpio = Gpio::new()?;
 
-        // MOTOR
-        gpio.get(FWD_L)?.into_output_low();
-        gpio.get(BWD_L)?.into_output_low();
-        gpio.get(PWM_L)?.into_output_high();
-        gpio.get(FWD_R)?.into_output_low();
-        gpio.get(BWD_R)?.into_output_low();
-        gpio.get(PWM_R)?.into_output_high();
+        let roland = Self {
+            motor: Motors::new(&gpio)?.into(),
+            servo: Servo::new(&gpio)?.into(),
 
-        // LED
-        gpio.get(LED_R)?.into_output_low();
-        gpio.get(LED_G)?.into_output_low();
-        gpio.get(LED_B)?.into_output_low();
+            buzzer: Buzzer::new(&gpio)?.into(),
+            leds: Leds::new(&gpio)?.into(),
 
-        // SERVO
-        gpio.get(SERVO)?.into_output_high();
-
-        // BUZZER
-        gpio.get(BUZZER)?.into_output_high();
-
-        let roland = RolandBackend {
-            leds: Leds {
-                r: gpio.get(LED_R)?.into_output(),
-                g: gpio.get(LED_G)?.into_output(),
-                b: gpio.get(LED_B)?.into_output(),
-            }
-            .into(),
-
-            servo: gpio.get(SERVO)?.into_output().into(),
-
-            buzzer: gpio.get(BUZZER)?.into_output().into(),
-
-            motor: Motor {
-                fwd_l: gpio.get(FWD_L)?.into_output(),
-                bwd_l: gpio.get(BWD_L)?.into_output(),
-                pwm_l: gpio.get(PWM_L)?.into_output(),
-                fwd_r: gpio.get(FWD_R)?.into_output(),
-                bwd_r: gpio.get(BWD_R)?.into_output(),
-                pwm_r: gpio.get(PWM_R)?.into_output(),
-            }
-            .into(),
-
-            track_sensor: TrackSensor {
-                l1: gpio.get(TRACK_L1)?.into_input(),
-                l2: gpio.get(TRACK_L2)?.into_input(),
-                r1: gpio.get(TRACK_R1)?.into_input(),
-                r2: gpio.get(TRACK_R2)?.into_input(),
-            }
-            .into(),
-
-            ultra_sensor: UltraSensor {
-                echo: gpio.get(ECHO)?.into_input(),
-                trig: gpio.get(TRIG)?.into_output(),
-            }
-            .into(),
+            ultra_sensor: UltraSensor::new(&gpio)?.into(),
+            track_sensor: TrackSensor::new(&gpio)?.into(),
         };
 
         // ran here as well to reset servo to center
@@ -194,41 +221,26 @@ impl Roland for RolandBackend {
         Ok(())
     }
 
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
-        let (left, right) = convert_move(angle, speed);
-        self.drive(left, right)
-    }
-
     fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
         let mut leds = self.leds.lock().unwrap();
 
-        if r {
-            leds.r.set_high();
-        } else {
-            leds.r.set_low();
-        }
-        if g {
-            leds.g.set_high();
-        } else {
-            leds.g.set_low();
-        }
-        if b {
-            leds.b.set_high();
-        } else {
-            leds.b.set_low();
-        }
+        leds.r.write(r.into());
+        leds.g.write(g.into());
+        leds.b.write(b.into());
 
         Ok(())
     }
 
     fn servo(&self, degree: f64) -> Result<()> {
         let (period, pulse_width) = get_servo_pwm_durations(degree);
-        self.servo.lock().unwrap().set_pwm(period, pulse_width)?;
+        self.servo.lock().unwrap().0.set_pwm(period, pulse_width)?;
         Ok(())
     }
 
     fn buzzer(&self, pw: f64) -> Result<()> {
         let mut pin = self.buzzer.lock().unwrap();
+        let pin = &mut pin.0;
+
         let pw = pw.clamp(0., 1.);
 
         if pw >= 1. {
@@ -253,7 +265,7 @@ impl Roland for RolandBackend {
 
     fn ultra_sensor(&self) -> Result<f64> {
         const BLAST_DURATION: Duration = Duration::from_micros(15);
-        const CONVERSION_FACTOR: f64 = 340. / 2. * 100.;
+        const CONVERSION_FACTOR: f64 = 340. / 2.;
 
         let mut s = self.ultra_sensor.lock().unwrap();
 

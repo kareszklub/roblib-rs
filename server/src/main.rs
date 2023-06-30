@@ -17,9 +17,7 @@ use std::{sync::Arc, time::Instant};
 
 const DEFAULT_PORT: u16 = 1111;
 
-// FIXME: REMOVE
-#[allow(unused)]
-pub(crate) struct Robot {
+struct Robot {
     pub startup_time: Instant,
 
     #[cfg(all(feature = "gpio", feature = "backend"))]
@@ -40,6 +38,7 @@ struct AppState {
 async fn main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
 
+    // TODO: config
     let web_port: u16 = match std::env::args().nth(1) {
         Some(s) => s
             .parse()
@@ -48,7 +47,7 @@ async fn main() -> Result<()> {
     };
 
     info!("Server starting up");
-    let features: Vec<&str> = vec![
+    let features: &[&str] = &[
         #[cfg(feature = "roland")]
         "roland",
         #[cfg(feature = "gpio")]
@@ -58,12 +57,13 @@ async fn main() -> Result<()> {
         #[cfg(feature = "backend")]
         "backend",
     ];
-    info!("Compiled with features: {}", features.join(", "));
+    info!("Compiled with features: {features:?}");
 
     #[cfg(feature = "camloc")]
     let camloc = {
         use roblib::camloc::server::{extrapolations::LinearExtrapolation, service};
 
+        // TODO: config
         let serv = service::start(
             Some(LinearExtrapolation::new()),
             roblib::camloc::MAIN_PORT,

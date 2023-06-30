@@ -2,14 +2,23 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use roblib::{
-    cmd,
-    cmd::{parsing::Readable, Command},
+    cmd::{self, Command},
+    event::Event,
+    Readable,
 };
 
 pub mod http;
 pub mod tcp;
 pub mod udp;
 pub mod ws;
+
+pub trait SubscribableTransport: Transport {
+    fn subscribe<E: Event>(&self, ev: E, handler: impl FnMut(E::Item)) -> Result<E::Item>
+    where
+        E::Item: Readable;
+
+    fn unsubscribe<E: Event>(&self, ev: E) -> Result<()>;
+}
 
 pub trait Transport {
     fn cmd<C: Command>(&self, cmd: C) -> Result<C::Return>

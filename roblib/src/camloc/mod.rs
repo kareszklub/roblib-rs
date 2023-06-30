@@ -1,10 +1,11 @@
 pub mod cmd;
+pub mod event;
 
 pub mod server {
     pub use camloc_server::*;
 }
 
-pub use camloc_server::{service::Subscriber, MotionHint, Position, MAIN_PORT};
+pub use camloc_server::{MotionHint, Position, MAIN_PORT};
 
 pub trait Camloc {
     fn get_position(&self) -> anyhow::Result<Option<Position>>;

@@ -1,5 +1,5 @@
 use roblib_client::{
-    transports::{ws::Ws, Transport},
+    transports::{tcp::Tcp, ws::Ws, SubscribableTransport, Transport},
     Result,
 };
 use std::{
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let robot = Ws::connect(&format!("ws://{}/ws", ip))?;
+    let transport = Tcp::connect(&format!("ws://{}/ws", ip))?;
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     let mut v = Vec::with_capacity(runs);
 
     for _ in 0..runs {
-        let r = robot.measure_latency()?.as_secs_f64();
+        let r = transport.measure_latency()?.as_secs_f64();
         v.push(r);
         sleep(Duration::from_millis(wait_ms));
     }

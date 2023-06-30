@@ -447,20 +447,22 @@ dependencies = [
 
 [[package]]
 name = "camloc-common"
-version = "0.2.0"
-source = "git+https://github.com/Kris030/camloc-common#d0e682fd1657de5dcf0ac4d27fdaf37af821b40b"
+version = "0.3.0"
+source = "git+https://github.com/Kris030/camloc-common#65bf623662f7b9f5ae726e6d06fc4bb6d21fec2c"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "camloc-server"
-version = "0.3.0"
-source = "git+https://github.com/Kris030/camloc-server#bee91a68128b61bcd653ddb1e862d20830eb0a05"
+version = "0.4.0"
+source = "git+https://github.com/Kris030/camloc-server#82437203b4844a7e885bf2605ec63e48388d6d06"
 dependencies = [
  "anyhow",
  "camloc-common",
  "futures",
+ "roblib-macro 0.1.0 (git+https://github.com/kareszklub/roblib-rs)",
+ "roblib-parsing 0.1.0 (git+https://github.com/kareszklub/roblib-rs)",
  "tokio",
 ]
 
@@ -1161,7 +1163,8 @@ dependencies = [
  "camloc-server",
  "futures",
  "log",
- "roblib-macro",
+ "roblib-macro 0.1.0",
+ "roblib-parsing 0.1.0",
  "rppal",
 ]
 
@@ -1180,6 +1183,7 @@ dependencies = [
  "futures-util",
  "log",
  "roblib",
+ "roblib-parsing 0.1.0",
  "tokio",
  "tokio-util",
 ]
@@ -1195,6 +1199,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "roblib-macro"
+version = "0.1.0"
+source = "git+https://github.com/kareszklub/roblib-rs#0d6c77f2d76afcf3d05330bc15634b4ce2d6a9ba"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.22",
+]
+
+[[package]]
+name = "roblib-parsing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+]
+
+[[package]]
+name = "roblib-parsing"
+version = "0.1.0"
+source = "git+https://github.com/kareszklub/roblib-rs#0d6c77f2d76afcf3d05330bc15634b4ce2d6a9ba"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "roblib-server"
 version = "0.1.0"
 dependencies = [
@@ -1207,6 +1239,7 @@ dependencies = [
  "futures-util",
  "log",
  "roblib",
+ "roblib-parsing 0.1.0",
  "tokio-util",
 ]
 

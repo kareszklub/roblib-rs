@@ -1,8 +1,6 @@
 use actix_web::{post, web::Data, HttpResponse, Responder};
-use roblib::cmd::{
-    parsing::{Readable, Writable},
-    Concrete, SEPARATOR,
-};
+use roblib::cmd::Concrete;
+use roblib_parsing::{Readable, Writable, SEPARATOR};
 
 use crate::{cmd::execute_concrete, AppState};
 
@@ -17,10 +15,7 @@ pub(crate) async fn index(body: String, state: Data<AppState>) -> impl Responder
         Ok(Some(s)) => {
             let mut b = String::new();
 
-            match Writable::write_text(&*s, &mut |r| {
-                b.push_str(r);
-                b.push(SEPARATOR);
-            }) {
+            match s.write_text(&mut b) {
                 Ok(()) => {
                     b.pop();
                     HttpResponse::Ok().body(b)

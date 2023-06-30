@@ -8,10 +8,11 @@ use futures::{
     SinkExt,
 };
 use futures_util::{lock::Mutex, stream::StreamExt};
-use roblib::cmd::{
-    parsing::{Readable, Writable},
-    Command, Concrete, SEPARATOR,
+use roblib::{
+    cmd::{Command, Concrete},
+    Readable, Writable,
 };
+use roblib_parsing::SEPARATOR;
 
 struct WSBase {
     tx: Mutex<UnboundedSender<Message>>,

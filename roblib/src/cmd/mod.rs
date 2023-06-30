@@ -1,9 +1,9 @@
-use parsing::{Readable, Writable};
 use roblib_macro::Command;
+use roblib_parsing::{Readable, Writable};
 
 pub mod concrete;
-pub mod parsing;
 
+use crate::event;
 #[cfg(feature = "roland")]
 pub use crate::roland::cmd::*;
 
@@ -24,7 +24,20 @@ pub fn has_return<C: Command>() -> bool {
     std::any::TypeId::of::<C::Return>() != std::any::TypeId::of::<()>()
 }
 
-pub const SEPARATOR: char = ' ';
+extern crate self as roblib;
+
+#[derive(Command)]
+pub struct Subscribe(event::Concrete);
+impl Command for Subscribe {
+    const PREFIX: char = 'a';
+    type Return = std::time::Duration;
+}
+#[derive(Command)]
+pub struct Unsubscribe(event::Concrete);
+impl Command for Unsubscribe {
+    const PREFIX: char = 'A';
+    type Return = std::time::Duration;
+}
 
 #[derive(Command)]
 pub struct Nop;

@@ -1,9 +1,8 @@
 use std::io::{Cursor, Write};
 
-use roblib::cmd::{
-    has_return,
-    parsing::{Readable, Writable},
-    Command, Concrete,
+use roblib::{
+    cmd::{has_return, Command, Concrete},
+    Readable, Writable,
 };
 
 use crate::Transport;

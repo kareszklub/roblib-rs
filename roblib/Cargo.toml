@@ -5,20 +5,21 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-camloc-server = { git = "https://github.com/Kris030/camloc-server", optional = true }
+camloc-server = { git = "https://github.com/Kris030/camloc-server", features = ["roblib-parsing"], optional = true }
+async-trait = { version = "0.1", optional = true }
+roblib-parsing = { path = "../roblib-parsing" }
+futures = { version = "0.3", optional = true }
 rppal = { version = "0.14", optional = true }
 roblib-macro = { path = "../roblib-macro" }
 anyhow = "1"
 log = "0.4"
-async-trait = { version = "0.1", optional = true }
-futures = { version = "0.3", optional = true }
 
 [features]
 default = []
 
 all = ["gpio", "roland", "camloc", "async"]
 
-async = ["dep:async-trait", "dep:futures"]
+async = ["roblib-parsing/async", "dep:async-trait", "dep:futures"]
 
 gpio = []
 roland = []

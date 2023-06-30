@@ -1,9 +1,7 @@
+use crate::cmd::Command;
 use roblib_macro::Command;
 
-use crate::cmd::{
-    parsing::{Readable, Writable},
-    Command,
-};
+extern crate self as roblib;
 
 #[derive(Command)]
 pub struct MoveRobot(pub f64, pub f64);

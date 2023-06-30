@@ -70,6 +70,12 @@ fn main() -> Result<()> {
                         robot.cmd(c)?;
                     }
 
+                    Concrete::Subscribe(c) => {
+                        robot.cmd(c)?;
+                    }
+                    Concrete::Unsubscribe(c) => {
+                        robot.cmd(c)?;
+                    }
                     Concrete::Nop(c) => {
                         robot.cmd(c)?;
                     }

@@ -5,10 +5,8 @@ use actix_web::{
     HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use roblib::cmd::{
-    parsing::{Readable, Writable},
-    Concrete, SEPARATOR,
-};
+use roblib::cmd::Concrete;
+use roblib_parsing::{Readable, Writable, SEPARATOR};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -47,12 +45,8 @@ impl Handler<CmdResult> for WebSocket {
         match res.0 {
             Ok(Some(ret)) => {
                 let mut s = String::new();
-
-                match ret.write_text(&mut |r| {
-                    s.push(SEPARATOR);
-                    s.push_str(r);
-                }) {
-                    Ok(()) => ctx.text(&s[1..]),
+                match ret.write_text(&mut s) {
+                    Ok(()) => ctx.text(&*s),
                     Err(e) => ctx.text(e.to_string()),
                 }
             }

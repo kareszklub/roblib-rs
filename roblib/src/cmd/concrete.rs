@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::cmd::{self, Command};
 
-use super::{Readable, Writable, SEPARATOR};
+use roblib_parsing::{Readable, Writable, SEPARATOR};
 
 pub enum Concrete {
     #[cfg(feature = "roland")]
@@ -34,9 +34,14 @@ pub enum Concrete {
     #[cfg(feature = "camloc")]
     GetPosition(cmd::GetPosition),
 
+    Subscribe(cmd::Subscribe),
+    Unsubscribe(cmd::Unsubscribe),
+
     Nop(cmd::Nop),
     GetUptime(cmd::GetUptime),
 }
+
+// TODO: automatize Concrete impls
 
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for Concrete {
@@ -191,167 +196,181 @@ impl Readable for Concrete {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for Concrete {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
         match self {
             #[cfg(feature = "roland")]
             Self::MoveRobot(c) => {
-                f(&cmd::MoveRobot::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::MoveRobot::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::MoveRobotByAngle(c) => {
-                f(&cmd::MoveRobotByAngle::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::MoveRobotByAngle::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::StopRobot(c) => {
-                f(&cmd::StopRobot::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::StopRobot::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::Led(c) => {
-                f(&cmd::Led::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::Led::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::ServoAbsolute(c) => {
-                f(&cmd::ServoAbsolute::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::ServoAbsolute::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::Buzzer(c) => {
-                f(&cmd::Buzzer::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::Buzzer::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::TrackSensor(c) => {
-                f(&cmd::TrackSensor::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::TrackSensor::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "roland")]
             Self::UltraSensor(c) => {
-                f(&cmd::UltraSensor::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::UltraSensor::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
 
             #[cfg(feature = "gpio")]
             Self::ReadPin(c) => {
-                f(&cmd::ReadPin::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::ReadPin::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "gpio")]
             Self::SetPin(c) => {
-                f(&cmd::SetPin::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::SetPin::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "gpio")]
             Self::SetPwm(c) => {
-                f(&cmd::SetPwm::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::SetPwm::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             #[cfg(feature = "gpio")]
             Self::ServoBasic(c) => {
-                f(&cmd::ServoBasic::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::ServoBasic::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(c) => {
-                f(&cmd::GetPosition::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::GetPosition::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
 
+            Self::Subscribe(c) => {
+                write!(w, "{}{}", cmd::Subscribe::PREFIX, SEPARATOR)?;
+                c.write_text(w)
+            }
+            Self::Unsubscribe(c) => {
+                write!(w, "{}{}", cmd::Unsubscribe::PREFIX, SEPARATOR)?;
+                c.write_text(w)
+            }
             Self::Nop(c) => {
-                f(&cmd::Nop::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::Nop::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
             Self::GetUptime(c) => {
-                f(&cmd::GetUptime::PREFIX.to_string());
-                c.write_text(f)?;
+                write!(w, "{}{}", cmd::GetUptime::PREFIX, SEPARATOR)?;
+                c.write_text(w)
             }
         }
-        Ok(())
     }
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
         match self {
             #[cfg(feature = "roland")]
             Self::MoveRobot(c) => {
                 w.write_all(&(cmd::MoveRobot::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::MoveRobotByAngle(c) => {
                 w.write_all(&(cmd::MoveRobotByAngle::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::StopRobot(c) => {
                 w.write_all(&(cmd::StopRobot::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::Led(c) => {
                 w.write_all(&(cmd::Led::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::ServoAbsolute(c) => {
                 w.write_all(&(cmd::ServoAbsolute::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::Buzzer(c) => {
                 w.write_all(&(cmd::Buzzer::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::TrackSensor(c) => {
                 w.write_all(&(cmd::TrackSensor::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "roland")]
             Self::UltraSensor(c) => {
                 w.write_all(&(cmd::UltraSensor::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
 
             #[cfg(feature = "gpio")]
             Self::ReadPin(c) => {
                 w.write_all(&(cmd::ReadPin::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "gpio")]
             Self::SetPin(c) => {
                 w.write_all(&(cmd::SetPin::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "gpio")]
             Self::SetPwm(c) => {
                 w.write_all(&(cmd::SetPwm::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             #[cfg(feature = "gpio")]
             Self::ServoBasic(c) => {
                 w.write_all(&(cmd::ServoBasic::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(c) => {
                 w.write_all(&(cmd::GetPosition::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
 
+            Self::Subscribe(c) => {
+                w.write_all(&(cmd::Subscribe::PREFIX as u8).to_be_bytes())?;
+                c.write_binary(w)
+            }
+            Self::Unsubscribe(c) => {
+                w.write_all(&(cmd::Unsubscribe::PREFIX as u8).to_be_bytes())?;
+                c.write_binary(w)
+            }
             Self::Nop(c) => {
                 w.write_all(&(cmd::Nop::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
             Self::GetUptime(c) => {
                 w.write_all(&(cmd::GetUptime::PREFIX as u8).to_be_bytes())?;
-                c.write_binary(w)?;
+                c.write_binary(w)
             }
         }
-        Ok(())
     }
     #[cfg(feature = "async")]
     async fn write_binary_async(
@@ -364,93 +383,102 @@ impl Writable for Concrete {
             Self::MoveRobot(c) => {
                 w.write_all(&(cmd::MoveRobot::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::MoveRobotByAngle(c) => {
                 w.write_all(&(cmd::MoveRobotByAngle::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::StopRobot(c) => {
                 w.write_all(&(cmd::StopRobot::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::Led(c) => {
                 w.write_all(&(cmd::Led::PREFIX as u8).to_be_bytes()).await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::ServoAbsolute(c) => {
                 w.write_all(&(cmd::ServoAbsolute::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::Buzzer(c) => {
                 w.write_all(&(cmd::Buzzer::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::TrackSensor(c) => {
                 w.write_all(&(cmd::TrackSensor::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "roland")]
             Self::UltraSensor(c) => {
                 w.write_all(&(cmd::UltraSensor::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
 
             #[cfg(feature = "gpio")]
             Self::ReadPin(c) => {
                 w.write_all(&(cmd::ReadPin::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "gpio")]
             Self::SetPin(c) => {
                 w.write_all(&(cmd::SetPin::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "gpio")]
             Self::SetPwm(c) => {
                 w.write_all(&(cmd::SetPwm::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             #[cfg(feature = "gpio")]
             Self::ServoBasic(c) => {
                 w.write_all(&(cmd::ServoBasic::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(c) => {
                 w.write_all(&(cmd::GetPosition::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
 
+            Self::Subscribe(c) => {
+                w.write_all(&(cmd::Subscribe::PREFIX as u8).to_be_bytes())
+                    .await?;
+                c.write_binary_async(w).await
+            }
+            Self::Unsubscribe(c) => {
+                w.write_all(&(cmd::Unsubscribe::PREFIX as u8).to_be_bytes())
+                    .await?;
+                c.write_binary_async(w).await
+            }
             Self::Nop(c) => {
                 w.write_all(&(cmd::Nop::PREFIX as u8).to_be_bytes()).await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
             Self::GetUptime(c) => {
                 w.write_all(&(cmd::GetUptime::PREFIX as u8).to_be_bytes())
                     .await?;
-                c.write_binary_async(w).await?;
+                c.write_binary_async(w).await
             }
         }
-        Ok(())
     }
 }
 
@@ -486,6 +514,8 @@ impl Concrete {
             #[cfg(feature = "camloc")]
             Self::GetPosition(_) => cmd::GetPosition::PREFIX,
 
+            Self::Subscribe(_) => cmd::Subscribe::PREFIX,
+            Self::Unsubscribe(_) => cmd::Unsubscribe::PREFIX,
             Self::Nop(_) => cmd::Nop::PREFIX,
             Self::GetUptime(_) => cmd::GetUptime::PREFIX,
         }
@@ -523,6 +553,8 @@ impl Concrete {
             #[cfg(feature = "camloc")]
             Self::GetPosition(_) => has::<cmd::GetPosition>(),
 
+            Self::Subscribe(_) => has::<cmd::Subscribe>(),
+            Self::Unsubscribe(_) => has::<cmd::Unsubscribe>(),
             Self::Nop(_) => has::<cmd::Nop>(),
             Self::GetUptime(_) => has::<cmd::GetUptime>(),
         }
@@ -531,12 +563,6 @@ impl Concrete {
 
 impl Display for Concrete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
-        self.write_text(&mut |v| {
-            s.push(SEPARATOR);
-            s.push_str(v);
-        })?;
-
-        write!(f, "{}", &s[1..])
+        self.write_text(f)
     }
 }

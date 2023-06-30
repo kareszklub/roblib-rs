@@ -1,16 +1,21 @@
 pub mod cmd;
+pub mod event;
 
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 
 pub trait Roland: Sized {
     fn drive(&self, left: f64, right: f64) -> anyhow::Result<()>;
-    fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()>;
     fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
     fn servo(&self, degree: f64) -> anyhow::Result<()>;
     fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
     fn track_sensor(&self) -> anyhow::Result<[bool; 4]>;
     fn ultra_sensor(&self) -> anyhow::Result<f64>;
+
+    fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()> {
+        let (left, right) = convert_move(angle, speed);
+        self.drive(left, right)
+    }
 
     fn led_color(&self, color: LedColor) -> anyhow::Result<()> {
         let (r, g, b) = color.into();
@@ -105,4 +110,12 @@ pub fn convert_move(angle: f64, speed: f64) -> (f64, f64) {
     let right = (100.0 - (a * 100.0)) * speed;
 
     (left, right)
+}
+
+pub enum Event {
+    PinChanged(bool),
+}
+
+pub trait Subscriber {
+    fn handle(&self, event: Event);
 }

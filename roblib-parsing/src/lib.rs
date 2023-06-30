@@ -1,7 +1,10 @@
 #[cfg(feature = "async")]
 use futures::{AsyncReadExt, AsyncWriteExt};
 
-use std::time::Duration;
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    time::Duration,
+};
 
 pub const SEPARATOR: char = ' ';
 
@@ -401,6 +404,51 @@ impl<T: Writable + Sync, const N: usize> Writable for [T; N] {
         for t in self {
             t.write_binary_async(w).await?;
         }
+        Ok(())
+    }
+}
+
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Readable for SocketAddr {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+        let Some(s) = s.next() else {
+            return Err(anyhow::Error::msg("Not enough arguments"))
+        };
+
+        s.to_socket_addrs()?
+            .next()
+            .ok_or(anyhow::Error::msg("Invalid address"))
+    }
+    fn parse_binary(_: &mut impl std::io::Read) -> anyhow::Result<Self> {
+        todo!()
+    }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        _: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        todo!()
+    }
+}
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Writable for SocketAddr {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        write!(w, "{}", self)
+    }
+
+    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
+        let ip = self.ip();
+
+        // ip.
+        // w.write_all(self.)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

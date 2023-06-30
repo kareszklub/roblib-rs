@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::Robot;
 
 use roblib::{
-    cmd::{parsing::Writable, Command, Concrete, GetUptime, Nop},
-    RoblibRobot,
+    cmd::{Command, Concrete, GetUptime, Nop, Subscribe, Unsubscribe},
+    RoblibRobot, Writable,
 };
 
 #[cfg(feature = "roland")]
@@ -84,6 +84,9 @@ pub(crate) async fn execute_concrete(
         #[cfg(feature = "camloc")]
         Concrete::GetPosition(c) => Some(Box::new(c.execute(robot).await?) as R),
 
+        Concrete::Subscribe(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::Unsubscribe(c) => Some(Box::new(c.execute(robot).await?) as R),
+
         Concrete::Nop(c) => {
             c.execute(robot).await?;
             None
@@ -98,6 +101,22 @@ impl RoblibRobot for Robot {
     }
     fn get_uptime(&self) -> anyhow::Result<std::time::Duration> {
         Ok(self.startup_time.elapsed())
+    }
+}
+
+#[async_trait::async_trait]
+impl Execute for Subscribe {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Subscribe");
+        todo!()
+    }
+}
+
+#[async_trait::async_trait]
+impl Execute for Unsubscribe {
+    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+        debug!("Unsubscribe");
+        todo!()
     }
 }
 

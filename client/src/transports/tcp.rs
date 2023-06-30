@@ -1,10 +1,7 @@
-use roblib::cmd::{
-    has_return,
-    parsing::{Readable, Writable},
-    Command, Concrete,
+use roblib::{
+    cmd::{has_return, Command, Concrete},
+    Readable, Writable,
 };
-
-use super::Transport;
 
 pub struct Tcp {
     socket: std::sync::Mutex<std::net::TcpStream>,
@@ -18,7 +15,7 @@ impl Tcp {
     }
 }
 
-impl Transport for Tcp {
+impl super::Transport for Tcp {
     fn cmd<C: Command>(&self, cmd: C) -> anyhow::Result<C::Return>
     where
         C::Return: Readable,

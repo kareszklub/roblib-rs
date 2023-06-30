@@ -1,5 +1,9 @@
 use awc::Client;
-use roblib::cmd::{parsing::Readable, Command, Concrete, SEPARATOR};
+use roblib::{
+    cmd::{Command, Concrete},
+    Readable,
+};
+use roblib_parsing::SEPARATOR;
 
 use crate::Transport;
 
