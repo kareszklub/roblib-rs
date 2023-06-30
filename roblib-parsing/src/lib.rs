@@ -3,6 +3,8 @@ use futures::{AsyncReadExt, AsyncWriteExt};
 
 use std::time::Duration;
 
+pub const SEPARATOR: char = ' ';
+
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait Readable: Sized {
     fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self>;
@@ -18,7 +20,7 @@ pub trait Readable: Sized {
 
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait Writable {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result;
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result;
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()>;
 
     #[cfg(feature = "async")]
@@ -30,85 +32,48 @@ pub trait Writable {
         Self: Sync;
 }
 
-#[cfg(feature = "camloc")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Readable for crate::camloc::Position {
+impl Readable for String {
     fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
-        use anyhow::Error;
-        Ok(Self {
-            x: s.next()
-                .ok_or_else(|| Error::msg("No x"))?
-                .parse()
-                .map_err(|_| Error::msg("Couldn't parse x"))?,
-            y: s.next()
-                .ok_or_else(|| Error::msg("No y"))?
-                .parse()
-                .map_err(|_| Error::msg("Couldn't parse y"))?,
-            rotation: s
-                .next()
-                .ok_or_else(|| Error::msg("No rotation"))?
-                .parse()
-                .map_err(|_| Error::msg("Couldn't parse rotation"))?,
-        })
+        let Some(s) = s.next() else {
+            return Err(anyhow::Error::msg("Not enough arguments"))
+        };
+        Ok(s.to_string())
     }
-
     fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
-        let mut f = [0; 8];
-        r.read_exact(&mut f)?;
-        let x = f64::from_be_bytes(f);
-        let mut f = [0; 8];
-        r.read_exact(&mut f)?;
-        let y = f64::from_be_bytes(f);
-        let mut f = [0; 8];
-        r.read_exact(&mut f)?;
-        let rotation = f64::from_be_bytes(f);
+        let mut l = [0; std::mem::size_of::<u16>()];
+        r.read_exact(&mut l)?;
+        let l = u16::from_be_bytes(l);
 
-        Ok(Self { x, y, rotation })
+        let mut v = vec![0; l as usize];
+        r.read_exact(&mut v)?;
+
+        Ok(String::from_utf8(v)?)
     }
 
     #[cfg(feature = "async")]
     async fn parse_binary_async(
         r: &mut (impl futures::AsyncRead + Send + Unpin),
     ) -> anyhow::Result<Self> {
-        let mut f = [0; 8];
-        r.read_exact(&mut f).await?;
-        let x = f64::from_be_bytes(f);
-        let mut f = [0; 8];
-        r.read_exact(&mut f).await?;
-        let y = f64::from_be_bytes(f);
-        let mut f = [0; 8];
-        r.read_exact(&mut f).await?;
-        let rotation = f64::from_be_bytes(f);
+        let mut l = [0; std::mem::size_of::<u16>()];
+        r.read_exact(&mut l).await?;
+        let l = u16::from_be_bytes(l);
 
-        Ok(Self { x, y, rotation })
+        let mut v = vec![0; l as usize];
+        r.read_exact(&mut v).await?;
+
+        Ok(String::from_utf8(v)?)
     }
 }
-#[cfg(feature = "camloc")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Writable for crate::camloc::Position {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        use std::fmt::Write;
-        let mut s = String::new();
-
-        write!(&mut s, "{}", self.x)?;
-        f(&s);
-        s.clear();
-
-        write!(&mut s, "{}", self.y)?;
-        f(&s);
-        s.clear();
-
-        write!(&mut s, "{}", self.rotation)?;
-        f(&s);
-
-        Ok(())
+impl Writable for String {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        write!(w, "{}{}", self, SEPARATOR)
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-        w.write_all(&self.x.to_be_bytes())?;
-        w.write_all(&self.y.to_be_bytes())?;
-        w.write_all(&self.rotation.to_be_bytes())?;
-
+        w.write_all(&(self.len() as u16).to_be_bytes())?;
+        w.write_all(self.as_bytes())?;
         Ok(())
     }
 
@@ -117,10 +82,8 @@ impl Writable for crate::camloc::Position {
         &self,
         w: &mut (dyn futures::AsyncWrite + Send + Unpin),
     ) -> anyhow::Result<()> {
-        w.write_all(&self.x.to_be_bytes()).await?;
-        w.write_all(&self.y.to_be_bytes()).await?;
-        w.write_all(&self.rotation.to_be_bytes()).await?;
-
+        w.write_all(&(self.len() as u16).to_be_bytes()).await?;
+        w.write_all(self.as_bytes()).await?;
         Ok(())
     }
 }
@@ -143,7 +106,7 @@ impl Readable for () {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for () {
-    fn write_text(&self, _: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, _: &mut dyn std::fmt::Write) -> std::fmt::Result {
         Ok(())
     }
 
@@ -187,9 +150,8 @@ impl Readable for Duration {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for Duration {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(&(self.as_millis() as u64).to_string());
-        Ok(())
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        write!(w, "{}{}", self.as_millis() as u64, SEPARATOR)
     }
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
         w.write_all(&(self.as_millis() as u64).to_be_bytes())?;
@@ -249,14 +211,13 @@ impl<T: Readable + Send> Readable for Option<T> {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl<T: Writable + Sync> Writable for Option<T> {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
         if let Some(v) = self {
-            f("1");
-            v.write_text(f)?;
+            write!(w, "1{}", SEPARATOR)?;
+            v.write_text(w)
         } else {
-            f("0");
+            write!(w, "0{}", SEPARATOR)
         }
-        Ok(())
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -315,9 +276,8 @@ impl Readable for bool {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for bool {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(if *self { "1" } else { "0" });
-        Ok(())
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        write!(w, "{}{}", if *self { '1' } else { '0' }, SEPARATOR)
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -364,9 +324,8 @@ impl Readable for char {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Writable for char {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(&self.to_string());
-        Ok(())
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        write!(w, "{}{}", self, SEPARATOR)
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -380,84 +339,6 @@ impl Writable for char {
         w: &mut (dyn futures::AsyncWrite + Send + Unpin),
     ) -> anyhow::Result<()> {
         w.write_all(&(*self as u32).to_be_bytes()).await?;
-        Ok(())
-    }
-}
-
-#[cfg(feature = "camloc")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Readable for crate::camloc::MotionHint {
-    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
-        let Some(s) = s.next() else {
-            return Err(anyhow::Error::msg("Not enough arguments"))
-        };
-
-        match s {
-            "f" => Ok(Self::MovingForwards),
-            "b" => Ok(Self::MovingBackwards),
-            "s" => Ok(Self::Stationary),
-            _ => Err(anyhow::Error::msg("Couldn't parse motion hint")),
-        }
-    }
-
-    fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
-        let mut c = [0];
-        r.read_exact(&mut c)?;
-        match u8::from_be_bytes(c) as char {
-            'f' => Ok(Self::MovingForwards),
-            'b' => Ok(Self::MovingBackwards),
-            's' => Ok(Self::Stationary),
-            _ => Err(anyhow::Error::msg("Couldn't parse motion hint")),
-        }
-    }
-
-    #[cfg(feature = "async")]
-    async fn parse_binary_async(
-        r: &mut (impl futures::AsyncRead + Send + Unpin),
-    ) -> anyhow::Result<Self> {
-        let mut c = [0];
-        r.read_exact(&mut c).await?;
-        match u8::from_be_bytes(c) as char {
-            'f' => Ok(Self::MovingForwards),
-            'b' => Ok(Self::MovingBackwards),
-            's' => Ok(Self::Stationary),
-            _ => Err(anyhow::Error::msg("Couldn't parse motion hint")),
-        }
-    }
-}
-#[cfg(feature = "camloc")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Writable for crate::camloc::MotionHint {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-        f(match self {
-            Self::MovingForwards => "f",
-            Self::MovingBackwards => "b",
-            Self::Stationary => "s",
-        });
-        Ok(())
-    }
-
-    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-        let c = match self {
-            Self::MovingForwards => 'f',
-            Self::MovingBackwards => 'b',
-            Self::Stationary => 's',
-        };
-        w.write_all(&(c as u32).to_be_bytes())?;
-        Ok(())
-    }
-
-    #[cfg(feature = "async")]
-    async fn write_binary_async(
-        &self,
-        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
-    ) -> anyhow::Result<()> {
-        let c = match self {
-            Self::MovingForwards => 'f',
-            Self::MovingBackwards => 'b',
-            Self::Stationary => 's',
-        };
-        w.write_all(&(c as u32).to_be_bytes()).await?;
         Ok(())
     }
 }
@@ -499,9 +380,9 @@ impl<T: Readable + Send, const N: usize> Readable for [T; N] {
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl<T: Writable + Sync, const N: usize> Writable for [T; N] {
-    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
         for t in self {
-            t.write_text(f)?;
+            t.write_text(w)?;
         }
         Ok(())
     }
@@ -553,9 +434,8 @@ macro_rules! primitve_impl {
         }
         #[cfg_attr(feature = "async", async_trait::async_trait)]
         impl Writable for $t {
-            fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
-                f(&self.to_string());
-                Ok(())
+            fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+                write!(w, "{}{}", self, SEPARATOR)
             }
 
             fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
@@ -621,9 +501,9 @@ macro_rules! tuple_impl {
         where
             $($t: Writable + Sync + Send,)+
         {
-            fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+            fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
                 $(
-                    self. $idx .write_text(f)?;
+                    self. $idx .write_text(w)?;
                 )+
 
                 Ok(())
