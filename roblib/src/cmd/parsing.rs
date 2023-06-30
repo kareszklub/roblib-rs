@@ -335,6 +335,55 @@ impl Writable for bool {
     }
 }
 
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Readable for char {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+        let Some(s) = s.next() else {
+            return Err(anyhow::Error::msg("Not enough arguments"))
+        };
+
+        s.chars()
+            .next()
+            .ok_or(anyhow::Error::msg("Couldn't get char"))
+    }
+
+    fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
+        let mut b = [0; std::mem::size_of::<u32>()];
+        r.read_exact(&mut b)?;
+        char::from_u32(u32::from_be_bytes(b)).ok_or(anyhow::Error::msg("Couldn't parse char"))
+    }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let mut b = [0; std::mem::size_of::<u32>()];
+        r.read_exact(&mut b).await?;
+        char::from_u32(u32::from_be_bytes(b)).ok_or(anyhow::Error::msg("Couldn't parse char"))
+    }
+}
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Writable for char {
+    fn write_text(&self, f: &mut dyn FnMut(&str)) -> std::fmt::Result {
+        f(&self.to_string());
+        Ok(())
+    }
+
+    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
+        w.write_all(&(*self as u32).to_be_bytes())?;
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        w.write_all(&(*self as u32).to_be_bytes()).await?;
+        Ok(())
+    }
+}
+
 #[cfg(feature = "camloc")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl Readable for crate::camloc::MotionHint {
