@@ -15,7 +15,7 @@ fn get_readable_enum(ident: &Ident, data: &syn::DataEnum) -> TokenStream {
         match data.variants.len() {
             0 => abort!(
                 ident.span(),
-                "Can't implement ::roblib_parsing::Writable for enum without variants"
+                "Can't implement ::roblib_parsing::Readable for enum without variants"
             ),
             0x01..=0xFF => "u8",
             0x01_00..=0xFF_FF => "u16",

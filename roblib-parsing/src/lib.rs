@@ -2,7 +2,7 @@
 use futures::{AsyncReadExt, AsyncWriteExt};
 
 use std::{
-    net::{SocketAddr, ToSocketAddrs},
+    net::{IpAddr, SocketAddr},
     time::Duration,
 };
 
@@ -409,38 +409,88 @@ impl<T: Writable + Sync, const N: usize> Writable for [T; N] {
 }
 
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Readable for SocketAddr {
+impl Readable for IpAddr {
     fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
-        let Some(s) = s.next() else {
-            return Err(anyhow::Error::msg("Not enough arguments"))
-        };
+        match s.next() {
+            Some("4") => {
+                let Some(ip) = s.next() else {
+                    return Err(anyhow::Error::msg("Not enough arguments"));
+                };
+                ip.parse()
+                    .map_err(|_| anyhow::Error::msg("Couldn't parse ip"))
+            }
+            Some("6") => {
+                let Some(ip) = s.next() else {
+                    return Err(anyhow::Error::msg("Not enough arguments"));
+                };
+                ip.parse()
+                    .map_err(|_| anyhow::Error::msg("Couldn't parse ip"))
+            }
 
-        s.to_socket_addrs()?
-            .next()
-            .ok_or(anyhow::Error::msg("Invalid address"))
+            Some(_) => Err(anyhow::Error::msg("Invalid ip type")),
+
+            None => Err(anyhow::Error::msg("Not enough arguments")),
+        }
     }
-    fn parse_binary(_: &mut impl std::io::Read) -> anyhow::Result<Self> {
-        todo!()
+    fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
+        let mut v = [0];
+        r.read_exact(&mut v)?;
+        match u8::from_be_bytes(v) {
+            4 => {
+                let mut ip = [0; 4];
+                r.read_exact(&mut ip)?;
+                Ok(Self::V4(std::net::Ipv4Addr::from(ip)))
+            }
+            6 => {
+                let mut ip = [0; 16];
+                r.read_exact(&mut ip)?;
+                Ok(Self::V6(std::net::Ipv6Addr::from(ip)))
+            }
+            _ => Err(anyhow::Error::msg("Invalid ip type")),
+        }
     }
 
     #[cfg(feature = "async")]
     async fn parse_binary_async(
-        _: &mut (impl futures::AsyncRead + Send + Unpin),
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
     ) -> anyhow::Result<Self> {
-        todo!()
+        let mut v = [0];
+        r.read_exact(&mut v).await?;
+        match u8::from_be_bytes(v) {
+            4 => {
+                let mut ip = [0; 4];
+                r.read_exact(&mut ip).await?;
+                Ok(Self::V4(std::net::Ipv4Addr::from(ip)))
+            }
+            6 => {
+                let mut ip = [0; 16];
+                r.read_exact(&mut ip).await?;
+                Ok(Self::V6(std::net::Ipv6Addr::from(ip)))
+            }
+            _ => Err(anyhow::Error::msg("Invalid ip type")),
+        }
     }
 }
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl Writable for SocketAddr {
+impl Writable for IpAddr {
     fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
-        write!(w, "{}", self)
+        match self {
+            IpAddr::V4(ip) => write!(w, "4{}{}", SEPARATOR, ip),
+            IpAddr::V6(ip) => write!(w, "6{}{}", SEPARATOR, ip),
+        }
     }
 
     fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
-        let ip = self.ip();
-
-        // ip.
-        // w.write_all(self.)?;
+        match self {
+            IpAddr::V4(ip) => {
+                w.write_all(&[4])?;
+                w.write_all(&ip.octets())?;
+            }
+            IpAddr::V6(ip) => {
+                w.write_all(&[6])?;
+                w.write_all(&ip.octets())?;
+            }
+        }
         Ok(())
     }
 
@@ -449,6 +499,62 @@ impl Writable for SocketAddr {
         &self,
         w: &mut (dyn futures::AsyncWrite + Send + Unpin),
     ) -> anyhow::Result<()> {
+        match self {
+            IpAddr::V4(ip) => {
+                w.write_all(&[4]).await?;
+                w.write_all(&ip.octets()).await?;
+            }
+            IpAddr::V6(ip) => {
+                w.write_all(&[6]).await?;
+                w.write_all(&ip.octets()).await?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Readable for SocketAddr {
+    fn parse_text<'a>(s: &mut impl Iterator<Item = &'a str>) -> anyhow::Result<Self> {
+        let ip: IpAddr = Readable::parse_text(s)?;
+        let port: u16 = Readable::parse_text(s)?;
+        Ok((ip, port).into())
+    }
+    fn parse_binary(r: &mut impl std::io::Read) -> anyhow::Result<Self> {
+        let ip: IpAddr = Readable::parse_binary(r)?;
+        let port: u16 = Readable::parse_binary(r)?;
+        Ok((ip, port).into())
+    }
+
+    #[cfg(feature = "async")]
+    async fn parse_binary_async(
+        r: &mut (impl futures::AsyncRead + Send + Unpin),
+    ) -> anyhow::Result<Self> {
+        let ip: IpAddr = Readable::parse_binary_async(r).await?;
+        let port: u16 = Readable::parse_binary_async(r).await?;
+        Ok((ip, port).into())
+    }
+}
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+impl Writable for SocketAddr {
+    fn write_text(&self, w: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        self.ip().write_text(w)?;
+        self.port().write_text(w)
+    }
+
+    fn write_binary(&self, w: &mut dyn std::io::Write) -> anyhow::Result<()> {
+        self.ip().write_binary(w)?;
+        self.port().write_binary(w)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn write_binary_async(
+        &self,
+        w: &mut (dyn futures::AsyncWrite + Send + Unpin),
+    ) -> anyhow::Result<()> {
+        self.ip().write_binary_async(w).await?;
+        self.port().write_binary_async(w).await?;
         Ok(())
     }
 }
