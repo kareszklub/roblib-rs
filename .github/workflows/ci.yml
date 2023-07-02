@@ -33,11 +33,16 @@ jobs:
         profile: minimal
         components: clippy
 
-    - uses: actions-rs/clippy-check@v1
+    - name: Run clippy
+      uses: actions-rs/clippy-check@v1
       if: matrix.toolchain == 'stable'
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         args: --all-features
+
+    - name: Run clippy
+      if: matrix.toolchain != 'stable'
+      run: cargo clippy --all-features
 
   build:
     strategy:
@@ -96,7 +101,14 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: roblib-server-${{ matrix.profile }}
+          name: roblib-server-${{ matrix.profile }}-${{ matrix.target }}
           path: |
             roblib-server-${{ matrix.profile }}${{ startsWith(matrix.os, 'windows') && '.exe' || '' }}
           if-no-files-found: error
+  link:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: beni69/artifact-link@v1
+        with:
+          token: ${{ github.token }}
