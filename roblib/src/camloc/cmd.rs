@@ -1,9 +1,7 @@
 use crate::cmd::Command;
 use roblib_macro::Command;
 
-extern crate self as roblib;
-
-#[derive(Command)]
+#[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct GetPosition;
 impl Command for GetPosition {
     const PREFIX: char = 'P';

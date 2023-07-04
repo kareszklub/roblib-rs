@@ -1,5 +1,5 @@
 use roblib_macro::Command;
-use roblib_parsing::{Readable, Writable};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub mod concrete;
 
@@ -15,38 +15,40 @@ pub use crate::camloc::cmd::*;
 
 pub use self::concrete::Concrete;
 
-pub trait Command: Readable + Writable + Into<Concrete> + From<Concrete> + 'static {
+pub trait Command:
+    Serialize + DeserializeOwned + Into<Concrete> + From<Concrete> + 'static
+{
     const PREFIX: char;
-    type Return: Readable;
+    type Return: Serialize + DeserializeOwned + 'static;
 }
 
-pub fn has_return<C: Command>() -> bool {
-    std::any::TypeId::of::<C::Return>() != std::any::TypeId::of::<()>()
+pub const SEPARATOR: char = ' ';
+
+pub const fn has_return<C: Command>() -> bool {
+    std::mem::size_of::<C::Return>() != 0
 }
 
-extern crate self as roblib;
-
-#[derive(Command)]
+#[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Subscribe(event::Concrete);
 impl Command for Subscribe {
-    const PREFIX: char = 'a';
+    const PREFIX: char = '+';
     type Return = std::time::Duration;
 }
-#[derive(Command)]
+#[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Unsubscribe(event::Concrete);
 impl Command for Unsubscribe {
-    const PREFIX: char = 'A';
+    const PREFIX: char = '-';
     type Return = std::time::Duration;
 }
 
-#[derive(Command)]
+#[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Nop;
 impl Command for Nop {
     const PREFIX: char = 'n';
     type Return = ();
 }
 
-#[derive(Command)]
+#[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct GetUptime;
 impl Command for GetUptime {
     const PREFIX: char = 'U';
