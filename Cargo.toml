@@ -1,5 +1,5 @@
 [workspace]
-members = ["roblib", "server", "client", "roblib-macro", "roblib-parsing"]
+members = ["roblib", "server", "client", "roblib-macro"]
 
 [profile.release]
 strip = true
