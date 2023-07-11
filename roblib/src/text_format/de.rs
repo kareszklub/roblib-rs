@@ -6,17 +6,21 @@ use serde::{
     Deserialize,
 };
 
-pub struct Deserializer<'de, I: Iterator<Item = &'de str>> {
+pub struct Deserializer<I> {
     iter: I,
+}
+
+pub fn new_deserializer(s: &str) -> Deserializer<std::str::Split<'_, char>> {
+    Deserializer {
+        iter: s.split(SEPARATOR),
+    }
 }
 
 pub fn from_str<'a, T>(s: &'a str) -> Result<T>
 where
     T: Deserialize<'a>,
 {
-    let mut deserializer = Deserializer {
-        iter: s.split(SEPARATOR),
-    };
+    let mut deserializer = new_deserializer(s);
 
     let t = T::deserialize(&mut deserializer)?;
     if deserializer.iter.next().is_none() {
@@ -26,7 +30,7 @@ where
     }
 }
 
-impl<'de, I: Iterator<Item = &'de str>> Deserializer<'de, I> {
+impl<'de, I: Iterator<Item = &'de str>> Deserializer<I> {
     fn next(&mut self) -> Result<I::Item> {
         match self.iter.next() {
             Some("") => Err(Error::Empty),
@@ -36,7 +40,7 @@ impl<'de, I: Iterator<Item = &'de str>> Deserializer<'de, I> {
     }
 }
 
-impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut Deserializer<'de, I> {
+impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut Deserializer<I> {
     type Error = Error;
 
     fn deserialize_any<V>(self, _: V) -> Result<V::Value>
@@ -278,7 +282,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
 }
 
 struct Seq<'de: 'a, 'a, I: Iterator<Item = &'de str>> {
-    de: &'a mut Deserializer<'de, I>,
+    de: &'a mut Deserializer<I>,
     left: u32,
 }
 
@@ -331,7 +335,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> MapAccess<'de> for Seq<'de, 'a, I> {
 }
 
 struct Enum<'de: 'a, 'a, I: Iterator<Item = &'de str>> {
-    de: &'a mut Deserializer<'de, I>,
+    de: &'a mut Deserializer<I>,
 }
 
 impl<'de, 'a, I: Iterator<Item = &'de str>> EnumAccess<'de> for Enum<'de, 'a, I> {

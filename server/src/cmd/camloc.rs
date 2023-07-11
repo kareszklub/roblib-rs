@@ -9,7 +9,7 @@ impl Execute for GetPosition {
     async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
         debug!("Get position");
         Ok(if let Some(c) = &robot.camloc {
-            c.service.get_position().await.map(|tp| tp.position)
+            c.service.get_position().await
         } else {
             None
         })

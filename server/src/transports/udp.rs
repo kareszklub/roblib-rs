@@ -1,9 +1,9 @@
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
 use actix::spawn;
 use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
-use roblib::{cmd::Concrete, Readable};
+use roblib::cmd::Concrete;
 
 use crate::{cmd::execute_concrete, Robot};
 
@@ -20,15 +20,36 @@ async fn run(server: UdpSocket, robot: Arc<Robot>) -> Result<()> {
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;
 
-        let concrete = Concrete::parse_binary(&mut Cursor::new(&buf[..len]))?;
-        let res = execute_concrete(concrete, robot.clone()).await?;
+        let res = match postcard::from_bytes::<Concrete>(&buf[..len]) {
+            Ok(c) => {
+                let mut serializer = postcard::Serializer {
+                    output: postcard::ser_flavors::StdVec::new(),
+                };
 
-        if let Some(res) = res {
-            let mut buf = Cursor::new(&mut buf[..]);
-            res.write_binary(&mut buf)?;
+                match execute_concrete(c, robot.clone(), &mut serializer).await {
+                    Ok(r) => {
+                        if let Some(()) = r {
+                            postcard::ser_flavors::Flavor::finalize(serializer.output)
+                                .map(Some)
+                                .map_err(anyhow::Error::new)
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e.into()),
+        };
 
-            let res = &buf.get_ref()[..buf.position() as usize];
-            server.send_to(res, addr).await?;
+        match res {
+            Ok(Some(b)) => {
+                server.send_to(&b, addr).await?;
+            }
+            Ok(None) => (),
+            Err(e) => {
+                server.send_to(e.to_string().as_bytes(), addr).await?;
+            }
         }
     }
 }

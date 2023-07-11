@@ -1,4 +1,4 @@
-use roblib::cmd::{parsing::Readable, Concrete, SEPARATOR};
+use roblib::cmd::{Concrete, SEPARATOR};
 use roblib_client::{
     transports::{tcp::Tcp, Transport},
     Result,
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
             "" => continue,
             "exit" => break,
             inp => {
-                let Ok(cmd) = Concrete::parse_text(&mut inp.split(SEPARATOR)) else {
+                let Ok(cmd) = todo!() else {
                     println!("Couldn't parse command");
                     continue;
                 };

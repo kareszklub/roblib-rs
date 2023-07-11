@@ -8,11 +8,7 @@ use futures::{
     SinkExt,
 };
 use futures_util::{lock::Mutex, stream::StreamExt};
-use roblib::{
-    cmd::{Command, Concrete},
-    Readable, Writable,
-};
-use roblib_parsing::SEPARATOR;
+use roblib::cmd::{Command, Concrete};
 
 struct WSBase {
     tx: Mutex<UnboundedSender<Message>>,
@@ -93,13 +89,13 @@ impl WSBase {
     }
 
     async fn send(&self, cmd: Concrete) -> Result<WSResponse> {
-        let mut buf = vec![];
-        cmd.write_binary(&mut buf)?;
+        let mut buf = [0; 512];
+        let buf = postcard::to_slice(&cmd, &mut buf)?;
 
         self.tx
             .lock()
             .await
-            .send(Message::Binary(buf.into()))
+            .send(Message::Binary(Bytes::copy_from_slice(buf)))
             .await?;
 
         Ok(if cmd.has_return() {
@@ -128,14 +124,11 @@ impl Ws {
 }
 
 impl super::Transport for Ws {
-    fn cmd<C: Command>(&self, cmd: C) -> Result<C::Return>
-    where
-        C::Return: Readable,
-    {
+    fn cmd<'a, C: Command<'a>>(&self, cmd: C) -> Result<C::Return> {
         let res = self.rt.block_on(self.ws.send(cmd.into()))?;
         match res {
-            WSResponse::Text(t) => Readable::parse_text(&mut t.split(SEPARATOR)),
-            WSResponse::Binary(b) => Readable::parse_binary(&mut std::io::Cursor::new(b)),
+            WSResponse::Text(t) => Ok(roblib::text_format::de::from_str(&t)?),
+            WSResponse::Binary(b) => Ok(postcard::from_bytes(&b)?),
         }
     }
 }
@@ -152,14 +145,11 @@ impl WsAsync {
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 impl super::TransportAsync for WsAsync {
-    async fn cmd_async<C: Command + Send>(&self, cmd: C) -> Result<C::Return>
-    where
-        C::Return: Readable,
-    {
+    async fn cmd_async<'a, C: Command<'a> + Send>(&self, cmd: C) -> Result<C::Return> {
         let res = self.0.send(cmd.into()).await?;
         match res {
-            WSResponse::Text(t) => Readable::parse_text(&mut t.split(SEPARATOR)),
-            WSResponse::Binary(b) => Readable::parse_binary(&mut std::io::Cursor::new(b)),
+            WSResponse::Text(t) => Ok(roblib::text_format::de::from_str(&t)?),
+            WSResponse::Binary(b) => Ok(postcard::from_bytes(&b)?),
         }
     }
 }

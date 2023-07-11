@@ -1,5 +1,5 @@
 use roblib_client::{
-    transports::{tcp::Tcp, ws::Ws, SubscribableTransport, Transport},
+    transports::{tcp::Tcp, Transport},
     Result,
 };
 use std::{
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let transport = Tcp::connect(&format!("ws://{}/ws", ip))?;
+    let transport = Robot::new(Tcp::connect(ip)?);
 
     // boring arg parsing
     let mut args = args().skip(1);

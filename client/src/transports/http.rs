@@ -1,11 +1,6 @@
-use awc::Client;
-use roblib::{
-    cmd::{Command, Concrete},
-    Readable,
-};
-use roblib_parsing::SEPARATOR;
-
 use crate::Transport;
+use awc::Client;
+use roblib::cmd::{self, Command};
 
 pub struct Http {
     base_url: String,
@@ -24,19 +19,38 @@ impl Http {
 }
 
 impl Transport for Http {
-    fn cmd<C: Command>(&self, cmd: C) -> anyhow::Result<C::Return>
-    where
-        C::Return: Readable,
-    {
-        self.runtime
-            .block_on(send_cmd(&self.client, &self.base_url, cmd))
+    fn cmd<'a, C: Command<'a>>(&self, cmd: C) -> anyhow::Result<C::Return> {
+        self.runtime.block_on(async {
+            {
+                let concrete: cmd::Concrete = cmd.into();
+
+                let req = self
+                    .client
+                    .post(&self.base_url)
+                    .send_body(concrete.to_string())
+                    .await;
+                let mut res = match req {
+                    Ok(x) => x,
+                    Err(e) => {
+                        return Err(anyhow::anyhow!(
+                            "didn't recieve Http response, because: {e}",
+                        ))
+                    }
+                };
+
+                let body = res.body().await?;
+                let body = String::from_utf8(body.to_vec())?;
+
+                Ok(roblib::text_format::de::from_str(&body)?)
+            }
+        })
     }
 }
 
 #[cfg(feature = "async")]
 pub struct HttpAsync {
     handle: futures::lock::Mutex<Option<tokio::task::JoinHandle<anyhow::Result<()>>>>,
-    tx_cmd: futures::lock::Mutex<futures::channel::mpsc::UnboundedSender<Concrete>>,
+    tx_cmd: futures::lock::Mutex<futures::channel::mpsc::UnboundedSender<cmd::Concrete>>,
     rx_res: futures::lock::Mutex<futures::channel::mpsc::UnboundedReceiver<String>>,
 }
 
@@ -57,7 +71,7 @@ impl HttpAsync {
 
     async fn run(
         url: String,
-        mut rx_cmd: futures::channel::mpsc::UnboundedReceiver<Concrete>,
+        mut rx_cmd: futures::channel::mpsc::UnboundedReceiver<cmd::Concrete>,
         mut tx_res: futures::channel::mpsc::UnboundedSender<String>,
     ) -> anyhow::Result<()> {
         use futures_util::{SinkExt, StreamExt};
@@ -83,11 +97,8 @@ impl HttpAsync {
 
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl super::TransportAsync for HttpAsync {
-    async fn cmd_async<C: Command + Send>(&self, cmd: C) -> anyhow::Result<C::Return>
-    where
-        C::Return: Readable + Send,
-    {
+impl<'a> super::TransportAsync<'a> for HttpAsync {
+    async fn cmd_async<C: Command<'a> + Send>(&self, cmd: C) -> anyhow::Result<C::Return> {
         use futures_util::{SinkExt, StreamExt};
 
         self.tx_cmd.lock().await.send(cmd.into()).await?;
@@ -101,28 +112,6 @@ impl super::TransportAsync for HttpAsync {
             }
         };
 
-        Readable::parse_text(&mut res.split(SEPARATOR))
+        Ok(roblib::text_format::de::from_str(&res)?)
     }
-}
-
-async fn send_cmd<C: Command>(client: &Client, url: &str, cmd: C) -> anyhow::Result<C::Return>
-where
-    C::Return: Readable,
-{
-    let concrete: Concrete = cmd.into();
-
-    let req = client.post(url).send_body(concrete.to_string()).await;
-    let mut res = match req {
-        Ok(x) => x,
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "didn't recieve Http response, because: {e}",
-            ))
-        }
-    };
-
-    let body = res.body().await?;
-    let body = String::from_utf8(body.to_vec())?;
-
-    Readable::parse_text(&mut body.split(SEPARATOR))
 }

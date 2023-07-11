@@ -4,8 +4,9 @@ use crate::Robot;
 
 use roblib::{
     cmd::{Command, Concrete, GetUptime, Nop, Subscribe, Unsubscribe},
-    RoblibRobot, Writable,
+    RoblibRobot,
 };
+use serde::{Serialize, Serializer};
 
 #[cfg(feature = "roland")]
 mod roland;
@@ -21,12 +22,15 @@ pub(crate) trait Execute: Command {
     async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return>;
 }
 
-pub(crate) async fn execute_concrete(
+pub(crate) async fn execute_concrete<S>(
     concrete: Concrete,
     robot: Arc<Robot>,
-) -> anyhow::Result<Option<Box<dyn Writable + Send + Sync>>> {
-    type R = Box<dyn Writable + Send + Sync>;
-
+    ser: S,
+) -> anyhow::Result<Option<S::Ok>>
+where
+    S: Serializer + Send,
+    S::Error: Send,
+{
     Ok(match concrete {
         #[cfg(feature = "roland")]
         Concrete::MoveRobot(c) => {
@@ -59,12 +63,27 @@ pub(crate) async fn execute_concrete(
             None
         }
         #[cfg(feature = "roland")]
-        Concrete::TrackSensor(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::TrackSensor(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
         #[cfg(feature = "roland")]
-        Concrete::UltraSensor(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::UltraSensor(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
 
         #[cfg(feature = "gpio")]
-        Concrete::ReadPin(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::ReadPin(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
         #[cfg(feature = "gpio")]
         Concrete::SetPin(c) => {
             c.execute(robot).await?;
@@ -82,16 +101,36 @@ pub(crate) async fn execute_concrete(
         }
 
         #[cfg(feature = "camloc")]
-        Concrete::GetPosition(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::GetPosition(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
 
-        Concrete::Subscribe(c) => Some(Box::new(c.execute(robot).await?) as R),
-        Concrete::Unsubscribe(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::Subscribe(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
+        Concrete::Unsubscribe(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
 
         Concrete::Nop(c) => {
             c.execute(robot).await?;
             None
         }
-        Concrete::GetUptime(c) => Some(Box::new(c.execute(robot).await?) as R),
+        Concrete::GetUptime(c) => Some(
+            c.execute(robot)
+                .await?
+                .serialize(ser)
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
+        ),
     })
 }
 

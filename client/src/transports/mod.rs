@@ -1,55 +1,47 @@
-use std::time::{Duration, Instant};
-
 use anyhow::Result;
-use roblib::{
-    cmd::{self, Command},
-    event::Event,
-    Readable,
-};
+use roblib::{cmd::Command, event::Event};
 
-pub mod http;
-pub mod tcp;
+// pub mod http;
+// pub mod tcp;
 pub mod udp;
-pub mod ws;
-
-pub trait SubscribableTransport: Transport {
-    fn subscribe<E: Event>(&self, ev: E, handler: impl FnMut(E::Item)) -> Result<E::Item>
-    where
-        E::Item: Readable;
-
-    fn unsubscribe<E: Event>(&self, ev: E) -> Result<()>;
-}
+// pub mod ws;
 
 pub trait Transport {
-    fn cmd<C: Command>(&self, cmd: C) -> Result<C::Return>
+    fn cmd<C>(&self, cmd: C) -> Result<C::Return>
     where
-        C::Return: Readable;
+        C: Command,
+        C::Return: Send;
+}
 
-    fn measure_latency(&self) -> Result<Duration> {
-        let start = Instant::now();
-        self.cmd(cmd::GetUptime)?;
-        Ok(Instant::now() - start)
-    }
+pub trait Subscribable: Transport {
+    fn subscribe<E, F>(&self, ev: E, handler: F) -> Result<()>
+    where
+        E: Event,
+        F: FnMut(E::Item) -> Result<()>,
+        F: Send + Sync + 'static;
 
-    fn get_server_uptime(&self) -> Result<Duration> {
-        self.cmd(cmd::GetUptime)
-    }
+    fn unsubscribe<E: Event>(&self, ev: E) -> Result<()>;
 }
 
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait TransportAsync: Send + Sync {
-    async fn cmd_async<C: Command + Send>(&self, cmd: C) -> Result<C::Return>
+    async fn cmd<C>(&self, cmd: C) -> Result<C::Return>
     where
-        C::Return: Readable + Send;
+        C: Command + Send + Sync,
+        C::Return: Send + Sync;
+}
 
-    async fn measure_latency(&self) -> Result<Duration> {
-        let start = Instant::now();
-        self.cmd_async(cmd::GetUptime).await?;
-        Ok(Instant::now() - start)
-    }
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait SubscribableAsync: TransportAsync {
+    async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
+    where
+        E: Event + Send,
+        E::Item: Send + Sync,
+        F: FnMut(E::Item) -> R,
+        F: Send + Sync + 'static,
+        R: std::future::Future<Output = Result<()>> + Send + Sync;
 
-    async fn get_server_uptime(&self) -> Result<Duration> {
-        self.cmd_async(cmd::GetUptime).await
-    }
+    async fn unsubscribe<E: Event + Send>(&self, ev: E) -> Result<()>;
 }

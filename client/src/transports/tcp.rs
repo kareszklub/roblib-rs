@@ -1,7 +1,5 @@
-use roblib::{
-    cmd::{has_return, Command, Concrete},
-    Readable, Writable,
-};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::io::{Read, Write};
 
 pub struct Tcp {
     socket: std::sync::Mutex<std::net::TcpStream>,
@@ -15,63 +13,93 @@ impl Tcp {
     }
 }
 
+struct Sock<'a> {
+    sock: &'a mut std::net::TcpStream,
+    buff: &'a mut [u8],
+}
+
+impl<'a> Sock<'a> {
+    fn new(sock: &'a mut std::net::TcpStream, buff: &'a mut [u8]) -> Self {
+        Self { sock, buff }
+    }
+}
+
+impl<'de> postcard::de_flavors::Flavor<'de> for Sock<'de> {
+    type Remainder = ();
+    type Source = ();
+
+    fn pop(&mut self) -> postcard::Result<u8> {
+        let mut b = [0];
+        match self.sock.read_exact(&mut b) {
+            Ok(_) => Ok(b[0]),
+            Err(_) => Err(postcard::Error::DeserializeUnexpectedEnd),
+        }
+    }
+
+    fn try_take_n(&mut self, ct: usize) -> postcard::Result<&'de [u8]> {
+        match self.sock.read_exact(&mut self.buff[..ct]) {
+            Ok(_) => Ok(&self.buff[..ct]),
+            Err(_) => Err(postcard::Error::DeserializeUnexpectedEnd),
+        }
+    }
+
+    fn finalize(self) -> postcard::Result<Self::Remainder> {
+        Ok(())
+    }
+}
+
+impl<'de> postcard::ser_flavors::Flavor for Sock<'de> {
+    type Output = ();
+
+    fn try_push(&mut self, data: u8) -> postcard::Result<()> {
+        match self.sock.write_all(&[data]) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(postcard::Error::SerdeSerCustom),
+        }
+    }
+
+    fn finalize(self) -> postcard::Result<Self::Output> {
+        Ok(())
+    }
+}
+
 impl super::Transport for Tcp {
-    fn cmd<C: Command>(&self, cmd: C) -> anyhow::Result<C::Return>
-    where
-        C::Return: Readable,
-    {
+    fn send<S: serde::Serialize>(&self, value: S) -> anyhow::Result<()> {
         let mut s = self.socket.lock().unwrap();
+        s.write_all(&postcard::to_slice(&value, &mut [0; 512])?)?;
+        Ok(())
+    }
 
-        Into::<Concrete>::into(cmd).write_binary(&mut *s)?;
+    fn recv<D: DeserializeOwned>(&self) -> anyhow::Result<D> {
+        let mut s = self.socket.lock().unwrap();
+        let mut binding = [0; 512];
+        let mut de = postcard::Deserializer::from_flavor(Sock::new(&mut *s, &mut binding));
 
-        Ok(if has_return::<C>() {
-            Readable::parse_binary(&mut *s)?
-        } else {
-            unsafe { std::mem::zeroed() }
-        })
+        Ok(Deserialize::deserialize(&mut de)?)
     }
 }
 
 #[cfg(feature = "async")]
 pub struct TcpAsync {
-    socket: futures_util::lock::Mutex<tokio_util::compat::Compat<tokio::net::TcpStream>>,
+    socket: futures_util::lock::Mutex<tokio::net::TcpStream>,
 }
 
 #[cfg(feature = "async")]
 impl TcpAsync {
     pub async fn new(robot: impl tokio::net::ToSocketAddrs) -> anyhow::Result<Self> {
-        use tokio_util::compat::TokioAsyncReadCompatExt;
-
         Ok(Self {
-            socket: tokio::net::TcpStream::connect(robot).await?.compat().into(),
+            socket: tokio::net::TcpStream::connect(robot).await?.into(),
         })
     }
 }
 
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
-impl super::TransportAsync for TcpAsync {
-    async fn cmd_async<C: Command + Send>(&self, cmd: C) -> anyhow::Result<C::Return>
-    where
-        C::Return: Readable + Send,
-    {
-        use tokio::io::AsyncWriteExt;
-
-        let mut buf = std::io::Cursor::new([0u8; 512]);
-        Into::<Concrete>::into(cmd).write_binary(&mut buf)?;
-
-        self.socket
-            .lock()
-            .await
-            .get_mut()
-            .write_all(&buf.get_ref()[..(buf.position() as usize)])
-            .await?;
-
-        Ok(if has_return::<C>() {
-            let mut t = self.socket.lock().await;
-            Readable::parse_binary_async(&mut *t).await?
-        } else {
-            unsafe { std::mem::zeroed() }
-        })
+impl<'r> super::TransportAsync<'r> for TcpAsync {
+    async fn send<S: Serialize + Send>(&self, value: S) -> anyhow::Result<()> {
+        todo!()
+    }
+    async fn recv<D: DeserializeOwned + Send>(&self) -> anyhow::Result<D> {
+        todo!()
     }
 }

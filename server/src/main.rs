@@ -15,8 +15,6 @@ use actix_web::{middleware::DefaultHeaders, web::Data, App, HttpServer};
 use anyhow::{anyhow, Result};
 use std::{sync::Arc, time::Instant};
 
-const DEFAULT_PORT: u16 = 1111;
-
 struct Robot {
     pub startup_time: Instant,
 
@@ -30,10 +28,6 @@ struct Robot {
     pub camloc: Option<camloc::Camloc>,
 }
 
-struct AppState {
-    robot: Arc<Robot>,
-}
-
 #[actix_web::main]
 async fn main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
@@ -43,7 +37,7 @@ async fn main() -> Result<()> {
         Some(s) => s
             .parse()
             .map_err(|_| anyhow!("port must be a valid number"))?,
-        None => DEFAULT_PORT,
+        None => 1111,
     };
 
     info!("Server starting up");
@@ -138,7 +132,7 @@ async fn main() -> Result<()> {
 
     info!("Webserver starting on port {web_port}");
 
-    let data = Data::new(AppState { robot });
+    let data = Data::new(robot);
     Ok(HttpServer::new(move || {
         App::new()
             .wrap(

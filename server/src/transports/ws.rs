@@ -1,19 +1,18 @@
 use actix::{prelude::*, Actor, ActorContext, AsyncContext, Handler, StreamHandler};
 use actix_web::{
     get,
-    web::{Data, Payload},
+    web::{Bytes, Data, Payload},
     HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use roblib::cmd::Concrete;
-use roblib_parsing::{Readable, Writable, SEPARATOR};
+use roblib::text_format;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use crate::cmd::execute_concrete;
-use crate::{AppState, Robot};
+use crate::Robot;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -24,9 +23,9 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) async fn index(
     req: HttpRequest,
     stream: Payload,
-    state: Data<AppState>,
+    robot: Data<Arc<Robot>>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    actix_web_actors::ws::start(WebSocket::new(state.robot.clone()), &req, stream)
+    actix_web_actors::ws::start(WebSocket::new(robot.as_ref().clone()), &req, stream)
 }
 
 pub(crate) struct WebSocket {
@@ -34,22 +33,24 @@ pub(crate) struct WebSocket {
     last_heartbeat: Instant,
 }
 
+enum BinaryOrText {
+    Text(String),
+    Binary(Bytes),
+}
+
 #[derive(Message)]
 #[rtype(result = "()")]
-struct CmdResult(anyhow::Result<Option<Box<dyn Writable + Send + Sync>>>);
+struct CmdResult(anyhow::Result<Option<BinaryOrText>>);
 
 impl Handler<CmdResult> for WebSocket {
     type Result = ();
 
     fn handle(&mut self, res: CmdResult, ctx: &mut Self::Context) {
         match res.0 {
-            Ok(Some(ret)) => {
-                let mut s = String::new();
-                match ret.write_text(&mut s) {
-                    Ok(()) => ctx.text(&*s),
-                    Err(e) => ctx.text(e.to_string()),
-                }
-            }
+            Ok(Some(ret)) => match ret {
+                BinaryOrText::Text(ret) => ctx.text(ret),
+                BinaryOrText::Binary(b) => ctx.binary(b),
+            },
             Ok(None) => (),
             Err(e) => {
                 let e = e.to_string();
@@ -87,10 +88,61 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
 
                 // FIXME: commands get executed all at once, on disconnect
                 async move {
-                    let res = match Concrete::parse_text(&mut text.split(SEPARATOR)) {
-                        Ok(c) => execute_concrete(c, robot_pointer).await,
+                    let res = match roblib::text_format::de::from_str(&text) {
+                        Ok(c) => {
+                            let mut s = String::new();
+                            execute_concrete(
+                                c,
+                                robot_pointer,
+                                &mut text_format::ser::Serializer::new(&mut s),
+                            )
+                            .await
+                            .map(move |_| s)
+                        }
+                        Err(e) => Err(e.into()),
+                    };
+
+                    let res = match res {
+                        Ok(s) if s.is_empty() => Ok(None),
+                        Ok(s) => Ok(Some(BinaryOrText::Text(s))),
                         Err(e) => Err(e),
                     };
+
+                    recipient.do_send(CmdResult(res))
+                }
+                .into_actor(self)
+                .spawn(ctx);
+            }
+
+            Message::Binary(b) => {
+                let recipient = ctx.address().recipient();
+                let robot_pointer = self.robot.clone();
+
+                // FIXME: commands get executed all at once, on disconnect
+                async move {
+                    let res = match postcard::from_bytes(&b) {
+                        Ok(c) => {
+                            let mut serializer = postcard::Serializer {
+                                output: postcard::ser_flavors::StdVec::new(),
+                            };
+
+                            match execute_concrete(c, robot_pointer, &mut serializer).await {
+                                Ok(r) => {
+                                    if let Some(()) = r {
+                                        postcard::ser_flavors::Flavor::finalize(serializer.output)
+                                            .map(|b| BinaryOrText::Binary(Bytes::from(b)))
+                                            .map(Some)
+                                            .map_err(anyhow::Error::new)
+                                    } else {
+                                        Ok(None)
+                                    }
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
+                        Err(e) => Err(e.into()),
+                    };
+
                     recipient.do_send(CmdResult(res))
                 }
                 .into_actor(self)
@@ -103,8 +155,6 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
             }
 
             Message::Pong(_) => self.last_heartbeat = Instant::now(),
-
-            Message::Binary(_) => ctx.text("binary data not supported"),
 
             Message::Close(reason) => {
                 ctx.close(reason);

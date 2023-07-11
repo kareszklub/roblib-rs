@@ -11,6 +11,16 @@ pub struct Serializer<W: fmt::Write> {
     first: bool,
     writer: W,
 }
+
+impl<W: fmt::Write> Serializer<W> {
+    pub fn new(writer: W) -> Self {
+        Self {
+            first: true,
+            writer,
+        }
+    }
+}
+
 impl<W: fmt::Write> fmt::Write for Serializer<W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if !self.first {

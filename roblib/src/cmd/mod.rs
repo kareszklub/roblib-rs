@@ -29,13 +29,13 @@ pub const fn has_return<C: Command>() -> bool {
 }
 
 #[derive(Command, serde::Serialize, serde::Deserialize)]
-pub struct Subscribe(event::Concrete);
+pub struct Subscribe(pub event::Concrete);
 impl Command for Subscribe {
     const PREFIX: char = '+';
     type Return = std::time::Duration;
 }
 #[derive(Command, serde::Serialize, serde::Deserialize)]
-pub struct Unsubscribe(event::Concrete);
+pub struct Unsubscribe(pub event::Concrete);
 impl Command for Unsubscribe {
     const PREFIX: char = '-';
     type Return = std::time::Duration;
