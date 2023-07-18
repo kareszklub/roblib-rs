@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 from itertools import combinations
 from os import system
@@ -31,7 +31,7 @@ def main():
 
 		if len(f) != 0:
 			cmd += f' --features \'{" ".join(f)}\''
-			
+
 		if config.examples:
 			cmd += ' --examples'
 

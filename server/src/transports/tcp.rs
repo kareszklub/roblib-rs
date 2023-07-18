@@ -5,10 +5,13 @@ use actix::spawn;
 use actix_web::rt::net::{TcpListener, TcpStream};
 use anyhow::Result;
 use roblib::cmd::Concrete;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::ToSocketAddrs,
+};
 
-pub(crate) async fn start(port: u16, robot: Arc<Robot>) -> Result<()> {
-    let server = TcpListener::bind(("0.0.0.0", port)).await?;
+pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Robot>) -> Result<()> {
+    let server = TcpListener::bind(addr).await?;
     spawn(run(server, robot));
     Ok(())
 }

@@ -4,11 +4,12 @@ use actix::spawn;
 use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
 use roblib::cmd::Concrete;
+use tokio::net::ToSocketAddrs;
 
 use crate::{cmd::execute_concrete, Robot};
 
-pub(crate) async fn start(port: u16, robot: Arc<Robot>) -> Result<()> {
-    let server = UdpSocket::bind(("0.0.0.0", port)).await?;
+pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Robot>) -> Result<()> {
+    let server = UdpSocket::bind(addr).await?;
     spawn(run(server, robot));
 
     Ok(())

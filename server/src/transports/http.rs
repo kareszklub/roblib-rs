@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use actix_web::{post, web::Data, HttpResponse, Responder};
+use actix_web::{get, post, web::Data, HttpResponse, Responder};
 use roblib::{cmd::Concrete, text_format};
 
 use crate::{cmd::execute_concrete, Robot};
 
 #[post("/cmd")]
-pub(crate) async fn index(body: String, robot: Data<Arc<Robot>>) -> impl Responder {
+pub(crate) async fn post_cmd(body: String, robot: Data<Arc<Robot>>) -> impl Responder {
     let concrete: Concrete = match text_format::de::from_str(&body) {
         Ok(c) => c,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
@@ -24,4 +24,12 @@ pub(crate) async fn index(body: String, robot: Data<Arc<Robot>>) -> impl Respond
     }
 
     HttpResponse::Ok().body(ret)
+}
+
+// redirect to GitHub repo for no particular reason
+#[get("/")]
+pub(crate) async fn index() -> impl Responder {
+    HttpResponse::Found()
+        .insert_header(("Location", "https://github.com/kareszklub/roblib-rs/"))
+        .finish()
 }

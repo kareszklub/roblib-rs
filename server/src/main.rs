@@ -8,11 +8,12 @@ mod cmd;
 mod logger;
 
 mod transports;
+use serde::Deserialize;
 use transports::{http, tcp, udp, ws};
 
 use actix_web::{middleware::DefaultHeaders, web::Data, App, HttpServer};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::{sync::Arc, time::Instant};
 
 struct Robot {
@@ -28,16 +29,54 @@ struct Robot {
     pub camloc: Option<camloc::Camloc>,
 }
 
+fn def_host() -> String {
+    String::from("0.0.0.0")
+}
+fn def_tcp_port() -> u16 {
+    1110
+}
+fn def_udp_port() -> u16 {
+    def_tcp_port()
+}
+fn def_web_port() -> u16 {
+    def_tcp_port() + 1
+}
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    #[serde(default = "def_host")]
+    tcp_host: String,
+
+    #[serde(default = "def_host")]
+    udp_host: String,
+
+    #[serde(default = "def_host")]
+    web_host: String,
+
+    #[serde(default = "def_tcp_port")]
+    tcp_port: u16,
+
+    #[serde(default = "def_udp_port")]
+    udp_port: u16,
+
+    #[serde(default = "def_web_port")]
+    web_port: u16,
+}
+
 #[actix_web::main]
-async fn main() -> Result<()> {
+async fn try_main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
 
-    // TODO: config
-    let web_port: u16 = match std::env::args().nth(1) {
-        Some(s) => s
-            .parse()
-            .map_err(|_| anyhow!("port must be a valid number"))?,
-        None => 1111,
+    let Config {
+        tcp_host,
+        udp_host,
+        web_host,
+        tcp_port,
+        udp_port,
+        web_port,
+    } = match envy::from_env::<Config>() {
+        Ok(config) => config,
+        Err(error) => panic!("{:#?}", error),
     };
 
     info!("Server starting up");
@@ -122,30 +161,37 @@ async fn main() -> Result<()> {
         camloc,
     });
 
-    let tcp_port = 12_345;
     info!("TCP starting on port {tcp_port}");
-    tcp::start(tcp_port, robot.clone()).await?;
+    tcp::start((tcp_host, tcp_port), robot.clone()).await?;
 
-    let udp_port = tcp_port + 1;
     info!("UDP starting on port {udp_port}");
-    udp::start(udp_port, robot.clone()).await?;
+    udp::start((udp_host, udp_port), robot.clone()).await?;
 
     info!("Webserver starting on port {web_port}");
-
     let data = Data::new(robot);
     Ok(HttpServer::new(move || {
         App::new()
             .wrap(
                 DefaultHeaders::new()
-                    .add(("Server", "roblib-rs"))
-                    .add(("X-Version", env!("CARGO_PKG_VERSION"))),
+                    .add(("Server", format!("roblib-rs/{}", env!("CARGO_PKG_VERSION")))),
             )
             .wrap(logger::actix_log())
             .app_data(data.clone())
+            .service(http::post_cmd)
             .service(http::index)
             .service(ws::index)
     })
-    .bind(("0.0.0.0", web_port))?
+    .bind((web_host, web_port))?
     .run()
     .await?)
+}
+
+fn main() {
+    match try_main() {
+        Ok(_) => eprintln!("Bye!"),
+        Err(e) => {
+            eprintln!("ERROR: {e}");
+            std::process::exit(1);
+        }
+    }
 }
