@@ -31,6 +31,9 @@ fn main() -> Result<()> {
     println!("Stopping");
     robot.stop()?;
 
+    println!("Waiting...");
+    sleep(Duration::from_secs(2));
+
     println!("Drive");
     robot.drive(0.4, 0.4)?;
 
@@ -43,6 +46,9 @@ fn main() -> Result<()> {
     println!("Track sensor:");
     let data = robot.track_sensor()?;
     println!("    {data:?}");
+
+    println!("Turning off leds");
+    robot.led_color(LedColor::Black)?;
 
     #[cfg(feature = "camloc")]
     {
