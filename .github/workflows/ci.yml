@@ -18,14 +18,14 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         toolchain: [stable, nightly]
-    
+
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.toolchain == 'nightly' }}
     name: Test - ${{ matrix.os }}/${{ matrix.toolchain }}
 
     steps:
     - uses: actions/checkout@v3
-    
+
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ matrix.toolchain }}
@@ -65,7 +65,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -91,7 +91,7 @@ jobs:
           use-cross: ${{ matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'armv7-unknown-linux-gnueabihf' }}
           command: build
           args: --release -p roblib-server --verbose --target ${{ matrix.target }} --features ${{ steps.features.outputs.f }}
-      
+
       - name: Rename file
         shell: bash
         run: |
@@ -112,4 +112,4 @@ jobs:
       - uses: beni69/artifact-link@v1
         with:
           token: ${{ github.token }}
-          group: ^roblib-server-(?<col>\w+)-(?<row>\w+)$
+          group: ^roblib-server-(?<col>\w+)-(?<row>[\w-]+)$
