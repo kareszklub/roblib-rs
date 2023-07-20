@@ -1,7 +1,4 @@
-use roblib::{
-    camloc::Camloc,
-    roland::{LedColor, Roland},
-};
+use roblib::roland::{LedColor, Roland};
 use roblib_client::{transports::tcp::Tcp, Result, Robot};
 use std::{thread::sleep, time::Duration};
 
@@ -39,6 +36,7 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "camloc")]
     {
+        use roblib::camloc::Camloc;
         println!("Position");
         if let Some(pos) = robot.get_position()? {
             println!("{pos}");

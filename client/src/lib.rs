@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 pub mod logger;
 
 pub mod transports;
@@ -51,7 +48,7 @@ impl<T: Subscribable> Robot<T> {
 // }
 
 // #[cfg(feature = "async")]
-// impl<T: transports::TransportAsync<'r>> RobotAsync<T> {
+// impl<T: transports::TransportAsync> RobotAsync<T> {
 //     pub fn new(transport: T) -> Self {
 //         Self { transport }
 //     }
@@ -65,12 +62,22 @@ impl<T: Subscribable> Robot<T> {
 //         self.transport.cmd(cmd::GetUptime).await
 //     }
 // }
-// impl<T: SubscribableAsync<'r>> RobotAsync<T> {
-//     pub async fn subscribe<E: Event<'r>>(&self, ev: E, handler: impl FnMut(E::Item)) -> Result<()> {
-//         todo!()
+// #[cfg(feature = "async")]
+// impl<T: transports::SubscribableAsync> RobotAsync<T> {
+//     pub async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
+//     where
+//         E: Event + Send,
+//         E::Item: Send + Sync,
+//         F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
+//         R: std::future::Future<Output = Result<()>> + Send + Sync,
+//     {
+//         self.transport.subscribe(ev, handler).await
 //     }
-//     pub async fn unsubscribe<E: Event<'r>>(&self, ev: E) -> Result<()> {
-//         todo!()
+//     pub async fn unsubscribe<E>(&self, ev: E) -> Result<()>
+//     where
+//         E: Event + Send,
+//     {
+//         self.transport.unsubscribe(ev).await
 //     }
 // }
 
@@ -88,14 +95,14 @@ impl<T: Transport> RoblibRobot for Robot<T> {
 impl<T: Transport> roblib::roland::Roland for Robot<T> {
     fn drive(&self, left: f64, right: f64) -> Result<()> {
         if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
-            warn!("Drive values are now [-1, 1] not [-100, 100]");
+            log::warn!("Drive values are now [-1, 1] not [-100, 100]");
         }
         self.transport.cmd(cmd::MoveRobot(left, right))
     }
 
     fn drive_by_angle(&self, angle: f64, speed: f64) -> Result<()> {
         if !(-1. ..=1.).contains(&speed) {
-            warn!("Drive values are now [-1, 1] not [-100, 100]");
+            log::warn!("Drive values are now [-1, 1] not [-100, 100]");
         }
         self.transport.cmd(cmd::MoveRobotByAngle(angle, speed))
     }
@@ -153,7 +160,7 @@ impl<T: Transport> roblib::camloc::Camloc for Robot<T> {
 
 // #[cfg(feature = "async")]
 // #[cfg_attr(feature = "async", async_trait::async_trait)]
-// impl<T: transports::TransportAsync<'r>> roblib::RoblibRobotAsync for RobotAsync<T> {
+// impl<T: transports::TransportAsync> roblib::RoblibRobotAsync for RobotAsync<T> {
 //     async fn nop(&self) -> Result<()> {
 //         self.transport.cmd(cmd::Nop).await
 //     }
@@ -165,7 +172,7 @@ impl<T: Transport> roblib::camloc::Camloc for Robot<T> {
 
 // #[cfg(all(feature = "roland", feature = "async"))]
 // #[cfg_attr(feature = "async", async_trait::async_trait)]
-// impl<T: transports::TransportAsync<'r>> roblib::roland::RolandAsync for RobotAsync<T> {
+// impl<T: transports::TransportAsync> roblib::roland::RolandAsync for RobotAsync<T> {
 //     async fn drive(&self, left: f64, right: f64) -> Result<()> {
 //         if !(-1. ..=1.).contains(&left) || !(-1. ..=1.).contains(&right) {
 //             warn!("Drive values are now [-1, 1] not [-100, 100]");
@@ -210,7 +217,7 @@ impl<T: Transport> roblib::camloc::Camloc for Robot<T> {
 
 // #[cfg(all(feature = "gpio", feature = "async"))]
 // #[cfg_attr(feature = "async", async_trait::async_trait)]
-// impl<T: transports::TransportAsync<'r>> roblib::gpio::GpioAsync for RobotAsync<T> {
+// impl<T: transports::TransportAsync> roblib::gpio::GpioAsync for RobotAsync<T> {
 //     async fn read_pin(&self, pin: u8) -> Result<bool> {
 //         self.transport.cmd(cmd::ReadPin(pin)).await
 //     }
@@ -230,7 +237,7 @@ impl<T: Transport> roblib::camloc::Camloc for Robot<T> {
 
 // #[cfg(all(feature = "camloc", feature = "async"))]
 // #[cfg_attr(feature = "async", async_trait::async_trait)]
-// impl<T: transports::TransportAsync<'r>> roblib::camloc::CamlocAsync for RobotAsync<T> {
+// impl<T: transports::TransportAsync> roblib::camloc::CamlocAsync for RobotAsync<T> {
 //     async fn get_position(&self) -> Result<Option<roblib::camloc::Position>> {
 //         self.transport.cmd(cmd::GetPosition).await
 //     }

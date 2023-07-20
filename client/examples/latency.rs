@@ -1,7 +1,4 @@
-use roblib_client::{
-    transports::{tcp::Tcp, Transport},
-    Result,
-};
+use roblib_client::{transports::tcp::Tcp, Result, Robot};
 use std::{
     env::args,
     thread::sleep,

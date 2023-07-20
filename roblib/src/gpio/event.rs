@@ -9,7 +9,7 @@ pub trait Subscriber {
     fn handle(&self, event: Event);
 }
 
-#[derive(Event, Serialize, Deserialize)]
+#[derive(Event, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct GpioPin(u8);
 impl crate::event::Event for GpioPin {
     type Item = bool;

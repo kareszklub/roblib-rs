@@ -1,4 +1,4 @@
-use roblib::cmd::{Concrete, SEPARATOR};
+use roblib::cmd::Concrete;
 use roblib_client::{
     transports::{tcp::Tcp, Transport},
     Result,
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
             "" => continue,
             "exit" => break,
             inp => {
-                let Ok(cmd) = todo!() else {
+                let Ok(cmd) = roblib::text_format::de::from_str(inp) else {
                     println!("Couldn't parse command");
                     continue;
                 };

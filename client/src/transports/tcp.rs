@@ -1,105 +1,156 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::io::{Read, Write};
+use super::{Subscribable, Transport};
+use anyhow::Result;
+use roblib::{cmd, event};
+use serde::Deserialize;
+use std::{collections::HashMap, sync::Arc};
 
+type D<'a> = bincode::Deserializer<
+    bincode::de::read::IoReader<&'a std::net::TcpStream>,
+    bincode::DefaultOptions,
+>;
+type Handler = Box<dyn Send + Sync + (for<'a> FnMut(D<'a>) -> Result<()>)>;
+
+struct TcpInner {
+    handlers: std::sync::Mutex<HashMap<u32, Handler>>,
+    events: std::sync::Mutex<HashMap<roblib::event::Concrete, u32>>,
+    running: std::sync::RwLock<bool>,
+}
 pub struct Tcp {
-    socket: std::sync::Mutex<std::net::TcpStream>,
+    inner: Arc<TcpInner>,
+
+    socket: std::net::TcpStream,
+    id: std::sync::Mutex<u32>,
 }
 
 impl Tcp {
     pub fn connect(robot: impl std::net::ToSocketAddrs) -> anyhow::Result<Self> {
+        let socket = std::net::TcpStream::connect(robot)?;
+
+        let inner = Arc::new(TcpInner {
+            handlers: HashMap::new().into(),
+            events: HashMap::new().into(),
+            running: true.into(),
+        });
+
+        let inner_clone = inner.clone();
+        let socket_clone = socket.try_clone()?;
+        std::thread::spawn(|| Self::listen(inner_clone, socket_clone));
+
         Ok(Self {
-            socket: std::net::TcpStream::connect(robot)?.into(),
+            inner,
+            id: 0.into(),
+            socket,
         })
     }
-}
 
-struct Sock<'a> {
-    sock: &'a mut std::net::TcpStream,
-    buff: &'a mut [u8],
-}
+    fn listen(inner: Arc<TcpInner>, mut socket: std::net::TcpStream) -> Result<()> {
+        loop {
+            let running = inner.running.read().unwrap();
+            if !*running {
+                return Ok(());
+            }
+            drop(running);
 
-impl<'a> Sock<'a> {
-    fn new(sock: &'a mut std::net::TcpStream, buff: &'a mut [u8]) -> Self {
-        Self { sock, buff }
-    }
-}
+            let id: u32 = bincode::deserialize_from(&mut socket)?;
+            let mut handlers = inner.handlers.lock().unwrap();
 
-impl<'de> postcard::de_flavors::Flavor<'de> for Sock<'de> {
-    type Remainder = ();
-    type Source = ();
+            let Some(entry) = handlers.get_mut(&id) else {
+                return Err(anyhow::Error::msg("received response for unknown id"));
+            };
 
-    fn pop(&mut self) -> postcard::Result<u8> {
-        let mut b = [0];
-        match self.sock.read_exact(&mut b) {
-            Ok(_) => Ok(b[0]),
-            Err(_) => Err(postcard::Error::DeserializeUnexpectedEnd),
+            entry(bincode::Deserializer::with_reader(
+                &socket,
+                bincode::DefaultOptions::new(),
+            ))?;
         }
     }
-
-    fn try_take_n(&mut self, ct: usize) -> postcard::Result<&'de [u8]> {
-        match self.sock.read_exact(&mut self.buff[..ct]) {
-            Ok(_) => Ok(&self.buff[..ct]),
-            Err(_) => Err(postcard::Error::DeserializeUnexpectedEnd),
-        }
-    }
-
-    fn finalize(self) -> postcard::Result<Self::Remainder> {
-        Ok(())
-    }
 }
 
-impl<'de> postcard::ser_flavors::Flavor for Sock<'de> {
-    type Output = ();
+impl Transport for Tcp {
+    fn cmd<C>(&self, cmd: C) -> anyhow::Result<C::Return>
+    where
+        C: roblib::cmd::Command,
+        C::Return: Send + 'static,
+    {
+        let concrete: cmd::Concrete = cmd.into();
 
-    fn try_push(&mut self, data: u8) -> postcard::Result<()> {
-        match self.sock.write_all(&[data]) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(postcard::Error::SerdeSerCustom),
-        }
-    }
+        let mut id_handle = self.id.lock().unwrap();
+        bincode::serialize_into(&self.socket, &(*id_handle, concrete))?;
 
-    fn finalize(self) -> postcard::Result<Self::Output> {
-        Ok(())
-    }
-}
+        *id_handle += 1;
 
-impl super::Transport for Tcp {
-    fn send<S: serde::Serialize>(&self, value: S) -> anyhow::Result<()> {
-        let mut s = self.socket.lock().unwrap();
-        s.write_all(&postcard::to_slice(&value, &mut [0; 512])?)?;
-        Ok(())
-    }
-
-    fn recv<D: DeserializeOwned>(&self) -> anyhow::Result<D> {
-        let mut s = self.socket.lock().unwrap();
-        let mut binding = [0; 512];
-        let mut de = postcard::Deserializer::from_flavor(Sock::new(&mut *s, &mut binding));
-
-        Ok(Deserialize::deserialize(&mut de)?)
-    }
-}
-
-#[cfg(feature = "async")]
-pub struct TcpAsync {
-    socket: futures_util::lock::Mutex<tokio::net::TcpStream>,
-}
-
-#[cfg(feature = "async")]
-impl TcpAsync {
-    pub async fn new(robot: impl tokio::net::ToSocketAddrs) -> anyhow::Result<Self> {
-        Ok(Self {
-            socket: tokio::net::TcpStream::connect(robot).await?.into(),
-        })
-    }
-}
-
-#[cfg(feature = "async")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-impl<'r> super::TransportAsync<'r> for TcpAsync {
-    async fn send<S: Serialize + Send>(&self, value: S) -> anyhow::Result<()> {
-        todo!()
-    }
-    async fn recv<D: DeserializeOwned + Send>(&self) -> anyhow::Result<D> {
         todo!()
     }
 }
+
+impl Subscribable for Tcp {
+    fn subscribe<E, F>(&self, ev: E, mut handler: F) -> anyhow::Result<()>
+    where
+        E: roblib::event::Event,
+        F: (FnMut(E::Item) -> anyhow::Result<()>) + Send + Sync + 'static,
+    {
+        let mut handlers = self.inner.handlers.lock().unwrap();
+        let mut id_handle = self.id.lock().unwrap();
+
+        let id = *id_handle;
+        let ev = Into::<event::Concrete>::into(ev);
+        let cmd: cmd::Concrete = cmd::Subscribe(ev.clone()).into();
+
+        let already_contains = handlers
+            .insert(
+                id,
+                Box::new(move |mut des| handler(E::Item::deserialize(&mut des)?)),
+            )
+            .is_some();
+
+        if already_contains {
+            return Err(anyhow::Error::msg("already subscribed to this event"));
+        }
+
+        bincode::serialize_into(&self.socket, &(id, cmd))?;
+
+        *id_handle += 1;
+
+        self.inner.events.lock().unwrap().insert(ev, id);
+
+        Ok(())
+    }
+
+    fn unsubscribe<E: roblib::event::Event>(&self, ev: E) -> anyhow::Result<()> {
+        let concrete_event = ev.into();
+        let cmd: cmd::Concrete = cmd::Unsubscribe(concrete_event.clone()).into();
+
+        bincode::serialize_into(&self.socket, &cmd)?;
+
+        let mut evs = self.inner.events.lock().unwrap();
+        let id = evs.remove(&concrete_event).unwrap();
+        self.inner.handlers.lock().unwrap().remove(&id);
+
+        Ok(())
+    }
+}
+
+// #[cfg(feature = "async")]
+// pub struct TcpAsync {
+//     socket: futures_util::lock::Mutex<tokio::net::TcpStream>,
+// }
+
+// #[cfg(feature = "async")]
+// impl TcpAsync {
+//     pub async fn new(robot: impl tokio::net::ToSocketAddrs) -> anyhow::Result<Self> {
+//         Ok(Self {
+//             socket: tokio::net::TcpStream::connect(robot).await?.into(),
+//         })
+//     }
+// }
+
+// #[cfg(feature = "async")]
+// #[cfg_attr(feature = "async", async_trait::async_trait)]
+// impl<'r> super::TransportAsync<'r> for TcpAsync {
+//     async fn send<S: Serialize + Send>(&self, value: S) -> anyhow::Result<()> {
+//         todo!()
+//     }
+//     async fn recv<D: DeserializeOwned + Send>(&self) -> anyhow::Result<D> {
+//         todo!()
+//     }
+// }
