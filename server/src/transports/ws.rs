@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::cmd::execute_concrete;
-use crate::Robot;
+use crate::Backends;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -23,13 +23,13 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) async fn index(
     req: HttpRequest,
     stream: Payload,
-    robot: Data<Arc<Robot>>,
+    robot: Data<Arc<Backends>>,
 ) -> Result<HttpResponse, actix_web::Error> {
     actix_web_actors::ws::start(WebSocket::new(robot.as_ref().clone()), &req, stream)
 }
 
 pub(crate) struct WebSocket {
-    robot: Arc<Robot>,
+    robot: Arc<Backends>,
     last_heartbeat: Instant,
 }
 
@@ -167,7 +167,7 @@ impl StreamHandler<Result<Message, ProtocolError>> for WebSocket {
 }
 
 impl WebSocket {
-    pub fn new(robot: Arc<Robot>) -> Self {
+    pub fn new(robot: Arc<Backends>) -> Self {
         Self {
             last_heartbeat: Instant::now(),
             robot,

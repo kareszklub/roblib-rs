@@ -13,14 +13,14 @@ pub mod gpio;
 #[cfg(feature = "roland")]
 pub mod roland;
 
-pub trait RoblibRobot {
+pub trait RoblibBuiltin {
     fn nop(&self) -> anyhow::Result<()>;
     fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
 }
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
-pub trait RoblibRobotAsync {
+pub trait RoblibBuiltinAsync {
     async fn nop(&self) -> anyhow::Result<()>;
     async fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
 }

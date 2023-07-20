@@ -9,14 +9,14 @@ mod logger;
 
 mod transports;
 use serde::Deserialize;
-use transports::{http, tcp, udp, ws};
+use transports::udp;
 
 use actix_web::{middleware::DefaultHeaders, web::Data, App, HttpServer};
 
 use anyhow::Result;
 use std::{sync::Arc, time::Instant};
 
-struct Robot {
+struct Backends {
     pub startup_time: Instant,
 
     #[cfg(all(feature = "gpio", feature = "backend"))]
@@ -147,7 +147,7 @@ async fn try_main() -> Result<()> {
         }
     };
 
-    let robot = Arc::new(Robot {
+    let robot = Arc::new(Backends {
         startup_time: Instant::now(),
 
         #[cfg(all(feature = "roland", feature = "backend"))]
@@ -160,29 +160,30 @@ async fn try_main() -> Result<()> {
         camloc,
     });
 
-    info!("TCP starting on port {tcp_port}");
-    tcp::start((tcp_host, tcp_port), robot.clone()).await?;
+    // info!("TCP starting on port {tcp_port}");
+    // tcp::start((tcp_host, tcp_port), robot.clone()).await?;
 
     info!("UDP starting on port {udp_port}");
     udp::start((udp_host, udp_port), robot.clone()).await?;
 
-    info!("Webserver starting on port {web_port}");
-    let data = Data::new(robot);
-    Ok(HttpServer::new(move || {
-        App::new()
-            .wrap(
-                DefaultHeaders::new()
-                    .add(("Server", format!("roblib-rs/{}", env!("CARGO_PKG_VERSION")))),
-            )
-            .wrap(logger::actix_log())
-            .app_data(data.clone())
-            .service(http::post_cmd)
-            .service(http::index)
-            .service(ws::index)
-    })
-    .bind((web_host, web_port))?
-    .run()
-    .await?)
+    // info!("Webserver starting on port {web_port}");
+    // let data = Data::new(robot);
+    // Ok(HttpServer::new(move || {
+    //     App::new()
+    //         .wrap(
+    //             DefaultHeaders::new()
+    //                 .add(("Server", format!("roblib-rs/{}", env!("CARGO_PKG_VERSION")))),
+    //         )
+    //         .wrap(logger::actix_log())
+    //         .app_data(data.clone())
+    //         .service(http::post_cmd)
+    //         .service(http::index)
+    //         .service(ws::index)
+    // })
+    // .bind((web_host, web_port))?
+    // .run()
+    // .await?)
+    Ok(())
 }
 
 #[actix_web::main]

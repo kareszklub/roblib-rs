@@ -9,11 +9,11 @@ use roblib::{
     roland::Roland,
 };
 
-use super::{Execute, Robot};
+use super::{Backends, Execute};
 
 #[async_trait::async_trait]
 impl Execute for MoveRobot {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let MoveRobot(left, right) = *self;
 
         debug!("Moving robot: {left}:{right}");
@@ -35,7 +35,7 @@ impl Execute for MoveRobot {
 
 #[async_trait::async_trait]
 impl Execute for MoveRobotByAngle {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let MoveRobotByAngle(angle, speed) = *self;
 
         debug!("Moving robot by angle: {}:{}", angle, speed);
@@ -58,7 +58,7 @@ impl Execute for MoveRobotByAngle {
 
 #[async_trait::async_trait]
 impl Execute for StopRobot {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Stopping robot");
 
         #[cfg(feature = "backend")]
@@ -72,7 +72,7 @@ impl Execute for StopRobot {
 
 #[async_trait::async_trait]
 impl Execute for Led {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let Led(r, g, b) = *self;
 
         debug!("LED: {r}:{g}:{b}");
@@ -88,7 +88,7 @@ impl Execute for Led {
 
 #[async_trait::async_trait]
 impl Execute for ServoAbsolute {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let ServoAbsolute(deg) = *self;
 
         debug!("Servo absolute: {deg}");
@@ -104,7 +104,7 @@ impl Execute for ServoAbsolute {
 
 #[async_trait::async_trait]
 impl Execute for Buzzer {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let Buzzer(pw) = *self;
 
         debug!("Buzzer: {pw}");
@@ -120,7 +120,7 @@ impl Execute for Buzzer {
 
 #[async_trait::async_trait]
 impl Execute for TrackSensor {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Track sensor");
 
         #[cfg(feature = "backend")]
@@ -139,7 +139,7 @@ impl Execute for TrackSensor {
 
 #[async_trait::async_trait]
 impl Execute for UltraSensor {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Ultra sensor");
 
         #[cfg(feature = "backend")]

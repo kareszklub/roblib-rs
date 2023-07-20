@@ -8,7 +8,7 @@ pub use anyhow::Result;
 
 pub use roblib;
 
-use roblib::{cmd, event::Event, RoblibRobot};
+use roblib::{cmd, event::Event, RoblibBuiltin};
 use transports::{Subscribable, Transport};
 
 pub struct Robot<T> {
@@ -81,7 +81,7 @@ impl<T: Subscribable> Robot<T> {
 //     }
 // }
 
-impl<T: Transport> RoblibRobot for Robot<T> {
+impl<T: Transport> RoblibBuiltin for Robot<T> {
     fn nop(&self) -> anyhow::Result<()> {
         self.transport.cmd(cmd::Nop)
     }

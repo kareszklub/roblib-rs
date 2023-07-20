@@ -16,7 +16,6 @@ actix = "0.13"
 anyhow = "1"
 serde = "1"
 log = "0.4"
-postcard = { version = "1.0.4", features = ["use-std"] }
 envy = "0.4.2"
 
 [features]

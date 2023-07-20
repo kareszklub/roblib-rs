@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::Robot;
+use crate::Backends;
 
 use roblib::{
     cmd::{Command, Concrete, GetUptime, Nop, Subscribe, Unsubscribe},
-    RoblibRobot,
+    RoblibBuiltin,
 };
 use serde::{Serialize, Serializer};
 
@@ -19,17 +19,16 @@ mod camloc;
 
 #[async_trait::async_trait]
 pub(crate) trait Execute: Command {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return>;
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return>;
 }
 
 pub(crate) async fn execute_concrete<S>(
     concrete: Concrete,
-    robot: Arc<Robot>,
+    robot: Arc<Backends>,
     ser: S,
 ) -> anyhow::Result<Option<S::Ok>>
 where
     S: Serializer + Send,
-    S::Error: Send,
 {
     Ok(match concrete {
         #[cfg(feature = "roland")]
@@ -134,7 +133,7 @@ where
     })
 }
 
-impl RoblibRobot for Robot {
+impl RoblibBuiltin for Backends {
     fn nop(&self) -> anyhow::Result<()> {
         Ok(())
     }
@@ -145,7 +144,7 @@ impl RoblibRobot for Robot {
 
 #[async_trait::async_trait]
 impl Execute for Subscribe {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Subscribe");
         todo!()
     }
@@ -153,7 +152,7 @@ impl Execute for Subscribe {
 
 #[async_trait::async_trait]
 impl Execute for Unsubscribe {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Unsubscribe");
         todo!()
     }
@@ -161,7 +160,7 @@ impl Execute for Unsubscribe {
 
 #[async_trait::async_trait]
 impl Execute for Nop {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Nop");
         robot.nop()
     }
@@ -169,7 +168,7 @@ impl Execute for Nop {
 
 #[async_trait::async_trait]
 impl Execute for GetUptime {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Get uptime");
         robot.get_uptime()
     }

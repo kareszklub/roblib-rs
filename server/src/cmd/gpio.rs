@@ -5,11 +5,11 @@ use roblib::{
 };
 use std::sync::Arc;
 
-use super::{Execute, Robot};
+use super::{Backends, Execute};
 
 #[async_trait::async_trait]
 impl Execute for ReadPin {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let ReadPin(pin) = *self;
 
         debug!("Read pin: {pin}");
@@ -30,7 +30,7 @@ impl Execute for ReadPin {
 
 #[async_trait::async_trait]
 impl Execute for SetPin {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let SetPin(pin, value) = *self;
 
         debug!("Set pin: {pin}:{value}");
@@ -46,7 +46,7 @@ impl Execute for SetPin {
 
 #[async_trait::async_trait]
 impl Execute for SetPwm {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let SetPwm(pin, hz, cycle) = *self;
 
         debug!("Set pwm: {pin}:{hz}:{cycle}");
@@ -62,7 +62,7 @@ impl Execute for SetPwm {
 
 #[async_trait::async_trait]
 impl Execute for ServoBasic {
-    async fn execute(&self, robot: Arc<Robot>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         let ServoBasic(pin, deg) = *self;
 
         debug!("Servo basic: {deg}");

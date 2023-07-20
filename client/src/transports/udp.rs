@@ -26,9 +26,9 @@ pub struct Udp {
 }
 
 impl Udp {
-    pub fn new(robot: impl std::net::ToSocketAddrs) -> Result<Self> {
-        let sock = std::net::UdpSocket::bind("0.0.0.0")?;
-        sock.connect(robot)?;
+    pub fn connect(addr: impl std::net::ToSocketAddrs) -> Result<Self> {
+        let sock = std::net::UdpSocket::bind("0.0.0.0:0")?;
+        sock.connect(addr)?;
 
         let sock2 = sock.try_clone()?;
 

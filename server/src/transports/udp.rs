@@ -1,56 +1,40 @@
-use std::sync::Arc;
+use std::{io::Cursor, sync::Arc};
 
 use actix::spawn;
 use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
-use roblib::cmd::Concrete;
+use roblib::cmd;
 use tokio::net::ToSocketAddrs;
 
-use crate::{cmd::execute_concrete, Robot};
+use crate::{cmd::execute_concrete, Backends};
 
-pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Robot>) -> Result<()> {
+pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>) -> Result<()> {
     let server = UdpSocket::bind(addr).await?;
-    spawn(run(server, robot));
+    spawn(run(server, robot)).await??;
 
     Ok(())
 }
 
-async fn run(server: UdpSocket, robot: Arc<Robot>) -> Result<()> {
+async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
     let mut buf = [0u8; 1024];
 
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;
 
-        let res = match postcard::from_bytes::<Concrete>(&buf[..len]) {
-            Ok(c) => {
-                let mut serializer = postcard::Serializer {
-                    output: postcard::ser_flavors::StdVec::new(),
-                };
+        let (id, cmd): (u32, cmd::Concrete) = bincode::deserialize(&buf[..len])?;
 
-                match execute_concrete(c, robot.clone(), &mut serializer).await {
-                    Ok(r) => {
-                        if let Some(()) = r {
-                            postcard::ser_flavors::Flavor::finalize(serializer.output)
-                                .map(Some)
-                                .map_err(anyhow::Error::new)
-                        } else {
-                            Ok(None)
-                        }
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            Err(e) => Err(e.into()),
-        };
+        let mut c = Cursor::new(&mut buf[..]);
+        bincode::serialize_into(&mut c, &id)?;
 
-        match res {
-            Ok(Some(b)) => {
-                server.send_to(&b, addr).await?;
-            }
-            Ok(None) => (),
-            Err(e) => {
-                server.send_to(e.to_string().as_bytes(), addr).await?;
-            }
+        let res = execute_concrete(
+            cmd,
+            robot.clone(),
+            &mut bincode::Serializer::new(&mut c, bincode::DefaultOptions::new()),
+        )
+        .await?;
+
+        if res.is_some() {
+            server.send_to(&buf, addr).await?;
         }
     }
 }

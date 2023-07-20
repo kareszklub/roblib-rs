@@ -3,10 +3,10 @@ use std::sync::Arc;
 use actix_web::{get, post, web::Data, HttpResponse, Responder};
 use roblib::{cmd::Concrete, text_format};
 
-use crate::{cmd::execute_concrete, Robot};
+use crate::{cmd::execute_concrete, Backends};
 
 #[post("/cmd")]
-pub(crate) async fn post_cmd(body: String, robot: Data<Arc<Robot>>) -> impl Responder {
+pub(crate) async fn post_cmd(body: String, robot: Data<Arc<Backends>>) -> impl Responder {
     let concrete: Concrete = match text_format::de::from_str(&body) {
         Ok(c) => c,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
