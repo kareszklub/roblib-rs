@@ -18,7 +18,7 @@ def main():
 	p.add_argument('-d', '--do', action='store_true', help='actually run cargo check')
 	p.add_argument('-v', '--verbose', action='store_true', help='increase verbosity')
 	p.add_argument('-e', '--examples', action='store_true', help='run for examples')
-	p.add_argument('-f', '--fail', action='store_true', help='Exit on fail')
+	p.add_argument('-n', '--nofail', action='store_true', help='Keep going on fail')
 	p.add_argument('crate', choices=['roblib', 'roblib-server', 'roblib-client'], help='The crate to test')
 	p.add_argument('features', nargs='+', help='The features to test')
 
@@ -40,16 +40,16 @@ def main():
 
 		if is_ci:
 			print('##[group]', end='')
-		print(f'{i + 1}/{len(feature_combinations)} {cmd}')
+		print(f'{i + 1}/{len(feature_combinations)} {cmd}', flush=True)
 
 		if config.do:
 			exit_code = system(cmd)
-			if exit_code != 0 and config.fail:
+			if exit_code != 0 and not config.nofail:
 				exit(1)
-			print('\n\n')
+			print('\n\n', flush=True)
 
 		if is_ci:
-			print('##[endgroup]')
+			print('##[endgroup]', flush=True)
 
 if __name__ == '__main__':
 	main()
