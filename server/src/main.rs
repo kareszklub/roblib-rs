@@ -63,7 +63,6 @@ struct Config {
     web_port: u16,
 }
 
-#[actix_web::main]
 async fn try_main() -> Result<()> {
     logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
 
@@ -186,8 +185,9 @@ async fn try_main() -> Result<()> {
     .await?)
 }
 
-fn main() {
-    match try_main() {
+#[actix_web::main]
+async fn main() {
+    match try_main().await {
         Ok(_) => eprintln!("Bye!"),
         Err(e) => {
             eprintln!("ERROR: {e}");
