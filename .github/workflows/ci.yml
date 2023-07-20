@@ -40,6 +40,15 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         args: --all-features
 
+    - name: Check all possible feature combos
+      if: matrix.toolchain == 'stable'
+      run: |
+        ./check_all.py -d roblib default all async gpio roland camloc gpio-backend || true
+        ./check_all.py -d roblib-server default all backend roland gpio camloc || true
+        ./check_all.py -d roblib-client default all async roland gpio camloc || true
+        ./check_all.py -de roblib-client default all async roland gpio camloc || true
+        cargo clippy -p roblib-macro || true
+
     - name: Run clippy
       if: matrix.toolchain != 'stable'
       run: cargo clippy --all-features
