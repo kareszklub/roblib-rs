@@ -97,9 +97,10 @@ async fn try_main() -> Result<()> {
 
         // TODO: config
         let serv = service::start(
-            Some(LinearExtrapolation::new()),
+            Some(Box::new(LinearExtrapolation::new())),
             roblib::camloc::MAIN_PORT,
-            None,
+            vec![],
+            15.,
             std::time::Duration::from_millis(500),
         )
         .await;
