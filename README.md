@@ -1,5 +1,31 @@
 # roblib
 
+## v2 TODO
+
+- [x] efficient binary format
+- [x] typesafe event system
+- [x] camloc integration
+
+- [ ] server: tcp
+- [ ] server: websocket
+- [x] server: udp
+- [ ] server: http
+
+- [ ] rs client: async tcp
+- [ ] rs client: async udp
+- [ ] rs client: sync tcp
+- [x] rs client: sync udp
+
+- [ ] node client: async tcp
+- [ ] node client: async udp
+- [ ] node client: sync tcp
+- [ ] node client: sync udp
+
+- [ ] web client: async websocket
+- [ ] web client: async http
+
+*the rest of this readme is outdated at the moment, will be updated after the rewrite*
+
 #### _a remote library for a dank engine._
 
 this repo contains the new roblib server written in rust as well as a client
