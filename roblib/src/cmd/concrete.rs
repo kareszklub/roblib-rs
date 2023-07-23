@@ -24,7 +24,7 @@ pub enum Concrete {
     #[cfg(feature = "roland")]
     Led(cmd::Led),
     #[cfg(feature = "roland")]
-    ServoAbsolute(cmd::ServoAbsolute),
+    RolandServo(cmd::RolandServo),
     #[cfg(feature = "roland")]
     Buzzer(cmd::Buzzer),
     #[cfg(feature = "roland")]
@@ -33,13 +33,15 @@ pub enum Concrete {
     UltraSensor(cmd::UltraSensor),
 
     #[cfg(feature = "gpio")]
+    PinMode(cmd::PinMode),
+    #[cfg(feature = "gpio")]
     ReadPin(cmd::ReadPin),
     #[cfg(feature = "gpio")]
-    SetPin(cmd::SetPin),
+    WritePin(cmd::WritePin),
     #[cfg(feature = "gpio")]
-    SetPwm(cmd::SetPwm),
+    Pwm(cmd::Pwm),
     #[cfg(feature = "gpio")]
-    ServoBasic(cmd::ServoBasic),
+    Servo(cmd::Servo),
 
     #[cfg(feature = "camloc")]
     GetPosition(cmd::GetPosition),
@@ -64,7 +66,7 @@ impl Concrete {
             #[cfg(feature = "roland")]
             Self::Led(_) => cmd::Led::PREFIX,
             #[cfg(feature = "roland")]
-            Self::ServoAbsolute(_) => cmd::ServoAbsolute::PREFIX,
+            Self::RolandServo(_) => cmd::RolandServo::PREFIX,
             #[cfg(feature = "roland")]
             Self::Buzzer(_) => cmd::Buzzer::PREFIX,
             #[cfg(feature = "roland")]
@@ -73,13 +75,15 @@ impl Concrete {
             Self::UltraSensor(_) => cmd::UltraSensor::PREFIX,
 
             #[cfg(feature = "gpio")]
+            Self::PinMode(_) => cmd::PinMode::PREFIX,
+            #[cfg(feature = "gpio")]
             Self::ReadPin(_) => cmd::ReadPin::PREFIX,
             #[cfg(feature = "gpio")]
-            Self::SetPin(_) => cmd::SetPin::PREFIX,
+            Self::WritePin(_) => cmd::WritePin::PREFIX,
             #[cfg(feature = "gpio")]
-            Self::SetPwm(_) => cmd::SetPwm::PREFIX,
+            Self::Pwm(_) => cmd::Pwm::PREFIX,
             #[cfg(feature = "gpio")]
-            Self::ServoBasic(_) => cmd::ServoBasic::PREFIX,
+            Self::Servo(_) => cmd::Servo::PREFIX,
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(_) => cmd::GetPosition::PREFIX,
@@ -103,7 +107,7 @@ impl Concrete {
             #[cfg(feature = "roland")]
             Self::Led(_) => has::<cmd::Led>(),
             #[cfg(feature = "roland")]
-            Self::ServoAbsolute(_) => has::<cmd::ServoAbsolute>(),
+            Self::RolandServo(_) => has::<cmd::RolandServo>(),
             #[cfg(feature = "roland")]
             Self::Buzzer(_) => has::<cmd::Buzzer>(),
             #[cfg(feature = "roland")]
@@ -112,13 +116,15 @@ impl Concrete {
             Self::UltraSensor(_) => has::<cmd::UltraSensor>(),
 
             #[cfg(feature = "gpio")]
+            Self::PinMode(_) => has::<cmd::PinMode>(),
+            #[cfg(feature = "gpio")]
             Self::ReadPin(_) => has::<cmd::ReadPin>(),
             #[cfg(feature = "gpio")]
-            Self::SetPin(_) => has::<cmd::SetPin>(),
+            Self::WritePin(_) => has::<cmd::WritePin>(),
             #[cfg(feature = "gpio")]
-            Self::SetPwm(_) => has::<cmd::SetPwm>(),
+            Self::Pwm(_) => has::<cmd::Pwm>(),
             #[cfg(feature = "gpio")]
-            Self::ServoBasic(_) => has::<cmd::ServoBasic>(),
+            Self::Servo(_) => has::<cmd::Servo>(),
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(_) => has::<cmd::GetPosition>(),
@@ -166,9 +172,9 @@ impl Serialize for Concrete {
                 s.end()
             }
             #[cfg(feature = "roland")]
-            Self::ServoAbsolute(c) => {
+            Self::RolandServo(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::ServoAbsolute::PREFIX)?;
+                s.serialize_field("prefix", &cmd::RolandServo::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
                 s.end()
             }
@@ -195,6 +201,13 @@ impl Serialize for Concrete {
             }
 
             #[cfg(feature = "gpio")]
+            Self::PinMode(c) => {
+                let mut s = serializer.serialize_struct("Concrete", 2)?;
+                s.serialize_field("prefix", &cmd::ReadPin::PREFIX)?;
+                s.serialize_field("cmd", &c)?;
+                s.end()
+            }
+            #[cfg(feature = "gpio")]
             Self::ReadPin(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::ReadPin::PREFIX)?;
@@ -202,23 +215,23 @@ impl Serialize for Concrete {
                 s.end()
             }
             #[cfg(feature = "gpio")]
-            Self::SetPin(c) => {
+            Self::WritePin(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::SetPin::PREFIX)?;
+                s.serialize_field("prefix", &cmd::WritePin::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
                 s.end()
             }
             #[cfg(feature = "gpio")]
-            Self::SetPwm(c) => {
+            Self::Pwm(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::SetPwm::PREFIX)?;
+                s.serialize_field("prefix", &cmd::Pwm::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
                 s.end()
             }
             #[cfg(feature = "gpio")]
-            Self::ServoBasic(c) => {
+            Self::Servo(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::ServoBasic::PREFIX)?;
+                s.serialize_field("prefix", &cmd::Servo::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
                 s.end()
             }
@@ -309,11 +322,11 @@ impl<'de> Deserialize<'de> for Concrete {
                         Ok(Concrete::Led(cmd))
                     }
                     #[cfg(feature = "roland")]
-                    cmd::ServoAbsolute::PREFIX => {
+                    cmd::RolandServo::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::ServoAbsolute(cmd))
+                        Ok(Concrete::RolandServo(cmd))
                     }
                     #[cfg(feature = "roland")]
                     cmd::Buzzer::PREFIX => {
@@ -345,25 +358,25 @@ impl<'de> Deserialize<'de> for Concrete {
                         Ok(Concrete::ReadPin(cmd))
                     }
                     #[cfg(feature = "gpio")]
-                    cmd::SetPin::PREFIX => {
+                    cmd::WritePin::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::SetPin(cmd))
+                        Ok(Concrete::WritePin(cmd))
                     }
                     #[cfg(feature = "gpio")]
-                    cmd::SetPwm::PREFIX => {
+                    cmd::Pwm::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::SetPwm(cmd))
+                        Ok(Concrete::Pwm(cmd))
                     }
                     #[cfg(feature = "gpio")]
-                    cmd::ServoBasic::PREFIX => {
+                    cmd::Servo::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::ServoBasic(cmd))
+                        Ok(Concrete::Servo(cmd))
                     }
 
                     #[cfg(feature = "camloc")]

@@ -30,8 +30,8 @@ impl Command for Led {
 }
 
 #[derive(Command, serde::Serialize, serde::Deserialize)]
-pub struct ServoAbsolute(pub f64);
-impl Command for ServoAbsolute {
+pub struct RolandServo(pub f64);
+impl Command for RolandServo {
     const PREFIX: char = 'a';
     type Return = ();
 }

@@ -12,7 +12,7 @@ type Handler = Box<dyn Send + Sync + (for<'a> FnMut(D<'a>) -> Result<()>)>;
 
 struct TcpInner {
     handlers: std::sync::Mutex<HashMap<u32, Handler>>,
-    events: std::sync::Mutex<HashMap<roblib::event::Concrete, u32>>,
+    events: std::sync::Mutex<HashMap<roblib::event::ConcreteType, u32>>,
     running: std::sync::RwLock<bool>,
 }
 pub struct Tcp {
@@ -93,7 +93,7 @@ impl Subscribable for Tcp {
         let mut id_handle = self.id.lock().unwrap();
 
         let id = *id_handle;
-        let ev = Into::<event::Concrete>::into(ev);
+        let ev = Into::<event::ConcreteType>::into(ev);
         let cmd: cmd::Concrete = cmd::Subscribe(ev.clone()).into();
 
         let already_contains = handlers
@@ -129,28 +129,3 @@ impl Subscribable for Tcp {
         Ok(())
     }
 }
-
-// #[cfg(feature = "async")]
-// pub struct TcpAsync {
-//     socket: futures_util::lock::Mutex<tokio::net::TcpStream>,
-// }
-
-// #[cfg(feature = "async")]
-// impl TcpAsync {
-//     pub async fn new(robot: impl tokio::net::ToSocketAddrs) -> anyhow::Result<Self> {
-//         Ok(Self {
-//             socket: tokio::net::TcpStream::connect(robot).await?.into(),
-//         })
-//     }
-// }
-
-// #[cfg(feature = "async")]
-// #[cfg_attr(feature = "async", async_trait::async_trait)]
-// impl<'r> super::TransportAsync<'r> for TcpAsync {
-//     async fn send<S: Serialize + Send>(&self, value: S) -> anyhow::Result<()> {
-//         todo!()
-//     }
-//     async fn recv<D: DeserializeOwned + Send>(&self) -> anyhow::Result<D> {
-//         todo!()
-//     }
-// }

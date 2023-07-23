@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use roblib::{
     cmd::{
-        Buzzer, Led, MoveRobot, MoveRobotByAngle, ServoAbsolute, StopRobot, TrackSensor,
-        UltraSensor,
+        Buzzer, Led, MoveRobot, MoveRobotByAngle, RolandServo, StopRobot, TrackSensor, UltraSensor,
     },
     roland::Roland,
 };
@@ -25,7 +24,7 @@ impl Execute for MoveRobot {
             #[cfg(feature = "camloc")]
             if let Some(c) = &robot.camloc {
                 let hint = roblib::camloc::get_motion_hint(left, right);
-                c.service.set_motion_hint(hint).await;
+                c.set_motion_hint(hint).await;
             }
         }
 
@@ -48,7 +47,7 @@ impl Execute for MoveRobotByAngle {
             if let Some(c) = &robot.camloc {
                 let (left, right) = roblib::roland::convert_move(angle, speed);
                 let hint = roblib::camloc::get_motion_hint(left, right);
-                c.service.set_motion_hint(hint).await;
+                c.set_motion_hint(hint).await;
             }
         }
 
@@ -87,9 +86,9 @@ impl Execute for Led {
 }
 
 #[async_trait::async_trait]
-impl Execute for ServoAbsolute {
+impl Execute for RolandServo {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        let ServoAbsolute(deg) = *self;
+        let RolandServo(deg) = *self;
 
         debug!("Servo absolute: {deg}");
 

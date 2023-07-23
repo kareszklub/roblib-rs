@@ -35,14 +35,14 @@ pub fn derive_event(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ident = &inp.ident;
 
     let res = quote! {
-        impl From<#ident> for crate::event::Concrete {
+        impl From<#ident> for crate::event::ConcreteType {
             fn from(value: #ident) -> Self {
-                crate::event::Concrete::#ident(value)
+                crate::event::ConcreteType::#ident(value)
             }
         }
-        impl From<crate::event::Concrete> for #ident {
-            fn from(value: crate::event::Concrete) -> Self {
-                if let crate::event::Concrete::#ident(m) = value {
+        impl From<crate::event::ConcreteType> for #ident {
+            fn from(value: crate::event::ConcreteType) -> Self {
+                if let crate::event::ConcreteType::#ident(m) = value {
                     m
                 } else {
                     panic!("Tried to convert an unknown command to a concrete command")

@@ -1,23 +1,14 @@
 use roblib::roland::{LedColor, Roland};
-use roblib_client::{
-    transports::{tcp::Tcp, udp::Udp},
-    Result, Robot,
-};
-use std::{
-    net::{SocketAddr, ToSocketAddrs},
-    thread::sleep,
-    time::Duration,
-};
+use roblib_client::{transports::tcp::Tcp, Result, Robot};
+use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<()> {
     let ip = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "localhost:1110".into());
 
-    dbg!(&ip.to_socket_addrs().unwrap().next().unwrap());
-
     // let robot = Robot::new(Tcp::connect(ip)?);
-    let robot = Robot::new(Udp::connect(ip)?);
+    let robot = Robot::new(Tcp::connect(ip)?);
 
     println!("Leds");
     robot.led_color(LedColor::Magenta)?;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::Backends;
 
 use roblib::{
-    cmd::{Command, Concrete, GetUptime, Nop, Subscribe, Unsubscribe},
+    cmd::{Command, Concrete, GetUptime, Nop},
     RoblibBuiltin,
 };
 use serde::{Serialize, Serializer};
@@ -52,7 +52,7 @@ where
             None
         }
         #[cfg(feature = "roland")]
-        Concrete::ServoAbsolute(c) => {
+        Concrete::RolandServo(c) => {
             c.execute(robot).await?;
             None
         }
@@ -77,6 +77,11 @@ where
         ),
 
         #[cfg(feature = "gpio")]
+        Concrete::PinMode(c) => {
+            c.execute(robot).await?;
+            None
+        }
+        #[cfg(feature = "gpio")]
         Concrete::ReadPin(c) => Some(
             c.execute(robot)
                 .await?
@@ -84,17 +89,17 @@ where
                 .map_err(|e| anyhow::Error::msg(e.to_string()))?,
         ),
         #[cfg(feature = "gpio")]
-        Concrete::SetPin(c) => {
+        Concrete::WritePin(c) => {
             c.execute(robot).await?;
             None
         }
         #[cfg(feature = "gpio")]
-        Concrete::SetPwm(c) => {
+        Concrete::Pwm(c) => {
             c.execute(robot).await?;
             None
         }
         #[cfg(feature = "gpio")]
-        Concrete::ServoBasic(c) => {
+        Concrete::Servo(c) => {
             c.execute(robot).await?;
             None
         }
@@ -107,18 +112,8 @@ where
                 .map_err(|e| anyhow::Error::msg(e.to_string()))?,
         ),
 
-        Concrete::Subscribe(c) => Some(
-            c.execute(robot)
-                .await?
-                .serialize(ser)
-                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
-        ),
-        Concrete::Unsubscribe(c) => Some(
-            c.execute(robot)
-                .await?
-                .serialize(ser)
-                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
-        ),
+        Concrete::Subscribe(_) => unreachable!("Subscribe should be handled by the transport"),
+        Concrete::Unsubscribe(_) => unreachable!("Unsubscribe should be handled by the transport"),
 
         Concrete::Nop(c) => {
             c.execute(robot).await?;
@@ -139,22 +134,6 @@ impl RoblibBuiltin for Backends {
     }
     fn get_uptime(&self) -> anyhow::Result<std::time::Duration> {
         Ok(self.startup_time.elapsed())
-    }
-}
-
-#[async_trait::async_trait]
-impl Execute for Subscribe {
-    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        debug!("Subscribe");
-        todo!()
-    }
-}
-
-#[async_trait::async_trait]
-impl Execute for Unsubscribe {
-    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        debug!("Unsubscribe");
-        todo!()
     }
 }
 

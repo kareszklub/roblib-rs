@@ -15,7 +15,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let transport = Robot::new(Tcp::connect(ip)?);
+    let robot = Robot::new(Tcp::connect(ip)?);
 
     // boring arg parsing
     let mut args = args().skip(1);
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
     let mut v = Vec::with_capacity(runs);
 
     for _ in 0..runs {
-        let r = transport.measure_latency()?.as_secs_f64();
+        let r = robot.measure_latency()?.as_secs_f64();
         v.push(r);
         sleep(Duration::from_millis(wait_ms));
     }

@@ -32,56 +32,25 @@ fn main() -> Result<()> {
 
                 print!("< ");
                 match cmd {
-                    Concrete::MoveRobot(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::MoveRobotByAngle(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::StopRobot(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::Led(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::ServoAbsolute(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::Buzzer(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::TrackSensor(c) => {
-                        println!("{:?}", robot.cmd(c)?);
-                    }
-                    Concrete::UltraSensor(c) => {
-                        println!("{}", robot.cmd(c)?);
-                    }
+                    Concrete::MoveRobot(c) => robot.cmd(c)?,
+                    Concrete::MoveRobotByAngle(c) => robot.cmd(c)?,
+                    Concrete::StopRobot(c) => robot.cmd(c)?,
+                    Concrete::Led(c) => robot.cmd(c)?,
+                    Concrete::RolandServo(c) => robot.cmd(c)?,
+                    Concrete::Buzzer(c) => robot.cmd(c)?,
+                    Concrete::TrackSensor(c) => println!("{:?}", robot.cmd(c)?),
+                    Concrete::UltraSensor(c) => println!("{}", robot.cmd(c)?),
 
-                    Concrete::ReadPin(c) => {
-                        println!("{}", robot.cmd(c)?);
-                    }
-                    Concrete::SetPin(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::SetPwm(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::ServoBasic(c) => {
-                        robot.cmd(c)?;
-                    }
+                    Concrete::PinMode(c) => robot.cmd(c)?,
+                    Concrete::ReadPin(c) => println!("{}", robot.cmd(c)?),
+                    Concrete::WritePin(c) => robot.cmd(c)?,
+                    Concrete::Pwm(c) => robot.cmd(c)?,
+                    Concrete::Servo(c) => robot.cmd(c)?,
 
-                    Concrete::Subscribe(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::Unsubscribe(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::Nop(c) => {
-                        robot.cmd(c)?;
-                    }
-                    Concrete::GetUptime(c) => {
-                        println!("{:?}", robot.cmd(c)?);
-                    }
+                    Concrete::Subscribe(c) => robot.cmd(c)?,
+                    Concrete::Unsubscribe(c) => robot.cmd(c)?,
+                    Concrete::Nop(c) => robot.cmd(c)?,
+                    Concrete::GetUptime(c) => println!("{:?}", robot.cmd(c)?),
 
                     Concrete::GetPosition(c) => {
                         if let Some(p) = robot.cmd(c)? {

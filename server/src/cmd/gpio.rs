@@ -1,11 +1,27 @@
 #![allow(unused_imports, unused_variables)]
 use roblib::{
-    cmd::{ReadPin, ServoBasic, SetPin, SetPwm},
+    cmd::{PinMode, Pwm, ReadPin, Servo, WritePin},
     gpio::Gpio,
 };
 use std::sync::Arc;
 
 use super::{Backends, Execute};
+
+#[async_trait::async_trait]
+impl Execute for PinMode {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
+        let PinMode(pin, mode) = *self;
+
+        debug!("Pinmode: {pin} {mode:?}");
+
+        #[cfg(feature = "backend")]
+        if let Some(r) = &robot.raw_gpio {
+            r.pin_mode(pin, mode)?
+        };
+
+        Ok(())
+    }
+}
 
 #[async_trait::async_trait]
 impl Execute for ReadPin {
@@ -29,9 +45,9 @@ impl Execute for ReadPin {
 }
 
 #[async_trait::async_trait]
-impl Execute for SetPin {
+impl Execute for WritePin {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        let SetPin(pin, value) = *self;
+        let WritePin(pin, value) = *self;
 
         debug!("Set pin: {pin}:{value}");
 
@@ -45,9 +61,9 @@ impl Execute for SetPin {
 }
 
 #[async_trait::async_trait]
-impl Execute for SetPwm {
+impl Execute for Pwm {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        let SetPwm(pin, hz, cycle) = *self;
+        let Pwm(pin, hz, cycle) = *self;
 
         debug!("Set pwm: {pin}:{hz}:{cycle}");
 
@@ -61,9 +77,9 @@ impl Execute for SetPwm {
 }
 
 #[async_trait::async_trait]
-impl Execute for ServoBasic {
+impl Execute for Servo {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
-        let ServoBasic(pin, deg) = *self;
+        let Servo(pin, deg) = *self;
 
         debug!("Servo basic: {deg}");
 
