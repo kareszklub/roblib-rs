@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate napi_derive;
 
-use napi::{bindgen_prelude::ObjectFinalize, Env};
+use napi::bindgen_prelude::*;
 use roblib_client::{
     roblib::{camloc::Camloc, gpio::Gpio, roland::Roland, RoblibBuiltin},
     transports::udp::Udp,
@@ -54,7 +54,7 @@ impl JsRobot {
         }
     }
 
-    // RoblibBuiltin
+    // roblib::RoblibBuiltin
     #[napi]
     pub fn nop(&self) -> anyhow::Result<()> {
         self.robot.nop()
@@ -97,29 +97,57 @@ impl JsRobot {
     }
 
     // roblib::gpio::Gpio
-    #[napi]
-    pub fn read_pin(&self, pin: u8) -> anyhow::Result<bool> {
-        self.robot.read_pin(pin)
-    }
-
-    #[napi]
-    pub fn set_pin(&self, pin: u8, value: bool) -> anyhow::Result<()> {
-        self.robot.set_pin(pin, value)
-    }
-
-    #[napi]
-    pub fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> anyhow::Result<()> {
-        self.robot.pwm(pin, hz, cycle)
-    }
-
-    #[napi]
-    pub fn servo(&self, pin: u8, degree: f64) -> anyhow::Result<()> {
-        roblib_client::roblib::gpio::Gpio::servo(&self.robot, pin, degree)
-    }
+    // #[napi]
+    // pub fn read_pin(&self, pin: u8) -> anyhow::Result<bool> {
+    //     self.robot.read_pin(pin)
+    // }
+    //
+    // #[napi]
+    // pub fn set_pin(&self, pin: u8, value: bool) -> anyhow::Result<()> {
+    //     self.robot.set_pin(pin, value)
+    // }
+    //
+    // #[napi]
+    // pub fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> anyhow::Result<()> {
+    //     self.robot.pwm(pin, hz, cycle)
+    // }
+    //
+    // #[napi]
+    // pub fn servo(&self, pin: u8, degree: f64) -> anyhow::Result<()> {
+    //     roblib_client::roblib::gpio::Gpio::servo(&self.robot, pin, degree)
+    // }
 
     // roblib::camloc::Camloc
     #[napi]
-    pub fn get_position(&self) -> anyhow::Result<Option<roblib_client::roblib::camloc::Position>> {
-        self.robot.get_position()
+    pub fn get_position(&self) -> anyhow::Result<Option<JsPosition>> {
+        Ok(self.robot.get_position()?.map(Into::into))
     }
+}
+
+#[napi(object, js_name = "Position")]
+pub struct JsPosition {
+    pub x: f64,
+    pub y: f64,
+    pub rotation: f64,
+}
+impl From<roblib_client::roblib::camloc::Position> for JsPosition {
+    fn from(v: roblib_client::roblib::camloc::Position) -> Self {
+        Self {
+            x: v.x,
+            y: v.y,
+            rotation: v.rotation,
+        }
+    }
+}
+
+#[napi]
+pub enum EventType {
+    GpioPin,
+
+    CamlocConnect,
+    CamlocDisconnect,
+    CamlocPosition,
+    CamlocInfoUpdate,
+
+    None,
 }
