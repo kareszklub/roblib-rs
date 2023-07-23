@@ -1,0 +1,18 @@
+{
+  "name": "@kareszklub/roblib-client-node-win32-x64-msvc",
+  "version": "0.0.0",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "roblib-client-node.win32-x64-msvc.node",
+  "files": [
+    "roblib-client-node.win32-x64-msvc.node"
+  ],
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">= 10"
+  }
+}
