@@ -44,7 +44,7 @@ impl<'g, S: Subscriber> crate::gpio::Pin<S> for Pin<'g> {
     }
 }
 
-impl<'g, S: Subscriber> crate::gpio::Gpio<'g, S> for TypedGpioBackend {
+impl<'g, S: Subscriber> crate::gpio::TypedGpio<'g, S> for TypedGpioBackend {
     type O = OutputPin<'g>;
     type I = InputPin<'g>;
     type P = Pin<'g>;

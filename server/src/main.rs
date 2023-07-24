@@ -5,10 +5,7 @@ mod cmd;
 mod logger;
 
 mod transports;
-use roblib::{
-    camloc::server::service::LocationServiceHandle,
-    event::{ConcreteType, ConcreteValue},
-};
+use roblib::event::{ConcreteType, ConcreteValue};
 use serde::Deserialize;
 use transports::udp;
 
@@ -25,7 +22,7 @@ struct Backends {
     pub roland: Option<roblib::roland::backend::RolandBackend>,
 
     #[cfg(all(feature = "camloc", feature = "backend"))]
-    pub camloc: Option<LocationServiceHandle>,
+    pub camloc: Option<roblib::camloc::server::service::LocationServiceHandle>,
 }
 
 fn def_host() -> String {
@@ -195,7 +192,7 @@ async fn try_main() -> Result<()> {
         #[cfg(all(feature = "gpio", feature = "backend"))]
         raw_gpio,
 
-        #[cfg(feature = "camloc")]
+        #[cfg(all(feature = "camloc", feature = "backend"))]
         camloc,
     });
 

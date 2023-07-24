@@ -1,5 +1,5 @@
 use roblib::roland::{LedColor, Roland};
-use roblib_client::{transports::tcp::Tcp, Result, Robot};
+use roblib_client::{transports::udp::Udp, Result, Robot};
 use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<()> {
@@ -8,7 +8,7 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| "localhost:1110".into());
 
     // let robot = Robot::new(Tcp::connect(ip)?);
-    let robot = Robot::new(Tcp::connect(ip)?);
+    let robot = Robot::new(Udp::connect(ip)?);
 
     println!("Leds");
     robot.led_color(LedColor::Magenta)?;

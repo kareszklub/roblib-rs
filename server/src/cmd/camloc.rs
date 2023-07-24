@@ -8,10 +8,12 @@ use super::{Backends, Execute};
 impl Execute for GetPosition {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Get position");
-        Ok(if let Some(c) = &robot.camloc {
-            c.get_position().await
-        } else {
-            None
-        })
+
+        #[cfg(feature = "backend")]
+        if let Some(c) = &robot.camloc {
+            return Ok(c.get_position().await);
+        }
+
+        Ok(None)
     }
 }

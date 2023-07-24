@@ -1,7 +1,12 @@
 #!/bin/sh
 set -e
 
-name=${3:-test}
+./check_all.py -d roblib default all async gpio roland camloc gpio-backend
+./check_all.py -d roblib-server default all backend roland gpio camloc
+./check_all.py -d roblib-client default all async roland gpio camloc
+./check_all.py -de roblib-client default all async roland gpio camloc
 
-cross build --release --target $1 -p roblib --example $name --all-features
-rsync -vhP target/$1/release/examples/$name pi@$2:~
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]roblib-macro"
+cargo clippy -p roblib-macro 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+exit 0

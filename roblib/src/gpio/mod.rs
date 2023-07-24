@@ -6,13 +6,22 @@ pub mod event;
 #[cfg(feature = "gpio-backend")]
 pub mod backend;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Input,
     Output,
 }
 
-pub trait Gpio<'p, S: Subscriber> {
+pub trait Gpio {
+    fn read_pin(&self, pin: u8) -> Result<bool>;
+    fn write_pin(&self, pin: u8, value: bool) -> Result<()>;
+    fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()>;
+    fn servo(&self, pin: u8, degree: f64) -> Result<()>;
+
+    fn pin_mode(&self, pin: u8, mode: Mode) -> Result<()>;
+}
+
+pub trait TypedGpio<'p, S: Subscriber> {
     type O: OutputPin<S> + 'p;
     type I: InputPin<S> + 'p;
     type P: Pin<S> + 'p;

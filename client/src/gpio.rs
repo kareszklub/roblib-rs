@@ -3,6 +3,28 @@ use roblib::cmd;
 
 use crate::{transports::Transport, Robot};
 
+impl<T: Transport> roblib::gpio::Gpio for Robot<T> {
+    fn read_pin(&self, pin: u8) -> Result<bool> {
+        self.transport.cmd(cmd::ReadPin(pin))
+    }
+
+    fn write_pin(&self, pin: u8, value: bool) -> Result<()> {
+        self.transport.cmd(cmd::WritePin(pin, value))
+    }
+
+    fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()> {
+        self.transport.cmd(cmd::Pwm(pin, hz, cycle))
+    }
+
+    fn servo(&self, pin: u8, degree: f64) -> Result<()> {
+        self.transport.cmd(cmd::Servo(pin, degree))
+    }
+
+    fn pin_mode(&self, pin: u8, mode: roblib::gpio::Mode) -> Result<()> {
+        self.transport.cmd(cmd::PinMode(pin, mode))
+    }
+}
+
 pub struct Pin<'r, T: Transport> {
     robot: &'r Robot<T>,
     pin: u8,
@@ -16,7 +38,9 @@ pub struct OutputPin<'r, T: Transport> {
     pin: u8,
 }
 
-impl<'r, T: Transport + 'r, S: roblib::gpio::Subscriber> roblib::gpio::Gpio<'r, S> for Robot<T> {
+impl<'r, T: Transport + 'r, S: roblib::gpio::Subscriber> roblib::gpio::TypedGpio<'r, S>
+    for Robot<T>
+{
     type O = OutputPin<'r, T>;
     type I = InputPin<'r, T>;
     type P = Pin<'r, T>;

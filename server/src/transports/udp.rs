@@ -116,7 +116,7 @@ async fn handle_event(
             continue;
         };
 
-        let val = match ev {
+        let val: Vec<u8> = match ev {
             #[cfg(feature = "gpio")]
             roblib::event::ConcreteValue::GpioPin(val) => bincode::serialize(&val)?,
 

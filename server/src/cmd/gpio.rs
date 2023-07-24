@@ -1,7 +1,7 @@
 #![allow(unused_imports, unused_variables)]
 use roblib::{
     cmd::{PinMode, Pwm, ReadPin, Servo, WritePin},
-    gpio::Gpio,
+    gpio::{Gpio, TypedGpio},
 };
 use std::sync::Arc;
 
@@ -53,7 +53,7 @@ impl Execute for WritePin {
 
         #[cfg(feature = "backend")]
         if let Some(r) = &robot.raw_gpio {
-            r.set_pin(pin, value)?;
+            r.write_pin(pin, value)?;
         }
 
         Ok(())

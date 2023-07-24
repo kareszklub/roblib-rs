@@ -5,6 +5,8 @@
 - [x] efficient binary format
 - [x] typesafe event system
 - [x] camloc integration
+- [ ] extensively test gpio impl irl
+- [ ] structured errors
 
 - [ ] server: tcp
 - [ ] server: websocket
