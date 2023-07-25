@@ -10,7 +10,7 @@ permissions:
   push:
     branches:
       - main
-      - node-ffi
+      # - node-ffi
     tags-ignore:
       - '**'
     paths-ignore:
