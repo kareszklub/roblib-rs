@@ -21,7 +21,7 @@ impl<T: Transport> roblib::roland::Roland for Robot<T> {
         self.transport.cmd(cmd::Led(r, g, b))
     }
 
-    fn servo(&self, degree: f64) -> Result<()> {
+    fn roland_servo(&self, degree: f64) -> Result<()> {
         self.transport.cmd(cmd::RolandServo(degree))
     }
 

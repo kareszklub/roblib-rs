@@ -231,7 +231,7 @@ impl Roland for RolandBackend {
         Ok(())
     }
 
-    fn servo(&self, degree: f64) -> Result<()> {
+    fn roland_servo(&self, degree: f64) -> Result<()> {
         let (period, pulse_width) = get_servo_pwm_durations(degree);
         self.servo.lock().unwrap().0.set_pwm(period, pulse_width)?;
         Ok(())

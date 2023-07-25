@@ -7,7 +7,7 @@ pub mod backend;
 pub trait Roland: Sized {
     fn drive(&self, left: f64, right: f64) -> anyhow::Result<()>;
     fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
-    fn servo(&self, degree: f64) -> anyhow::Result<()>;
+    fn roland_servo(&self, degree: f64) -> anyhow::Result<()>;
     fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
     fn track_sensor(&self) -> anyhow::Result<[bool; 4]>;
     fn ultra_sensor(&self) -> anyhow::Result<f64>;
@@ -30,7 +30,7 @@ pub trait Roland: Sized {
     fn cleanup(&self) -> anyhow::Result<()> {
         self.drive(0., 0.)?;
         self.led(false, false, false)?;
-        self.servo(0.)?;
+        self.roland_servo(0.)?;
         self.buzzer(100.0)?;
 
         Ok(())

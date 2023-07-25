@@ -94,7 +94,7 @@ impl Execute for RolandServo {
 
         #[cfg(feature = "backend")]
         if let Some(r) = &robot.roland {
-            r.servo(deg)?;
+            r.roland_servo(deg)?;
         }
 
         Ok(())
