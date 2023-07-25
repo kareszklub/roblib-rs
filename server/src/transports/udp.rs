@@ -13,36 +13,26 @@ use tokio::{net::ToSocketAddrs, sync::RwLock};
 
 use crate::{cmd::execute_concrete, Backends};
 
-pub(crate) async fn start(
-    addr: impl ToSocketAddrs,
-    robot: Arc<Backends>,
-    event_bus: tokio::sync::broadcast::Receiver<(
-        roblib::event::ConcreteType,
-        roblib::event::ConcreteValue,
-    )>,
-) -> Result<()> {
+pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>) -> Result<()> {
     let server = UdpSocket::bind(addr).await?;
-    spawn(run(server, robot, event_bus)).await??;
+    spawn(run(server, robot)).await??;
 
     Ok(())
 }
 
 type EventMap = HashMap<ConcreteType, Vec<(SocketAddr, u32)>>;
 
-async fn run(
-    server: UdpSocket,
-    robot: Arc<Backends>,
-    event_bus: tokio::sync::broadcast::Receiver<(
-        roblib::event::ConcreteType,
-        roblib::event::ConcreteValue,
-    )>,
-) -> Result<()> {
+async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
     let mut buf = [0u8; 1024];
 
     let clients: Arc<RwLock<EventMap>> = Arc::new(HashMap::new().into());
 
     let server = Arc::new(server);
-    spawn(handle_event(event_bus, server.clone(), clients.clone()));
+    spawn(handle_event(
+        robot.event_bus.rx.resubscribe(),
+        server.clone(),
+        clients.clone(),
+    ));
 
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;
@@ -53,10 +43,16 @@ async fn run(
             cmd::Concrete::Subscribe(c) => {
                 let mut clients = clients.write().await;
 
-                match clients.entry(c.0) {
+                match clients.entry(c.0.clone()) {
                     Entry::Occupied(mut o) => o.get_mut().push((addr, id)),
                     Entry::Vacant(v) => {
                         v.insert(vec![(addr, id)]);
+
+                        robot
+                            .event_bus
+                            .sub_tx
+                            .send((c.0, true))
+                            .expect("event_bus_sub: no receivers");
                     }
                 }
 
@@ -103,10 +99,7 @@ async fn run(
 }
 
 async fn handle_event(
-    mut event_bus: tokio::sync::broadcast::Receiver<(
-        roblib::event::ConcreteType,
-        roblib::event::ConcreteValue,
-    )>,
+    mut event_bus: crate::event_bus::Rx,
     event_send: Arc<UdpSocket>,
     clients: Arc<RwLock<EventMap>>,
 ) -> Result<()> {

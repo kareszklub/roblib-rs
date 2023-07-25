@@ -1,11 +1,10 @@
 #![allow(unused_imports, unused_variables)]
+use super::{Backends, Execute};
 use roblib::{
     cmd::{PinMode, Pwm, ReadPin, Servo, WritePin},
     gpio::{Gpio, TypedGpio},
 };
 use std::sync::Arc;
-
-use super::{Backends, Execute};
 
 #[async_trait::async_trait]
 impl Execute for PinMode {

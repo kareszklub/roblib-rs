@@ -4,7 +4,7 @@ pub trait Event: Serialize + DeserializeOwned + Into<ConcreteType> + From<Concre
     type Item: Serialize + DeserializeOwned;
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ConcreteType {
     #[cfg(feature = "gpio")]
     GpioPin(crate::gpio::event::GpioPin),
@@ -21,7 +21,7 @@ pub enum ConcreteType {
     None,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConcreteValue {
     #[cfg(feature = "gpio")]
     GpioPin(<crate::gpio::event::GpioPin as Event>::Item),

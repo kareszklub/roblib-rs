@@ -2,8 +2,8 @@
 extern crate log;
 
 mod cmd;
+mod event_bus;
 mod logger;
-
 mod transports;
 use roblib::event::{ConcreteType, ConcreteValue};
 use serde::Deserialize;
@@ -14,6 +14,8 @@ use std::{sync::Arc, time::Instant};
 
 struct Backends {
     pub startup_time: Instant,
+
+    pub event_bus: event_bus::EventBus,
 
     #[cfg(all(feature = "gpio", feature = "backend"))]
     pub raw_gpio: Option<roblib::gpio::backend::SimpleGpioBackend>,
@@ -87,7 +89,7 @@ async fn try_main() -> Result<()> {
     ];
     info!("Compiled with features: {features:?}");
 
-    let (event_bus_tx, event_bus_rx) = tokio::sync::broadcast::channel(1);
+    let event_bus = event_bus::init();
 
     #[cfg(feature = "camloc")]
     let camloc = {
@@ -109,12 +111,7 @@ async fn try_main() -> Result<()> {
         match serv {
             Ok(s) => {
                 // TODO:
-                struct MySub(
-                    tokio::sync::broadcast::Sender<(
-                        roblib::event::ConcreteType,
-                        roblib::event::ConcreteValue,
-                    )>,
-                );
+                struct MySub(event_bus::Tx);
                 impl event::Subscriber for MySub {
                     fn handle_event(&mut self, event: service::Event) {
                         let ev: (ConcreteType, ConcreteValue) = match event {
@@ -140,7 +137,7 @@ async fn try_main() -> Result<()> {
                         self.0.send(ev);
                     }
                 }
-                s.subscribe(MySub(event_bus_tx.clone())).await;
+                s.subscribe(MySub(event_bus.tx.clone())).await;
 
                 info!("Camloc operational");
                 Some(s)
@@ -185,6 +182,7 @@ async fn try_main() -> Result<()> {
 
     let robot = Arc::new(Backends {
         startup_time: Instant::now(),
+        event_bus,
 
         #[cfg(all(feature = "roland", feature = "backend"))]
         roland,
@@ -196,16 +194,13 @@ async fn try_main() -> Result<()> {
         camloc,
     });
 
+    tokio::spawn(event_bus::connect(robot.clone()));
+
     // info!("TCP starting on port {tcp_port}");
     // tcp::start((tcp_host, tcp_port), robot.clone()).await?;
 
     info!("UDP starting on port {udp_port}");
-    udp::start(
-        (udp_host, udp_port),
-        robot.clone(),
-        event_bus_rx.resubscribe(),
-    )
-    .await?;
+    udp::start((udp_host, udp_port), robot.clone()).await?;
 
     // info!("Webserver starting on port {web_port}");
     // let data = Data::new(robot);
