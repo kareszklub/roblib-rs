@@ -30,7 +30,7 @@ pub struct JsRobot {
 #[napi]
 impl ObjectFinalize for JsRobot {
     // idk xd
-    fn finalize(self, mut env: Env) -> napi::Result<()> {
+    fn finalize(self, _: Env) -> napi::Result<()> {
         // if the connection has been disconnected, then we're good
         if !self.active {
             return Ok(());
@@ -78,7 +78,7 @@ impl JsRobot {
 
     #[napi]
     pub fn roland_servo(&self, degree: f64) -> anyhow::Result<()> {
-        roblib_client::roblib::roland::Roland::servo(&self.robot, degree)
+        roblib_client::roblib::roland::Roland::roland_servo(&self.robot, degree)
     }
 
     #[napi]
@@ -97,30 +97,50 @@ impl JsRobot {
     }
 
     // roblib::gpio::Gpio
-    // #[napi]
-    // pub fn read_pin(&self, pin: u8) -> anyhow::Result<bool> {
-    //     self.robot.read_pin(pin)
-    // }
-    //
-    // #[napi]
-    // pub fn set_pin(&self, pin: u8, value: bool) -> anyhow::Result<()> {
-    //     self.robot.set_pin(pin, value)
-    // }
-    //
-    // #[napi]
-    // pub fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> anyhow::Result<()> {
-    //     self.robot.pwm(pin, hz, cycle)
-    // }
-    //
-    // #[napi]
-    // pub fn servo(&self, pin: u8, degree: f64) -> anyhow::Result<()> {
-    //     roblib_client::roblib::gpio::Gpio::servo(&self.robot, pin, degree)
-    // }
+    #[napi]
+    pub fn read_pin(&self, pin: u8) -> anyhow::Result<bool> {
+        self.robot.read_pin(pin)
+    }
+
+    #[napi]
+    pub fn write_pin(&self, pin: u8, value: bool) -> anyhow::Result<()> {
+        self.robot.write_pin(pin, value)
+    }
+
+    #[napi]
+    pub fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> anyhow::Result<()> {
+        self.robot.pwm(pin, hz, cycle)
+    }
+
+    #[napi]
+    pub fn servo(&self, pin: u8, degree: f64) -> anyhow::Result<()> {
+        self.robot.roland_servo(degree)
+    }
+
+    #[napi]
+    pub fn pin_mode(&self, pin: u8, mode: JsPinMode) -> anyhow::Result<()> {
+        self.robot.pin_mode(pin, mode.into())
+    }
 
     // roblib::camloc::Camloc
     #[napi]
     pub fn get_position(&self) -> anyhow::Result<Option<JsPosition>> {
         Ok(self.robot.get_position()?.map(Into::into))
+    }
+}
+
+#[napi(string_enum, js_name = "PinMode")]
+#[allow(non_camel_case_types)]
+pub enum JsPinMode {
+    input,
+    output,
+}
+impl From<JsPinMode> for roblib_client::roblib::gpio::Mode {
+    fn from(value: JsPinMode) -> Self {
+        match value {
+            JsPinMode::input => roblib_client::roblib::gpio::Mode::Input,
+            JsPinMode::output => roblib_client::roblib::gpio::Mode::Output,
+        }
     }
 }
 
