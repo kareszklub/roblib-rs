@@ -42,7 +42,7 @@ impl Command for Unsubscribe {
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Nop;
 impl Command for Nop {
-    const PREFIX: char = 'n';
+    const PREFIX: char = '0';
     type Return = ();
 }
 

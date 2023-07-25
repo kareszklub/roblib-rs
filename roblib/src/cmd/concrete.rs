@@ -203,7 +203,7 @@ impl Serialize for Concrete {
             #[cfg(feature = "gpio")]
             Self::PinMode(c) => {
                 let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::ReadPin::PREFIX)?;
+                s.serialize_field("prefix", &cmd::PinMode::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
                 s.end()
             }
@@ -350,6 +350,13 @@ impl<'de> Deserialize<'de> for Concrete {
                         Ok(Concrete::UltraSensor(cmd))
                     }
 
+                    #[cfg(feature = "gpio")]
+                    cmd::PinMode::PREFIX => {
+                        let cmd = seq
+                            .next_element()?
+                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                        Ok(Concrete::PinMode(cmd))
+                    }
                     #[cfg(feature = "gpio")]
                     cmd::ReadPin::PREFIX => {
                         let cmd = seq

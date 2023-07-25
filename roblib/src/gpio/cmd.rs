@@ -4,7 +4,7 @@ use roblib_macro::Command;
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct PinMode(pub u8, pub super::Mode);
 impl Command for PinMode {
-    const PREFIX: char = 'r';
+    const PREFIX: char = 'p';
     type Return = ();
 }
 
@@ -18,14 +18,14 @@ impl Command for ReadPin {
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct WritePin(pub u8, pub bool);
 impl Command for WritePin {
-    const PREFIX: char = 'p';
+    const PREFIX: char = 'w';
     type Return = ();
 }
 
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Pwm(pub u8, pub f64, pub f64);
 impl Command for Pwm {
-    const PREFIX: char = 'w';
+    const PREFIX: char = 'W';
     type Return = ();
 }
 
