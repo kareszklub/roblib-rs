@@ -36,5 +36,9 @@ name = "simple"
 required-features = ["roland"]
 
 [[example]]
+name = "gpio"
+required-features = ["gpio"]
+
+[[example]]
 name = "controller"
 required-features = ["roland", "gpio", "camloc"]
