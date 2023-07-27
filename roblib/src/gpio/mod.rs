@@ -21,19 +21,19 @@ pub trait Gpio {
     fn pin_mode(&self, pin: u8, mode: Mode) -> Result<()>;
 }
 
-pub trait TypedGpio<'p, S: Subscriber> {
-    type O: OutputPin<S> + 'p;
-    type I: InputPin<S> + 'p;
-    type P: Pin<S> + 'p;
+pub trait TypedGpio<'p> {
+    type O: OutputPin + 'p;
+    type I: InputPin + 'p;
+    type P: Pin + 'p;
 
     fn output_pin(&'p self, pin: u8) -> Result<Self::O>;
     fn input_pin(&'p self, pin: u8) -> Result<Self::I>;
     fn pin(&'p self, pin: u8) -> Result<Self::P>;
 }
 
-pub trait Pin<S: Subscriber> {
-    type O: OutputPin<S>;
-    type I: InputPin<S>;
+pub trait Pin {
+    type O: OutputPin;
+    type I: InputPin;
 
     fn get_pin(&self) -> u8;
 
@@ -41,31 +41,30 @@ pub trait Pin<S: Subscriber> {
     fn set_to_input(self) -> Result<Self::I>;
 }
 
-pub trait Subscriber {
-    fn handle_event(&mut self);
-}
-
-pub trait InputPin<S: Subscriber>: Pin<S> {
-    type O: OutputPin<S>;
-    type P: Pin<S>;
-
-    fn subscribe(&self, sub: S) -> Result<()>;
+pub trait InputPin: Pin {
+    type O: OutputPin;
+    type P: Pin;
 
     fn read(&self) -> Result<bool>;
 
-    fn set_to_output(self) -> Result<<Self as InputPin<S>>::O>;
     fn set_to_pin(self) -> Result<Self::P>;
 }
 
-pub trait OutputPin<S: Subscriber>: Pin<S> {
-    type I: InputPin<S>;
-    type P: Pin<S>;
+pub trait SubscribablePin: InputPin {
+    fn subscribe(
+        &mut self,
+        handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
+    ) -> Result<()>;
+}
+
+pub trait OutputPin: Pin {
+    type I: InputPin;
+    type P: Pin;
 
     fn set(&mut self, value: bool) -> Result<()>;
     fn pwm(&mut self, hz: f64, cycle: f64) -> Result<()>;
     fn servo(&mut self, degree: f64) -> Result<()>;
 
-    fn set_to_input(self) -> Result<<Self as OutputPin<S>>::I>;
     fn set_to_pin(self) -> Result<Self::P>;
 }
 

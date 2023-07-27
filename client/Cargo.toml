@@ -36,7 +36,11 @@ name = "simple"
 required-features = ["roland"]
 
 [[example]]
-name = "gpio"
+name = "blink"
+required-features = ["gpio"]
+
+[[example]]
+name = "gpio_in"
 required-features = ["gpio"]
 
 [[example]]

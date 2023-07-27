@@ -8,12 +8,6 @@ use serde::{
 
 use crate::cmd::{self, Command};
 
-#[derive(Serialize, Deserialize)]
-pub struct Concr {
-    pub id: u32,
-    pub cmd: Concrete,
-}
-
 pub enum Concrete {
     #[cfg(feature = "roland")]
     MoveRobot(cmd::MoveRobot),
@@ -142,133 +136,99 @@ impl Serialize for Concrete {
     where
         S: serde::Serializer,
     {
+        let mut s = serializer.serialize_struct("Concrete", 2)?;
         match self {
             #[cfg(feature = "roland")]
             Self::MoveRobot(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::MoveRobot::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::MoveRobotByAngle(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::MoveRobotByAngle::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::StopRobot(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::StopRobot::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::Led(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Led::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::RolandServo(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::RolandServo::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::Buzzer(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Buzzer::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::TrackSensor(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::TrackSensor::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "roland")]
             Self::UltraSensor(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::UltraSensor::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
 
             #[cfg(feature = "gpio")]
             Self::PinMode(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::PinMode::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "gpio")]
             Self::ReadPin(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::ReadPin::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "gpio")]
             Self::WritePin(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::WritePin::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "gpio")]
             Self::Pwm(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Pwm::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             #[cfg(feature = "gpio")]
             Self::Servo(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Servo::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
 
             #[cfg(feature = "camloc")]
             Self::GetPosition(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::GetPosition::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
 
             Self::Subscribe(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Subscribe::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             Self::Unsubscribe(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Unsubscribe::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             Self::Nop(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::Nop::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
             Self::GetUptime(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
                 s.serialize_field("prefix", &cmd::GetUptime::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
-                s.end()
             }
         }
+        s.end()
     }
 }
 impl<'de> Deserialize<'de> for Concrete {

@@ -8,7 +8,10 @@ use crate::{
 use rppal::gpio::{InputPin, OutputPin, Trigger};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicBool, Ordering::SeqCst},
+        Arc, RwLock,
+    },
 };
 
 enum Pin {
@@ -24,9 +27,14 @@ impl Pin {
     }
 }
 
+struct SubHandler {
+    handler: Box<dyn Subscriber>,
+    last_value: AtomicBool,
+}
+
 pub struct SimpleGpioBackend {
     pins: RwLock<HashMap<u8, Pin>>,
-    handlers: Arc<RwLock<HashMap<u8, Box<dyn Subscriber>>>>,
+    handlers: Arc<RwLock<HashMap<u8, SubHandler>>>,
     // handlers: Arc<RwLock<HashMap<u8, Vec<Box<dyn Subscriber>>>>>,
     gpio: rppal::gpio::Gpio,
 }
@@ -38,15 +46,6 @@ impl SimpleGpioBackend {
             pins: RwLock::new(HashMap::new()),
             handlers: Arc::new(RwLock::new(HashMap::new())),
         })
-    }
-
-    fn insert_pin(&self, pin: u8, mode: Mode) -> anyhow::Result<()> {
-        let p = match mode {
-            Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input()),
-            Mode::Output => Pin::Output(self.gpio.get(pin)?.into_output()),
-        };
-        self.pins.write().unwrap().insert(pin, p);
-        Ok(())
     }
 
     fn input_pin<F, R>(&self, pin: u8, f: F) -> anyhow::Result<R>
@@ -87,16 +86,30 @@ impl SimpleGpioBackend {
                 }
                 // Entry::Occupied(mut v) => v.get_mut().push(handler),
                 Entry::Vacant(v) => {
-                    v.insert(handler);
-                    // v.insert(Vec::new()).push(handler);
+                    let state = p.read() as u8 != 0;
+                    v.insert(SubHandler {
+                        handler,
+                        last_value: state.into(),
+                    });
+
                     let handlers = self.handlers.clone();
                     p.set_async_interrupt(Trigger::Both, move |l| {
                         let lock = handlers.read().unwrap();
                         let Some(handle) = lock.get(&pin) else {
                             return log::error!("Handlers removed without clearing interrupt!");
                         };
-                        let ev = Event::PinChanged(pin, l as u8 == 1);
-                        handle.handle(ev)
+                        // rising/falling edge thing seems to be backwards
+                        let value = !(l as u8 != 0);
+                        if let Ok(_) = handle.last_value.fetch_update(SeqCst, SeqCst, |last| {
+                            dbg!(value, last);
+                            if value != last {
+                                return Some(value);
+                            }
+                            None
+                        }) {
+                            let ev = Event::PinChanged(pin, value);
+                            handle.handler.handle(ev)
+                        }
                     })?;
                 }
             }
@@ -104,12 +117,12 @@ impl SimpleGpioBackend {
         })?
     }
 
-    fn fire_event(&self, pin: u8, value: bool) {
-        let handlers = self.handlers.read().unwrap();
-        if let Some(p) = handlers.get(&pin) {
-            p.handle(Event::PinChanged(pin, value));
-        }
-    }
+    // fn fire_event(&self, pin: u8, value: bool) {
+    //     let handlers = self.handlers.read().unwrap();
+    //     if let Some(p) = handlers.get(&pin) {
+    //         p.handle(Event::PinChanged(pin, value));
+    //     }
+    // }
 
     pub fn unsubscribe(&self, pin: u8) -> anyhow::Result<()> {
         self.input_pin_mut(pin, |p| p.clear_async_interrupt())??;
@@ -145,17 +158,29 @@ impl super::super::Gpio for SimpleGpioBackend {
     }
 
     fn pin_mode(&self, pin: u8, mode: Mode) -> anyhow::Result<()> {
-        match self.pins.write().unwrap().entry(pin) {
+        let mut pins = self.pins.write().unwrap();
+        match pins.entry(pin) {
             Entry::Occupied(v) => {
                 if mode == v.get().mode() {
                     log::warn!("Pin {pin} mode already set to {mode:?}");
                 } else {
                     log::warn!("Pin {pin} mode switched to {mode:?}");
-                    // TODO: could maybe deadlock?? idk will have to check
-                    self.insert_pin(pin, mode)?;
+                    // TODO: revisit
+                    drop(v.remove());
+                    let p = match mode {
+                        Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input()),
+                        Mode::Output => Pin::Output(self.gpio.get(pin)?.into_output()),
+                    };
+                    pins.insert(pin, p);
                 }
             }
-            Entry::Vacant(_) => self.insert_pin(pin, mode)?,
+            Entry::Vacant(v) => {
+                let p = match mode {
+                    Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input()),
+                    Mode::Output => Pin::Output(self.gpio.get(pin)?.into_output()),
+                };
+                v.insert(p);
+            }
         }
         Ok(())
     }

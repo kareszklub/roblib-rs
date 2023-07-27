@@ -120,7 +120,8 @@ impl Subscribable for Udp {
         let ev = Into::<event::ConcreteType>::into(ev);
         let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
 
-        self.sock.send(&bincode::serialize(&cmd)?)?;
+        let buf = bincode::serialize(&(id, cmd))?;
+        self.sock.send(&buf)?;
 
         self.inner.handlers.lock().unwrap().insert(
             id,

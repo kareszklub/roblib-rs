@@ -1,7 +1,10 @@
 use anyhow::Result;
-use roblib::cmd;
+use roblib::{cmd, gpio::event::GpioPin};
 
-use crate::{transports::Transport, Robot};
+use crate::{
+    transports::{Subscribable, Transport},
+    Robot,
+};
 
 impl<T: Transport> roblib::gpio::Gpio for Robot<T> {
     fn read_pin(&self, pin: u8) -> Result<bool> {
@@ -38,9 +41,7 @@ pub struct OutputPin<'r, T: Transport> {
     pin: u8,
 }
 
-impl<'r, T: Transport + 'r, S: roblib::gpio::Subscriber> roblib::gpio::TypedGpio<'r, S>
-    for Robot<T>
-{
+impl<'r, T: Transport + 'r> roblib::gpio::TypedGpio<'r> for Robot<T> {
     type O = OutputPin<'r, T>;
     type I = InputPin<'r, T>;
     type P = Pin<'r, T>;
@@ -62,7 +63,7 @@ impl<'r, T: Transport + 'r, S: roblib::gpio::Subscriber> roblib::gpio::TypedGpio
     }
 }
 
-impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for Pin<'r, T> {
+impl<'r, T: Transport> roblib::gpio::Pin for Pin<'r, T> {
     type I = InputPin<'r, T>;
     type O = OutputPin<'r, T>;
 
@@ -87,7 +88,7 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for Pin
     }
 }
 
-impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for InputPin<'r, T> {
+impl<'r, T: Transport> roblib::gpio::Pin for InputPin<'r, T> {
     type I = InputPin<'r, T>;
     type O = OutputPin<'r, T>;
 
@@ -96,11 +97,7 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for Inp
     }
 
     fn set_to_input(self) -> Result<Self::I> {
-        let Self { pin, robot } = self;
-        robot
-            .transport
-            .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Input))?;
-        Ok(InputPin { pin, robot })
+        Ok(self)
     }
 
     fn set_to_output(self) -> Result<Self::O> {
@@ -111,7 +108,7 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for Inp
         Ok(OutputPin { pin, robot })
     }
 }
-impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::InputPin<S> for InputPin<'r, T> {
+impl<'r, T: Transport> roblib::gpio::InputPin for InputPin<'r, T> {
     type O = OutputPin<'r, T>;
     type P = Pin<'r, T>;
 
@@ -119,17 +116,6 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::InputPin<S> fo
         self.robot.transport.cmd(cmd::ReadPin(self.pin))
     }
 
-    fn subscribe(&self, sub: S) -> Result<()> {
-        todo!()
-    }
-
-    fn set_to_output(self) -> Result<<Self as roblib::gpio::InputPin<S>>::O> {
-        let Self { pin, robot } = self;
-        robot
-            .transport
-            .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Output))?;
-        Ok(OutputPin { pin, robot })
-    }
     fn set_to_pin(self) -> Result<Self::P> {
         Ok(Pin {
             pin: self.pin,
@@ -138,7 +124,18 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::InputPin<S> fo
     }
 }
 
-impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for OutputPin<'r, T> {
+impl<'r, T: Transport + Subscribable + Send + Sync> roblib::gpio::SubscribablePin
+    for InputPin<'r, T>
+{
+    fn subscribe(
+        &mut self,
+        handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
+    ) -> Result<()> {
+        self.robot.transport.subscribe(GpioPin(self.pin), handler)
+    }
+}
+
+impl<'r, T: Transport> roblib::gpio::Pin for OutputPin<'r, T> {
     type I = InputPin<'r, T>;
     type O = OutputPin<'r, T>;
 
@@ -161,9 +158,7 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::Pin<S> for Out
         Ok(OutputPin { pin, robot })
     }
 }
-impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::OutputPin<S>
-    for OutputPin<'r, T>
-{
+impl<'r, T: Transport> roblib::gpio::OutputPin for OutputPin<'r, T> {
     type I = InputPin<'r, T>;
     type P = Pin<'r, T>;
 
@@ -179,13 +174,6 @@ impl<'r, T: Transport, S: roblib::gpio::Subscriber> roblib::gpio::OutputPin<S>
         self.robot.transport.cmd(cmd::Servo(self.pin, degree))
     }
 
-    fn set_to_input(self) -> Result<<Self as roblib::gpio::OutputPin<S>>::I> {
-        let Self { pin, robot } = self;
-        robot
-            .transport
-            .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Input))?;
-        Ok(InputPin { pin, robot })
-    }
     fn set_to_pin(self) -> Result<Self::P> {
         Ok(Pin {
             pin: self.pin,
