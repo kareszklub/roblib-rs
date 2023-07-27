@@ -1,19 +1,26 @@
 use std::fmt::Display;
 
-use serde::{
-    de::{self, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 use crate::cmd::{self, Command};
 
 #[derive(Serialize, Deserialize)]
 pub struct Concr {
-    pub id: u32,
+    pub prefix: char,
     pub cmd: Concrete,
 }
 
+impl Concr {
+    pub fn new(cmd: Concrete) -> Self {
+        Self {
+            prefix: cmd.get_prefix(),
+            cmd,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Concrete {
     #[cfg(feature = "roland")]
     MoveRobot(cmd::MoveRobot),
@@ -137,302 +144,8 @@ impl Concrete {
     }
 }
 
-impl Serialize for Concrete {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            #[cfg(feature = "roland")]
-            Self::MoveRobot(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::MoveRobot::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::MoveRobotByAngle(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::MoveRobotByAngle::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::StopRobot(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::StopRobot::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::Led(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Led::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::RolandServo(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::RolandServo::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::Buzzer(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Buzzer::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::TrackSensor(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::TrackSensor::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "roland")]
-            Self::UltraSensor(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::UltraSensor::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-
-            #[cfg(feature = "gpio")]
-            Self::PinMode(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::PinMode::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "gpio")]
-            Self::ReadPin(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::ReadPin::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "gpio")]
-            Self::WritePin(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::WritePin::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "gpio")]
-            Self::Pwm(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Pwm::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            #[cfg(feature = "gpio")]
-            Self::Servo(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Servo::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-
-            #[cfg(feature = "camloc")]
-            Self::GetPosition(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::GetPosition::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-
-            Self::Subscribe(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Subscribe::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            Self::Unsubscribe(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Unsubscribe::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            Self::Nop(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::Nop::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-            Self::GetUptime(c) => {
-                let mut s = serializer.serialize_struct("Concrete", 2)?;
-                s.serialize_field("prefix", &cmd::GetUptime::PREFIX)?;
-                s.serialize_field("cmd", &c)?;
-                s.end()
-            }
-        }
-    }
-}
-impl<'de> Deserialize<'de> for Concrete {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct ConcreteVisitor;
-        impl<'de> Visitor<'de> for ConcreteVisitor {
-            type Value = Concrete;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a prefix and a command body")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: SeqAccess<'de>,
-            {
-                let prefix: char = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-
-                match prefix {
-                    #[cfg(feature = "roland")]
-                    cmd::MoveRobot::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::MoveRobot(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::MoveRobotByAngle::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::MoveRobotByAngle(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::StopRobot::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::StopRobot(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::Led::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Led(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::RolandServo::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::RolandServo(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::Buzzer::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Buzzer(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::TrackSensor::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::TrackSensor(cmd))
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::UltraSensor::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::UltraSensor(cmd))
-                    }
-
-                    #[cfg(feature = "gpio")]
-                    cmd::PinMode::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::PinMode(cmd))
-                    }
-                    #[cfg(feature = "gpio")]
-                    cmd::ReadPin::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::ReadPin(cmd))
-                    }
-                    #[cfg(feature = "gpio")]
-                    cmd::WritePin::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::WritePin(cmd))
-                    }
-                    #[cfg(feature = "gpio")]
-                    cmd::Pwm::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Pwm(cmd))
-                    }
-                    #[cfg(feature = "gpio")]
-                    cmd::Servo::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Servo(cmd))
-                    }
-
-                    #[cfg(feature = "camloc")]
-                    cmd::GetPosition::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::GetPosition(cmd))
-                    }
-
-                    cmd::Subscribe::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Subscribe(cmd))
-                    }
-                    cmd::Unsubscribe::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Unsubscribe(cmd))
-                    }
-                    cmd::Nop::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Nop(cmd))
-                    }
-                    cmd::GetUptime::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::GetUptime(cmd))
-                    }
-
-                    _ => Err(de::Error::invalid_value(
-                        de::Unexpected::Char(prefix),
-                        &"a command prefix",
-                    )),
-                }
-            }
-        }
-
-        deserializer.deserialize_struct("Concrete", &["prefix", "cmd"], ConcreteVisitor)
-    }
-}
-
-impl Display for Concrete {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl Display for Concr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        crate::text_format::ser::write(self, f)
     }
 }

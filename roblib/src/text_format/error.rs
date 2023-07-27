@@ -56,3 +56,9 @@ impl From<fmt::Error> for Error {
         Self::FormatterError(value)
     }
 }
+
+impl From<Error> for fmt::Error {
+    fn from(_: Error) -> Self {
+        Self
+    }
+}

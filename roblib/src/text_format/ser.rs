@@ -7,6 +7,17 @@ use serde::{
 };
 use std::fmt::{self, Write};
 
+pub fn to_string(val: impl Serialize) -> Result<String> {
+    let mut s = String::new();
+    val.serialize(&mut Serializer::new(&mut s))?;
+    Ok(s)
+}
+
+pub fn write(val: impl Serialize, w: impl Write) -> fmt::Result {
+    val.serialize(&mut Serializer::new(w))?;
+    Ok(())
+}
+
 pub struct Serializer<W: fmt::Write> {
     first: bool,
     writer: W,

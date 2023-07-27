@@ -72,10 +72,10 @@ impl Transport for Tcp {
         C: roblib::cmd::Command,
         C::Return: Send + 'static,
     {
-        let concrete: cmd::Concrete = cmd.into();
+        let cmd = cmd::concrete::Concr::new(cmd.into());
 
         let mut id_handle = self.id.lock().unwrap();
-        bincode::serialize_into(&self.socket, &(*id_handle, concrete))?;
+        bincode::serialize_into(&self.socket, &(*id_handle, cmd))?;
 
         *id_handle += 1;
 
