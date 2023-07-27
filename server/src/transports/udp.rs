@@ -37,8 +37,7 @@ async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;
 
-        let (id, cmd): (u32, cmd::concrete::Concr) = bincode::deserialize(&buf[..len])?;
-        let cmd = cmd.cmd;
+        let (id, cmd): (u32, cmd::Concrete) = bincode::deserialize(&buf[..len])?;
 
         match cmd {
             cmd::Concrete::Subscribe(c) => {

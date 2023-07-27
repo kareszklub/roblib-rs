@@ -82,8 +82,8 @@ impl Transport for Udp {
         let id = *id_handle;
         *id_handle = id + 1;
 
-        let cmd = cmd::concrete::Concr::new(cmd.into());
-        self.sock.send(&bincode::serialize(&(id, cmd))?)?;
+        let concrete: cmd::Concrete = cmd.into();
+        self.sock.send(&bincode::serialize(&(id, concrete))?)?;
 
         Ok(if has_return::<C>() {
             let (tx, rx) = std::sync::mpsc::sync_channel(1);
