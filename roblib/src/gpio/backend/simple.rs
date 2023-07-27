@@ -35,7 +35,6 @@ struct SubHandler {
 pub struct SimpleGpioBackend {
     pins: RwLock<HashMap<u8, Pin>>,
     handlers: Arc<RwLock<HashMap<u8, SubHandler>>>,
-    // handlers: Arc<RwLock<HashMap<u8, Vec<Box<dyn Subscriber>>>>>,
     gpio: rppal::gpio::Gpio,
 }
 
@@ -101,7 +100,7 @@ impl SimpleGpioBackend {
                         // rising/falling edge thing seems to be backwards
                         let value = !(l as u8 != 0);
                         if let Ok(_) = handle.last_value.fetch_update(SeqCst, SeqCst, |last| {
-                            dbg!(value, last);
+                            log::debug!("({last}) {value}");
                             if value != last {
                                 return Some(value);
                             }

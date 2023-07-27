@@ -5,17 +5,16 @@ mod cmd;
 mod event_bus;
 mod logger;
 mod transports;
-use roblib::event::{ConcreteType, ConcreteValue};
-use serde::Deserialize;
-use transports::udp;
-
 use anyhow::Result;
+use serde::Deserialize;
 use std::{sync::Arc, time::Instant};
+use tokio::sync::{broadcast, mpsc};
+use transports::udp;
 
 struct Backends {
     pub startup_time: Instant,
 
-    pub event_bus: event_bus::EventBus,
+    sub: event_bus::sub::Tx,
 
     #[cfg(all(feature = "gpio", feature = "backend"))]
     pub raw_gpio: Option<roblib::gpio::backend::SimpleGpioBackend>,
@@ -89,7 +88,8 @@ async fn try_main() -> Result<()> {
     ];
     info!("Compiled with features: {features:?}");
 
-    let event_bus = event_bus::init();
+    // let event_bus = event_bus::init();
+    let (udp_tx, udp_rx) = mpsc::unbounded_channel();
 
     #[cfg(feature = "camloc")]
     let camloc = {
@@ -111,33 +111,35 @@ async fn try_main() -> Result<()> {
         match serv {
             Ok(s) => {
                 // TODO:
-                struct MySub(event_bus::Tx);
-                impl event::Subscriber for MySub {
-                    fn handle_event(&mut self, event: service::Event) {
-                        let ev: (ConcreteType, ConcreteValue) = match event {
-                            service::Event::Connect(a, c) => (
-                                ConcreteType::CamlocConnect(event::CamlocConnect),
-                                ConcreteValue::CamlocConnect((a, c)),
-                            ),
-
-                            service::Event::Disconnect(a) => (
-                                ConcreteType::CamlocDisconnect(event::CamlocDisconnect),
-                                ConcreteValue::CamlocDisconnect(a),
-                            ),
-                            service::Event::PositionUpdate(p) => (
-                                ConcreteType::CamlocPosition(event::CamlocPosition),
-                                ConcreteValue::CamlocPosition(p),
-                            ),
-                            service::Event::InfoUpdate(a, i) => (
-                                ConcreteType::CamlocInfoUpdate(event::CamlocInfoUpdate),
-                                ConcreteValue::CamlocInfoUpdate((a, i)),
-                            ),
-                        };
-
-                        self.0.send(ev);
-                    }
-                }
-                s.subscribe(MySub(event_bus.tx.clone())).await;
+                // struct MySub(event_bus::Tx);
+                // impl event::Subscriber for MySub {
+                //     fn handle_event(&mut self, event: service::Event) {
+                //         let ev: (ConcreteType, ConcreteValue) = match event {
+                //             service::Event::Connect(a, c) => (
+                //                 ConcreteType::CamlocConnect(event::CamlocConnect),
+                //                 ConcreteValue::CamlocConnect((a, c)),
+                //             ),
+                //
+                //             service::Event::Disconnect(a) => (
+                //                 ConcreteType::CamlocDisconnect(event::CamlocDisconnect),
+                //                 ConcreteValue::CamlocDisconnect(a),
+                //             ),
+                //             service::Event::PositionUpdate(p) => (
+                //                 ConcreteType::CamlocPosition(event::CamlocPosition),
+                //                 ConcreteValue::CamlocPosition(p),
+                //             ),
+                //             service::Event::InfoUpdate(a, i) => (
+                //                 ConcreteType::CamlocInfoUpdate(event::CamlocInfoUpdate),
+                //                 ConcreteValue::CamlocInfoUpdate((a, i)),
+                //             ),
+                //         };
+                //
+                //         if let Err(e) = self.0.send(ev) {
+                //             log::error!("Camloc: event bus error: {e}");
+                //         }
+                //     }
+                // }
+                // s.subscribe(MySub(event_bus.bus_udp.clone())).await;
 
                 info!("Camloc operational");
                 Some(s)
@@ -182,7 +184,8 @@ async fn try_main() -> Result<()> {
 
     let robot = Arc::new(Backends {
         startup_time: Instant::now(),
-        event_bus,
+
+        sub: broadcast::channel(64).0,
 
         #[cfg(all(feature = "roland", feature = "backend"))]
         roland,
@@ -194,13 +197,11 @@ async fn try_main() -> Result<()> {
         camloc,
     });
 
-    tokio::spawn(event_bus::connect(robot.clone()));
-
     // info!("TCP starting on port {tcp_port}");
     // tcp::start((tcp_host, tcp_port), robot.clone()).await?;
 
     info!("UDP starting on port {udp_port}");
-    udp::start((udp_host, udp_port), robot.clone()).await?;
+    udp::start((udp_host, udp_port), robot.clone(), udp_rx).await?;
 
     // info!("Webserver starting on port {web_port}");
     // let data = Data::new(robot);
@@ -219,7 +220,15 @@ async fn try_main() -> Result<()> {
     // .bind((web_host, web_port))?
     // .run()
     // .await?)
-    Ok(())
+
+    tokio::spawn(event_bus::connect(event_bus::EventBus::new(
+        robot.clone(),
+        udp_tx,
+    )));
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
+    }
 }
 
 #[actix_web::main]

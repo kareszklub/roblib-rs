@@ -1,38 +1,36 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    io::Cursor,
-    net::SocketAddr,
-    sync::Arc,
-};
-
+use crate::{cmd::execute_concrete, event_bus::sub::EventSub, Backends};
 use actix::spawn;
 use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
-use roblib::{cmd, event::ConcreteType};
-use tokio::{net::ToSocketAddrs, sync::RwLock};
+use roblib::cmd;
+use std::{io::Cursor, net::SocketAddr, sync::Arc};
+use tokio::{
+    net::ToSocketAddrs,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+};
 
-use crate::{cmd::execute_concrete, Backends};
+use super::SubscriptionId;
 
-pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>) -> Result<()> {
+pub type Item = (
+    roblib::event::ConcreteType,
+    roblib::event::ConcreteValue,
+    (SocketAddr, u32),
+);
+pub type Tx = UnboundedSender<Item>;
+pub type Rx = UnboundedReceiver<Item>;
+
+pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>, rx: Rx) -> Result<()> {
     let server = UdpSocket::bind(addr).await?;
-    spawn(run(server, robot)).await??;
+    spawn(run(server, robot, rx));
 
     Ok(())
 }
 
-type EventMap = HashMap<ConcreteType, Vec<(SocketAddr, u32)>>;
-
-async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
+async fn run(server: UdpSocket, robot: Arc<Backends>, rx: Rx) -> Result<()> {
     let mut buf = [0u8; 1024];
 
-    let clients: Arc<RwLock<EventMap>> = Arc::new(HashMap::new().into());
-
     let server = Arc::new(server);
-    spawn(handle_event(
-        robot.event_bus.rx.resubscribe(),
-        server.clone(),
-        clients.clone(),
-    ));
+    spawn(handle_event(rx, server.clone()));
 
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;
@@ -41,41 +39,17 @@ async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
 
         match cmd {
             cmd::Concrete::Subscribe(c) => {
-                let mut clients = clients.write().await;
-
-                match clients.entry(c.0.clone()) {
-                    Entry::Occupied(mut o) => o.get_mut().push((addr, id)),
-                    Entry::Vacant(v) => {
-                        v.insert(vec![(addr, id)]);
-
-                        robot
-                            .event_bus
-                            .sub_tx
-                            .send((c.0, true))
-                            .expect("event_bus_sub: no receivers");
-                    }
-                }
-
+                let sub = SubscriptionId::Udp(addr, id);
+                if let Err(e) = robot.sub.send((c.0, sub, EventSub::Subscribe)) {
+                    log::error!("event bus sub error: {e}");
+                };
                 continue;
             }
             cmd::Concrete::Unsubscribe(c) => {
-                let mut clients = clients.write().await;
-
-                match clients.entry(c.0) {
-                    Entry::Occupied(mut o) => {
-                        let o = o.get_mut();
-
-                        if let Some(i) = o.iter().position(|x| x == (&(addr, id))) {
-                            o.remove(i);
-                        } else {
-                            todo!()
-                        }
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(vec![(addr, id)]);
-                    }
-                }
-
+                let sub = SubscriptionId::Udp(addr, id);
+                if let Err(e) = robot.sub.send((c.0, sub, EventSub::Unsubscribe)) {
+                    log::error!("event bus sub error: {e}");
+                };
                 continue;
             }
 
@@ -98,41 +72,30 @@ async fn run(server: UdpSocket, robot: Arc<Backends>) -> Result<()> {
     }
 }
 
-async fn handle_event(
-    mut event_bus: crate::event_bus::Rx,
-    event_send: Arc<UdpSocket>,
-    clients: Arc<RwLock<EventMap>>,
-) -> Result<()> {
-    while let Ok((ty, ev)) = event_bus.recv().await {
-        let clients = &clients.read().await;
-        let Some(a) = clients.get(&ty) else {
-            continue;
-        };
-
+async fn handle_event(mut event_bus: Rx, event_send: Arc<UdpSocket>) -> Result<()> {
+    while let Some((ty, ev, (addr, id))) = event_bus.recv().await {
         let val: Vec<u8> = match ev {
+            #[cfg(feature = "roland")]
+            roblib::event::ConcreteValue::TrackSensor(val) => bincode::serialize(&(id, val))?,
+            #[cfg(feature = "roland")]
+            roblib::event::ConcreteValue::UltraSensor(val) => bincode::serialize(&(id, val))?,
+
             #[cfg(feature = "gpio")]
-            roblib::event::ConcreteValue::GpioPin(val) => bincode::serialize(&val)?,
+            roblib::event::ConcreteValue::GpioPin(val) => bincode::serialize(&(id, val))?,
 
             #[cfg(feature = "camloc")]
-            roblib::event::ConcreteValue::CamlocConnect(val) => bincode::serialize(&val)?,
+            roblib::event::ConcreteValue::CamlocConnect(val) => bincode::serialize(&(id, val))?,
             #[cfg(feature = "camloc")]
-            roblib::event::ConcreteValue::CamlocDisconnect(val) => bincode::serialize(&val)?,
+            roblib::event::ConcreteValue::CamlocDisconnect(val) => bincode::serialize(&(id, val))?,
             #[cfg(feature = "camloc")]
-            roblib::event::ConcreteValue::CamlocPosition(val) => bincode::serialize(&val)?,
+            roblib::event::ConcreteValue::CamlocPosition(val) => bincode::serialize(&(id, val))?,
             #[cfg(feature = "camloc")]
-            roblib::event::ConcreteValue::CamlocInfoUpdate(val) => bincode::serialize(&val)?,
+            roblib::event::ConcreteValue::CamlocInfoUpdate(val) => bincode::serialize(&(id, val))?,
 
             roblib::event::ConcreteValue::None => continue,
         };
 
-        for (addr, id) in a {
-            // TODO: cloning...
-            let mut buf = bincode::serialize(id)?;
-            buf.append(&mut val.clone());
-
-            event_send.send_to(&buf, addr).await?;
-        }
+        event_send.send_to(&val, addr).await?;
     }
-
     Ok(())
 }

@@ -1,9 +1,8 @@
-use std::net::SocketAddr;
-
 pub use camloc_server::service::Subscriber;
 use camloc_server::{PlacedCamera, Position};
 use roblib_macro::Event;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 #[derive(Event, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug)]
 pub struct CamlocConnect;

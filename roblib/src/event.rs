@@ -6,6 +6,11 @@ pub trait Event: Serialize + DeserializeOwned + Into<ConcreteType> + From<Concre
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ConcreteType {
+    #[cfg(feature = "roland")]
+    TrackSensor(crate::roland::event::TrackSensor),
+    #[cfg(feature = "roland")]
+    UltraSensor(crate::roland::event::UltraSensor),
+
     #[cfg(feature = "gpio")]
     GpioPin(crate::gpio::event::GpioPin),
 
@@ -23,6 +28,11 @@ pub enum ConcreteType {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConcreteValue {
+    #[cfg(feature = "roland")]
+    TrackSensor(<crate::roland::event::TrackSensor as Event>::Item),
+    #[cfg(feature = "roland")]
+    UltraSensor(<crate::roland::event::UltraSensor as Event>::Item),
+
     #[cfg(feature = "gpio")]
     GpioPin(<crate::gpio::event::GpioPin as Event>::Item),
 

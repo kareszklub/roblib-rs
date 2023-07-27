@@ -50,6 +50,7 @@ impl Command for TrackSensor {
     type Return = [bool; 4];
 }
 
+// TODO: return Option<f64>
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct UltraSensor;
 impl Command for UltraSensor {

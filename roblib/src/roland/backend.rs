@@ -1,13 +1,8 @@
-use rppal::gpio::{Gpio, InputPin, OutputPin};
-use std::{
-    sync::Mutex,
-    time::{Duration, Instant},
-};
-
+use super::Roland;
 use crate::get_servo_pwm_durations;
 use anyhow::Result;
-
-use super::Roland;
+use rppal::gpio::{Gpio, InputPin, OutputPin};
+use std::{sync::Mutex, time::Instant};
 
 pub mod constants {
     pub mod motors {
@@ -47,8 +42,13 @@ pub mod constants {
     }
 
     pub mod ultra_sensor {
+        use std::time::Duration;
+
         pub const ECHO: u8 = 0;
         pub const TRIG: u8 = 1;
+
+        pub const BLAST_DURATION: Duration = Duration::from_micros(15);
+        pub(in super::super) const CONVERSION_FACTOR: f64 = 340. / 2.;
     }
 }
 
@@ -132,7 +132,7 @@ struct UltraSensor {
 
 impl UltraSensor {
     fn new(gpio: &Gpio) -> Result<Self> {
-        use constants::ultra_sensor::*;
+        use constants::ultra_sensor::{ECHO, TRIG};
         Ok(Self {
             echo: gpio.get(ECHO)?.into_input(),
             trig: gpio.get(TRIG)?.into_output_low(),
@@ -264,9 +264,7 @@ impl Roland for RolandBackend {
     }
 
     fn ultra_sensor(&self) -> Result<f64> {
-        const BLAST_DURATION: Duration = Duration::from_micros(15);
-        const CONVERSION_FACTOR: f64 = 340. / 2.;
-
+        use self::constants::ultra_sensor::{BLAST_DURATION, CONVERSION_FACTOR};
         let mut s = self.ultra_sensor.lock().unwrap();
 
         s.trig.set_high();
