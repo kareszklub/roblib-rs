@@ -4,6 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub mod concrete;
 
 use crate::event;
+
 #[cfg(feature = "roland")]
 pub use crate::roland::cmd::*;
 
@@ -30,13 +31,13 @@ pub const fn has_return<C: Command>() -> bool {
 pub struct Subscribe(pub event::ConcreteType);
 impl Command for Subscribe {
     const PREFIX: char = '+';
-    type Return = ();
+    type Return = Result<(), String>;
 }
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Unsubscribe(pub event::ConcreteType);
 impl Command for Unsubscribe {
     const PREFIX: char = '-';
-    type Return = ();
+    type Return = Result<(), String>;
 }
 
 #[derive(Command, serde::Serialize, serde::Deserialize)]

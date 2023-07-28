@@ -2,7 +2,7 @@ use crate::Transport;
 use anyhow::Result;
 use roblib::{
     cmd::{self, has_return, Command},
-    event::{self, Event},
+    event::Event,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, io::Cursor, sync::Arc};
@@ -70,18 +70,12 @@ impl Udp {
         }
         Ok(())
     }
-}
 
-impl Transport for Udp {
-    fn cmd<C>(&self, cmd: C) -> Result<C::Return>
+    fn cmd_id<C>(&self, cmd: C, id: u32) -> Result<C::Return>
     where
         C: Command,
         C::Return: Send + 'static,
     {
-        let mut id_handle = self.id.lock().unwrap();
-        let id = *id_handle;
-        *id_handle = id + 1;
-
         let concrete: cmd::Concrete = cmd.into();
         self.sock.send(&bincode::serialize(&(id, concrete))?)?;
 
@@ -107,6 +101,21 @@ impl Transport for Udp {
     }
 }
 
+impl Transport for Udp {
+    fn cmd<C>(&self, cmd: C) -> Result<C::Return>
+    where
+        C: Command,
+        C::Return: Send + 'static,
+    {
+        let mut id_handle = self.id.lock().unwrap();
+        let id = *id_handle;
+        *id_handle = id + 1;
+        drop(id_handle);
+
+        self.cmd_id(cmd, id)
+    }
+}
+
 impl Subscribable for Udp {
     fn subscribe<E, F>(&self, ev: E, mut handler: F) -> Result<()>
     where
@@ -115,13 +124,11 @@ impl Subscribable for Udp {
     {
         let mut id_handle = self.id.lock().unwrap();
         let id = *id_handle;
-        *id_handle += id + 1;
+        *id_handle = id + 1;
+        drop(id_handle);
 
-        let ev = Into::<event::ConcreteType>::into(ev);
-        let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
-
-        let buf = bincode::serialize(&(id, cmd))?;
-        self.sock.send(&buf)?;
+        self.cmd_id(cmd::Subscribe(ev.into()), id)?
+            .map_err(anyhow::Error::msg)?;
 
         self.inner.handlers.lock().unwrap().insert(
             id,
@@ -133,7 +140,7 @@ impl Subscribable for Udp {
 
     fn unsubscribe<E: roblib::event::Event>(&self, ev: E) -> Result<()> {
         let ev = ev.into();
-        let cmd: cmd::Concrete = cmd::Unsubscribe(ev.clone()).into();
+        let cmd: cmd::Concrete = cmd::Unsubscribe(ev).into();
 
         self.sock.send(&bincode::serialize(&cmd)?)?;
 

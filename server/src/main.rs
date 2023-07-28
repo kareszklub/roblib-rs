@@ -93,10 +93,7 @@ async fn try_main() -> Result<()> {
 
     #[cfg(feature = "camloc")]
     let camloc = {
-        use roblib::camloc::{
-            event,
-            server::{extrapolations::LinearExtrapolation, service},
-        };
+        use roblib::camloc::server::{extrapolations::LinearExtrapolation, service};
 
         // TODO: config
         let serv = service::start(
@@ -197,10 +194,10 @@ async fn try_main() -> Result<()> {
         camloc,
     });
 
-    // info!("TCP starting on port {tcp_port}");
-    // tcp::start((tcp_host, tcp_port), robot.clone()).await?;
+    // info!("TCP starting on {tcp_host}:{tcp_port}");
+    // tcp::start((tcp_host, tcp_port), robot.clone(), tcp_rx).await?;
 
-    info!("UDP starting on port {udp_port}");
+    info!("UDP starting on {udp_host}:{udp_port}");
     udp::start((udp_host, udp_port), robot.clone(), udp_rx).await?;
 
     // info!("Webserver starting on port {web_port}");

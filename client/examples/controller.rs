@@ -47,8 +47,13 @@ fn main() -> Result<()> {
                     Concrete::Pwm(c) => robot.cmd(c)?,
                     Concrete::Servo(c) => robot.cmd(c)?,
 
-                    Concrete::Subscribe(c) => robot.cmd(c)?,
-                    Concrete::Unsubscribe(c) => robot.cmd(c)?,
+                    Concrete::Subscribe(_) => {
+                        println!("Subscribe no supported");
+                    }
+                    Concrete::Unsubscribe(_) => {
+                        println!("Unsubscribe no supported");
+                    }
+
                     Concrete::Nop(c) => robot.cmd(c)?,
                     Concrete::GetUptime(c) => println!("{:?}", robot.cmd(c)?),
 

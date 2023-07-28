@@ -1,8 +1,8 @@
-use crate::{cmd::execute_concrete, event_bus::sub::EventSub, Backends};
+use crate::{cmd::execute_concrete, event_bus::sub::SubStatus, Backends};
 use actix::spawn;
 use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
-use roblib::cmd;
+use roblib::{cmd, event::ConcreteValue};
 use std::{io::Cursor, net::SocketAddr, sync::Arc};
 use tokio::{
     net::ToSocketAddrs,
@@ -11,13 +11,11 @@ use tokio::{
 
 use super::SubscriptionId;
 
-pub type Item = (
-    roblib::event::ConcreteType,
-    roblib::event::ConcreteValue,
-    (SocketAddr, u32),
-);
-pub type Tx = UnboundedSender<Item>;
-pub type Rx = UnboundedReceiver<Item>;
+pub type Id = SocketAddr;
+pub type SubId = u32;
+pub type Item = (Id, SubId);
+pub type Tx = UnboundedSender<(ConcreteValue, Item)>;
+pub type Rx = UnboundedReceiver<(ConcreteValue, Item)>;
 
 pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>, rx: Rx) -> Result<()> {
     let server = UdpSocket::bind(addr).await?;
@@ -40,14 +38,14 @@ async fn run(server: UdpSocket, robot: Arc<Backends>, rx: Rx) -> Result<()> {
         match cmd {
             cmd::Concrete::Subscribe(c) => {
                 let sub = SubscriptionId::Udp(addr, id);
-                if let Err(e) = robot.sub.send((c.0, sub, EventSub::Subscribe)) {
+                if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Subscribe)) {
                     log::error!("event bus sub error: {e}");
                 };
                 continue;
             }
             cmd::Concrete::Unsubscribe(c) => {
                 let sub = SubscriptionId::Udp(addr, id);
-                if let Err(e) = robot.sub.send((c.0, sub, EventSub::Unsubscribe)) {
+                if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Unsubscribe)) {
                     log::error!("event bus sub error: {e}");
                 };
                 continue;
@@ -73,7 +71,7 @@ async fn run(server: UdpSocket, robot: Arc<Backends>, rx: Rx) -> Result<()> {
 }
 
 async fn handle_event(mut event_bus: Rx, event_send: Arc<UdpSocket>) -> Result<()> {
-    while let Some((ty, ev, (addr, id))) = event_bus.recv().await {
+    while let Some((ev, (addr, id))) = event_bus.recv().await {
         let val: Vec<u8> = match ev {
             #[cfg(feature = "roland")]
             roblib::event::ConcreteValue::TrackSensor(val) => bincode::serialize(&(id, val))?,

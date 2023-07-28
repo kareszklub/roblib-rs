@@ -6,11 +6,7 @@ pub enum Event {
     PinChanged(u8, bool),
 }
 
-pub trait Subscriber: Send + Sync {
-    fn handle(&self, event: Event);
-}
-
-#[derive(Event, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(Event, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct GpioPin(pub u8);
 impl crate::event::Event for GpioPin {
     type Item = bool;

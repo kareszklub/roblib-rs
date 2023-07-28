@@ -34,4 +34,5 @@ cmd="cargo $command --release --target=$target --features=$f"
 
 echo $cmd
 
-podman run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl $cmd
+$docker run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl $cmd
+

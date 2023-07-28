@@ -1,9 +1,6 @@
 use crate::{
     get_servo_pwm_durations,
-    gpio::{
-        event::{Event, Subscriber},
-        Mode,
-    },
+    gpio::{event::Event, Mode},
 };
 use rppal::gpio::{InputPin, OutputPin, Trigger};
 use std::{
@@ -13,6 +10,10 @@ use std::{
         Arc, RwLock,
     },
 };
+
+pub trait Subscriber: Send + Sync {
+    fn handle(&self, event: Event);
+}
 
 enum Pin {
     Input(InputPin),
@@ -98,14 +99,15 @@ impl SimpleGpioBackend {
                             return log::error!("Handlers removed without clearing interrupt!");
                         };
                         // rising/falling edge thing seems to be backwards
-                        let value = !(l as u8 != 0);
-                        if let Ok(_) = handle.last_value.fetch_update(SeqCst, SeqCst, |last| {
+                        let value = l as u8 == 0;
+                        let res = &handle.last_value.fetch_update(SeqCst, SeqCst, |last| {
                             log::debug!("({last}) {value}");
                             if value != last {
                                 return Some(value);
                             }
                             None
-                        }) {
+                        });
+                        if res.is_ok() {
                             let ev = Event::PinChanged(pin, value);
                             handle.handler.handle(ev)
                         }

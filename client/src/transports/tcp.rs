@@ -94,7 +94,7 @@ impl Subscribable for Tcp {
 
         let id = *id_handle;
         let ev = Into::<event::ConcreteType>::into(ev);
-        let cmd: cmd::Concrete = cmd::Subscribe(ev.clone()).into();
+        let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
 
         let already_contains = handlers
             .insert(
@@ -118,7 +118,7 @@ impl Subscribable for Tcp {
 
     fn unsubscribe<E: roblib::event::Event>(&self, ev: E) -> anyhow::Result<()> {
         let concrete_event = ev.into();
-        let cmd: cmd::Concrete = cmd::Unsubscribe(concrete_event.clone()).into();
+        let cmd: cmd::Concrete = cmd::Unsubscribe(concrete_event).into();
 
         bincode::serialize_into(&self.socket, &cmd)?;
 

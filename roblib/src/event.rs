@@ -1,10 +1,19 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+#[cfg(feature = "roland")]
+pub use crate::roland::event::*;
+
+#[cfg(feature = "gpio")]
+pub use crate::gpio::event::*;
+
+#[cfg(feature = "camloc")]
+pub use crate::camloc::event::*;
+
 pub trait Event: Serialize + DeserializeOwned + Into<ConcreteType> + From<ConcreteType> {
     type Item: Serialize + DeserializeOwned;
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum ConcreteType {
     #[cfg(feature = "roland")]
     TrackSensor(crate::roland::event::TrackSensor),

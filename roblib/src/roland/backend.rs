@@ -2,7 +2,10 @@ use super::Roland;
 use crate::get_servo_pwm_durations;
 use anyhow::Result;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
-use std::{sync::Mutex, time::Instant};
+use std::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 pub mod constants {
     pub mod motors {
@@ -147,6 +150,8 @@ pub struct RolandBackend {
     servo: Mutex<Servo>,
     motor: Mutex<Motors>,
     leds: Mutex<Leds>,
+
+    gpio: Gpio,
 }
 
 impl Drop for RolandBackend {
@@ -168,12 +173,48 @@ impl RolandBackend {
 
             ultra_sensor: UltraSensor::new(&gpio)?.into(),
             track_sensor: TrackSensor::new(&gpio)?.into(),
+
+            gpio,
         };
 
         // ran here as well to reset servo to center
         roland.cleanup()?;
 
         Ok(roland)
+    }
+
+    pub fn setup_tracksensor_interrupts(&self) -> Result<()> {
+        let mut s = self.track_sensor.lock().unwrap();
+
+        s.l1.set_interrupt(rppal::gpio::Trigger::Both)?;
+        s.l2.set_interrupt(rppal::gpio::Trigger::Both)?;
+        s.r1.set_interrupt(rppal::gpio::Trigger::Both)?;
+        s.r2.set_interrupt(rppal::gpio::Trigger::Both)?;
+
+        Ok(())
+    }
+
+    pub fn poll_tracksensor(&self, timeout: Option<Duration>) -> Result<Option<(usize, bool)>> {
+        let s = self.track_sensor.lock().unwrap();
+
+        let ps = [&s.l1, &s.l2, &s.r1, &s.r2];
+        let res = self.gpio.poll_interrupts(&ps, false, timeout)?;
+
+        let Some((p, v)) = res else { return Ok(None) };
+
+        Ok(Some((
+            ps.iter().position(|a| *a == p).unwrap(),
+            v as u8 != 0,
+        )))
+    }
+
+    pub fn clear_tracksensor_interrupts(&self) -> Result<()> {
+        let mut s = self.track_sensor.lock().unwrap();
+        s.l1.clear_interrupt()?;
+        s.l2.clear_interrupt()?;
+        s.r1.clear_interrupt()?;
+        s.r2.clear_interrupt()?;
+        Ok(())
     }
 }
 
