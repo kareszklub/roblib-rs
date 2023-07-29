@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{cmd::execute_concrete, Backends};
+use crate::{cmd::execute_concrete, Backends, RUNNING};
 use actix::spawn;
 use actix_web::rt::net::{TcpListener, TcpStream};
 use anyhow::Result;
@@ -17,7 +17,7 @@ pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>) -> Res
 }
 
 async fn run(server: TcpListener, robot: Arc<Backends>) -> Result<()> {
-    loop {
+    while RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
         let (stream, _addr) = server.accept().await?;
         spawn(handle_client(robot.clone(), stream));
     }
@@ -26,7 +26,7 @@ async fn run(server: TcpListener, robot: Arc<Backends>) -> Result<()> {
 async fn handle_client(robot: Arc<Backends>, mut stream: TcpStream) -> Result<()> {
     let mut buf = vec![0; 512];
 
-    loop {
+    while RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
         buf.resize(stream.read_u32().await? as usize, 0);
 
         stream.read_exact(&mut buf).await?;

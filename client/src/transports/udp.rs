@@ -90,11 +90,7 @@ impl Udp {
 
             self.inner.handlers.lock().unwrap().insert(id, a);
 
-            let ret = rx.recv()?;
-
-            self.inner.handlers.lock().unwrap().remove(&id);
-
-            ret
+            rx.recv()?
         } else {
             unsafe { std::mem::zeroed() }
         })
@@ -112,7 +108,11 @@ impl Transport for Udp {
         *id_handle = id + 1;
         drop(id_handle);
 
-        self.cmd_id(cmd, id)
+        let res = self.cmd_id(cmd, id);
+
+        self.inner.handlers.lock().unwrap().remove(&id);
+
+        res
     }
 }
 
@@ -127,13 +127,12 @@ impl Subscribable for Udp {
         *id_handle = id + 1;
         drop(id_handle);
 
-        self.cmd_id(cmd::Subscribe(ev.into()), id)?
-            .map_err(anyhow::Error::msg)?;
-
         self.inner.handlers.lock().unwrap().insert(
             id,
             Box::new(move |mut des| handler(E::Item::deserialize(&mut des)?)),
         );
+
+        self.cmd_id(cmd::Subscribe(ev.into()), id)?;
 
         Ok(())
     }

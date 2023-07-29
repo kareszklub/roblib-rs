@@ -39,7 +39,6 @@ impl EventBus {
         }
     }
 
-    #[allow(unused)]
     pub async fn resolve_send(&self, event: (ConcreteType, ConcreteValue)) -> anyhow::Result<()> {
         let clients = self.clients.read().await;
         let Some(v) = clients.get(&event.0) else {
@@ -82,16 +81,32 @@ impl EventBus {
     }
 }
 
-/// hook up all the "inputs" (backends) to the event bus
-pub(super) async fn connect(event_bus: EventBus) {
-    let event_bus = Arc::new(event_bus);
+pub(crate) async fn init(robot: Arc<crate::Backends>, bus_udp: transports::udp::Tx) {
+    let token = robot.abort_token.clone();
+    let event_bus = Arc::new(EventBus::new(robot, bus_udp));
 
     #[cfg(all(feature = "roland", feature = "backend"))]
-    if event_bus.robot.roland.is_some() {
-        let event_bus = event_bus.clone();
-        std::thread::spawn(move || connect_roland(event_bus));
-    }
+    let h2 = if event_bus.robot.roland.is_some() {
+        Some(tokio::spawn(connect_roland(event_bus.clone())))
+    } else {
+        None
+    };
 
+    let h1 = tokio::spawn(connect(event_bus));
+
+    token.cancelled().await;
+    log::debug!("abort: event_bus");
+
+    h1.abort();
+
+    #[cfg(all(feature = "roland", feature = "backend"))]
+    if let Some(handle) = h2 {
+        handle.abort();
+    }
+}
+
+/// hook up all the "inputs" (backends) to the event bus
+pub(super) async fn connect(event_bus: Arc<EventBus>) {
     // handle client subscription state changes
     // TODO: on client disconnect, unsubscribe them from all events
     while let Ok((ty, id, sub)) = event_bus.robot.sub.subscribe().recv().await {
@@ -171,6 +186,9 @@ fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
             }
         }
 
+        #[cfg(all(feature = "roland", feature = "backend"))]
+        ConcreteType::TrackSensor(_) | ConcreteType::UltraSensor(_) => (),
+
         _ => todo!(),
     }
 }
@@ -194,7 +212,7 @@ fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
 }
 
 #[cfg(all(feature = "roland", feature = "backend"))]
-fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
+async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
     use std::time::{Duration, Instant};
 
     use roblib::{event, roland::Roland};
@@ -204,7 +222,9 @@ fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
     let mut rx = event_bus.robot.sub.subscribe();
 
     let roland = event_bus.robot.roland.as_ref().unwrap();
+
     let mut track_sensor_state = roland.track_sensor()?;
+
     roland.setup_tracksensor_interrupts()?;
 
     let mut track_subs = 0;
@@ -218,7 +238,7 @@ fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
 
     loop {
         if track_subs + ultra.len() == 0 {
-            let (ty, id, sub) = match rx.blocking_recv() {
+            let (ty, id, sub) = match rx.recv().await {
                 Ok(v) => v,
                 Err(RecvError::Closed) => return Err(anyhow::anyhow!("sub channel closed")),
                 Err(RecvError::Lagged(n)) => {
@@ -253,9 +273,9 @@ fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
                 ConcreteType::UltraSensor(event::UltraSensor(interval)) => match sub {
                     Subscribe => {
                         ultra.push(UltraScheduleData {
-                            id,
-                            interval,
                             next: Instant::now() + interval,
+                            interval,
+                            id,
                         });
                     }
                     Unsubscribe => {
@@ -282,26 +302,48 @@ fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
         };
 
         if track_subs > 0 {
-            if let Some((track_index, val)) = roland.poll_tracksensor(Some(poll_dur))? {
+            let poll_fn = {
+                let robot = event_bus.robot.clone();
+                move || {
+                    robot
+                        .roland
+                        .as_ref()
+                        .unwrap()
+                        .poll_tracksensor(Some(poll_dur))
+                }
+            };
+            let res = tokio::task::spawn_blocking(poll_fn).await??;
+
+            if let Some((track_index, val)) = res {
                 track_sensor_state[track_index] = val;
-                event_bus.resolve_send_blocking((
-                    ConcreteType::TrackSensor(event::TrackSensor),
-                    ConcreteValue::TrackSensor(track_sensor_state),
-                ))?;
+
+                event_bus
+                    .resolve_send((
+                        ConcreteType::TrackSensor(event::TrackSensor),
+                        ConcreteValue::TrackSensor(track_sensor_state),
+                    ))
+                    .await?;
             }
         } else {
-            std::thread::sleep(poll_dur);
+            tokio::time::sleep(poll_dur).await;
         }
 
         if let Some(next_ultra) = next_ultra {
-            let v = roland.ultra_sensor()?;
+            let ultra_fn = {
+                let robot = event_bus.robot.clone();
+                move || robot.roland.as_ref().unwrap().ultra_sensor()
+            };
+
+            let res = tokio::task::spawn_blocking(ultra_fn).await??;
+
             event_bus.send(
                 (
                     ConcreteType::UltraSensor(event::UltraSensor(next_ultra.interval)),
-                    ConcreteValue::UltraSensor(v),
+                    ConcreteValue::UltraSensor(res),
                 ),
                 &next_ultra.id,
             )?;
+
             next_ultra.next += next_ultra.interval;
         }
 

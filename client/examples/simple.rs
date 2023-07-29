@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     robot.drive(0.4, 0.4)?;
 
     println!("Waiting...");
-    sleep(Duration::from_secs(2));
+    sleep(Duration::from_secs(10));
 
     println!("Stopping");
     robot.stop()?;
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     robot.drive(0.4, 0.4)?;
 
     println!("Waiting...");
-    sleep(Duration::from_secs(2));
+    sleep(Duration::from_secs(10));
 
     println!("Stopping");
     robot.stop()?;

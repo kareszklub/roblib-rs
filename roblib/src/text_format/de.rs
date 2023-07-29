@@ -54,7 +54,8 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_bool(match self.next()? {
+        let next = self.next()?;
+        visitor.visit_bool(match next {
             "0" => false,
             "1" => true,
             _ => return Err(Error::Parse("bool")),

@@ -1,6 +1,6 @@
 use roblib::cmd::Concrete;
 use roblib_client::{
-    transports::{tcp::Tcp, Transport},
+    transports::{tcp::Tcp, udp::Udp, Transport},
     Result,
 };
 use std::io::{stdin, stdout, Write};
@@ -8,9 +8,9 @@ use std::io::{stdin, stdout, Write};
 fn main() -> Result<()> {
     let addr = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "localhost:1111".into());
+        .unwrap_or_else(|| "localhost:1110".into());
 
-    let robot = Tcp::connect(addr)?;
+    let robot = Udp::connect(addr)?;
 
     let mut inp = String::new();
     loop {

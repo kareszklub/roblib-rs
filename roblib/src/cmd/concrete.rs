@@ -252,62 +252,62 @@ impl<'de> Deserialize<'de> for Concrete {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
-                match prefix {
+                Ok(match prefix {
                     #[cfg(feature = "roland")]
                     cmd::MoveRobot::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::MoveRobot(cmd))
+                        Concrete::MoveRobot(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::MoveRobotByAngle::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::MoveRobotByAngle(cmd))
+                        Concrete::MoveRobotByAngle(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::StopRobot::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::StopRobot(cmd))
+                        Concrete::StopRobot(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::Led::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Led(cmd))
+                        Concrete::Led(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::RolandServo::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::RolandServo(cmd))
+                        Concrete::RolandServo(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::Buzzer::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Buzzer(cmd))
+                        Concrete::Buzzer(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::TrackSensor::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::TrackSensor(cmd))
+                        Concrete::TrackSensor(cmd)
                     }
                     #[cfg(feature = "roland")]
                     cmd::UltraSensor::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::UltraSensor(cmd))
+                        Concrete::UltraSensor(cmd)
                     }
 
                     #[cfg(feature = "gpio")]
@@ -315,35 +315,35 @@ impl<'de> Deserialize<'de> for Concrete {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::PinMode(cmd))
+                        Concrete::PinMode(cmd)
                     }
                     #[cfg(feature = "gpio")]
                     cmd::ReadPin::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::ReadPin(cmd))
+                        Concrete::ReadPin(cmd)
                     }
                     #[cfg(feature = "gpio")]
                     cmd::WritePin::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::WritePin(cmd))
+                        Concrete::WritePin(cmd)
                     }
                     #[cfg(feature = "gpio")]
                     cmd::Pwm::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Pwm(cmd))
+                        Concrete::Pwm(cmd)
                     }
                     #[cfg(feature = "gpio")]
                     cmd::Servo::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Servo(cmd))
+                        Concrete::Servo(cmd)
                     }
 
                     #[cfg(feature = "camloc")]
@@ -351,39 +351,41 @@ impl<'de> Deserialize<'de> for Concrete {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::GetPosition(cmd))
+                        Concrete::GetPosition(cmd)
                     }
 
                     cmd::Subscribe::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Subscribe(cmd))
+                        Concrete::Subscribe(cmd)
                     }
                     cmd::Unsubscribe::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Unsubscribe(cmd))
+                        Concrete::Unsubscribe(cmd)
                     }
                     cmd::Nop::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::Nop(cmd))
+                        Concrete::Nop(cmd)
                     }
                     cmd::GetUptime::PREFIX => {
                         let cmd = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Ok(Concrete::GetUptime(cmd))
+                        Concrete::GetUptime(cmd)
                     }
 
-                    _ => Err(de::Error::invalid_value(
-                        de::Unexpected::Char(prefix),
-                        &"a command prefix",
-                    )),
-                }
+                    _ => {
+                        return Err(de::Error::invalid_value(
+                            de::Unexpected::Char(prefix),
+                            &"a command prefix",
+                        ))
+                    }
+                })
             }
         }
 

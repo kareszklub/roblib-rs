@@ -7,12 +7,18 @@ mod logger;
 mod transports;
 use anyhow::Result;
 use serde::Deserialize;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{atomic::AtomicBool, Arc},
+    time::Instant,
+};
 use tokio::sync::{broadcast, mpsc};
+use tokio_util::sync::CancellationToken;
 use transports::udp;
 
 struct Backends {
     pub startup_time: Instant,
+
+    abort_token: CancellationToken,
 
     sub: event_bus::sub::Tx,
 
@@ -182,6 +188,8 @@ async fn try_main() -> Result<()> {
     let robot = Arc::new(Backends {
         startup_time: Instant::now(),
 
+        abort_token: CancellationToken::new(),
+
         sub: broadcast::channel(64).0,
 
         #[cfg(all(feature = "roland", feature = "backend"))]
@@ -198,7 +206,8 @@ async fn try_main() -> Result<()> {
     // tcp::start((tcp_host, tcp_port), robot.clone(), tcp_rx).await?;
 
     info!("UDP starting on {udp_host}:{udp_port}");
-    udp::start((udp_host, udp_port), robot.clone(), udp_rx).await?;
+    let (udp_handle, udp_event_handle) =
+        udp::start((udp_host, udp_port), robot.clone(), udp_rx).await?;
 
     // info!("Webserver starting on port {web_port}");
     // let data = Data::new(robot);
@@ -218,14 +227,28 @@ async fn try_main() -> Result<()> {
     // .run()
     // .await?)
 
-    tokio::spawn(event_bus::connect(event_bus::EventBus::new(
-        robot.clone(),
-        udp_tx,
-    )));
+    // let event_bus_handle = tokio::spawn(event_bus::connect(event_bus::EventBus::new(
+    //     robot.clone(),
+    //     udp_tx,
+    // )));
 
-    loop {
-        tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
-    }
+    let ebus_handle = tokio::spawn(event_bus::init(robot.clone(), udp_tx));
+
+    tokio::select! {
+        _ = robot.abort_token.cancelled() => (),
+        _ = tokio::signal::ctrl_c() => {
+            log::debug!("SIGINT received");
+            robot.abort_token.cancel();
+        }
+    };
+
+    log::debug!("abort: main");
+
+    udp_handle.abort();
+    udp_event_handle.abort();
+    let _ = ebus_handle.await;
+
+    Ok(())
 }
 
 #[actix_web::main]

@@ -31,7 +31,7 @@ pub trait Roland: Sized {
         self.drive(0., 0.)?;
         self.led(false, false, false)?;
         self.roland_servo(0.)?;
-        self.buzzer(100.0)?;
+        self.buzzer(1.)?;
 
         Ok(())
     }
@@ -61,7 +61,7 @@ pub trait RolandAsync {
         self.drive(0., 0.).await?;
         self.led(false, false, false).await?;
         self.servo(0.).await?;
-        self.buzzer(100.0).await?;
+        self.buzzer(1.).await?;
 
         Ok(())
     }

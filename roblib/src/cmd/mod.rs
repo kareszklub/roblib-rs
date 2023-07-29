@@ -31,13 +31,13 @@ pub const fn has_return<C: Command>() -> bool {
 pub struct Subscribe(pub event::ConcreteType);
 impl Command for Subscribe {
     const PREFIX: char = '+';
-    type Return = Result<(), String>;
+    type Return = ();
 }
 #[derive(Command, serde::Serialize, serde::Deserialize)]
 pub struct Unsubscribe(pub event::ConcreteType);
 impl Command for Unsubscribe {
     const PREFIX: char = '-';
-    type Return = Result<(), String>;
+    type Return = ();
 }
 
 #[derive(Command, serde::Serialize, serde::Deserialize)]

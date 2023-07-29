@@ -7,6 +7,7 @@ use std::{io::Cursor, net::SocketAddr, sync::Arc};
 use tokio::{
     net::ToSocketAddrs,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    task::JoinHandle,
 };
 
 use super::SubscriptionId;
@@ -17,18 +18,21 @@ pub type Item = (Id, SubId);
 pub type Tx = UnboundedSender<(ConcreteValue, Item)>;
 pub type Rx = UnboundedReceiver<(ConcreteValue, Item)>;
 
-pub(crate) async fn start(addr: impl ToSocketAddrs, robot: Arc<Backends>, rx: Rx) -> Result<()> {
-    let server = UdpSocket::bind(addr).await?;
-    spawn(run(server, robot, rx));
+pub(crate) async fn start(
+    addr: impl ToSocketAddrs,
+    robot: Arc<Backends>,
+    rx: Rx,
+) -> Result<(JoinHandle<Result<()>>, JoinHandle<Result<()>>)> {
+    let socket = Arc::new(UdpSocket::bind(addr).await?);
 
-    Ok(())
+    let server = spawn(run(socket.clone(), robot));
+    let event_handler = spawn(handle_event(rx, socket));
+
+    Ok((server, event_handler))
 }
 
-async fn run(server: UdpSocket, robot: Arc<Backends>, rx: Rx) -> Result<()> {
+async fn run(server: Arc<UdpSocket>, robot: Arc<Backends>) -> Result<()> {
     let mut buf = [0u8; 1024];
-
-    let server = Arc::new(server);
-    spawn(handle_event(rx, server.clone()));
 
     loop {
         let (len, addr) = server.recv_from(&mut buf).await?;

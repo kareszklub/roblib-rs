@@ -156,7 +156,9 @@ pub struct RolandBackend {
 
 impl Drop for RolandBackend {
     fn drop(&mut self) {
+        log::info!("Dropping roland backend");
         self.cleanup().expect("Failed to clean up!!!");
+        log::info!("Dropped roland backend :)");
     }
 }
 
@@ -210,10 +212,12 @@ impl RolandBackend {
 
     pub fn clear_tracksensor_interrupts(&self) -> Result<()> {
         let mut s = self.track_sensor.lock().unwrap();
+
         s.l1.clear_interrupt()?;
         s.l2.clear_interrupt()?;
         s.r1.clear_interrupt()?;
         s.r2.clear_interrupt()?;
+
         Ok(())
     }
 }
@@ -224,10 +228,21 @@ impl Roland for RolandBackend {
         let right = right.clamp(-1., 1.);
         let mut m = self.motor.lock().unwrap();
 
+        if left.abs() == 0. && right.abs() == 0. {
+            log::debug!("Disabling motor pwms");
+            m.pwm_l.clear_pwm()?;
+            m.pwm_r.clear_pwm()?;
+            return Ok(());
+        }
+
+        let sig_l = left.signum() as isize;
+        let sig_r = right.signum() as isize;
+
+        log::debug!("Enabling motor pwms {left} {right} {sig_l} {sig_r}");
         m.pwm_l.set_pwm_frequency(2000.0, left.abs())?;
         m.pwm_r.set_pwm_frequency(2000.0, right.abs())?;
 
-        match left.signum() as isize {
+        match sig_l {
             1 => {
                 m.fwd_l.set_high();
                 m.bwd_l.set_low();
@@ -236,14 +251,10 @@ impl Roland for RolandBackend {
                 m.fwd_l.set_low();
                 m.bwd_l.set_high();
             }
-            0 => {
-                m.fwd_l.set_low();
-                m.bwd_l.set_low();
-            }
             _ => unreachable!(),
         }
 
-        match right.signum() as isize {
+        match sig_r {
             1 => {
                 m.fwd_r.set_high();
                 m.bwd_r.set_low();
@@ -251,10 +262,6 @@ impl Roland for RolandBackend {
             -1 => {
                 m.fwd_r.set_low();
                 m.bwd_r.set_high();
-            }
-            0 => {
-                m.fwd_r.set_low();
-                m.bwd_r.set_low();
             }
             _ => unreachable!(),
         }
@@ -274,6 +281,7 @@ impl Roland for RolandBackend {
 
     fn roland_servo(&self, degree: f64) -> Result<()> {
         let (period, pulse_width) = get_servo_pwm_durations(degree);
+        log::debug!("Enabling servo pwm");
         self.servo.lock().unwrap().0.set_pwm(period, pulse_width)?;
         Ok(())
     }
@@ -284,11 +292,17 @@ impl Roland for RolandBackend {
 
         let pw = pw.clamp(0., 1.);
 
-        if pw >= 1. {
+        if pw == 1. {
+            log::debug!("Disabling buzzer pwm");
             pin.clear_pwm()?;
             pin.set_high();
+        } else if pw == 0. {
+            log::debug!("Disabling buzzer pwm");
+            pin.clear_pwm()?;
+            pin.set_low();
         } else {
-            pin.set_pwm_frequency(100.0, pw)?;
+            log::debug!("Enabling buzzer pwm");
+            pin.set_pwm_frequency(1., pw)?;
         }
 
         Ok(())
