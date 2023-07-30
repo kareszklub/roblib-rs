@@ -28,13 +28,19 @@ pub(crate) struct EventBus {
     pub(self) robot: Arc<crate::Backends>,
     pub clients: RwLock<HashMap<ConcreteType, Vec<SubscriptionId>>>,
 
+    pub bus_tcp: transports::tcp::Tx,
     pub bus_udp: transports::udp::Tx,
 }
 impl EventBus {
-    pub fn new(robot: Arc<crate::Backends>, bus_udp: transports::udp::Tx) -> Self {
+    pub fn new(
+        robot: Arc<crate::Backends>,
+        bus_tcp: transports::tcp::Tx,
+        bus_udp: transports::udp::Tx,
+    ) -> Self {
         Self {
             robot,
             clients: RwLock::new(HashMap::new()),
+            bus_tcp,
             bus_udp,
         }
     }
@@ -64,6 +70,9 @@ impl EventBus {
         client: &SubscriptionId,
     ) -> anyhow::Result<()> {
         match client {
+            SubscriptionId::Tcp(addr, id) => {
+                self.bus_tcp.send((event.1.clone(), (*addr, *id)))?;
+            }
             SubscriptionId::Udp(addr, id) => self.bus_udp.send((event.1.clone(), (*addr, *id)))?,
         }
         Ok(())
@@ -81,9 +90,13 @@ impl EventBus {
     }
 }
 
-pub(crate) async fn init(robot: Arc<crate::Backends>, bus_udp: transports::udp::Tx) {
+pub(crate) async fn init(
+    robot: Arc<crate::Backends>,
+    bus_tcp: transports::tcp::Tx,
+    bus_udp: transports::udp::Tx,
+) -> anyhow::Result<()> {
     let token = robot.abort_token.clone();
-    let event_bus = Arc::new(EventBus::new(robot, bus_udp));
+    let event_bus = Arc::new(EventBus::new(robot, bus_tcp, bus_udp));
 
     #[cfg(all(feature = "roland", feature = "backend"))]
     let h2 = if event_bus.robot.roland.is_some() {
@@ -103,6 +116,8 @@ pub(crate) async fn init(robot: Arc<crate::Backends>, bus_udp: transports::udp::
     if let Some(handle) = h2 {
         handle.abort();
     }
+
+    Ok(())
 }
 
 /// hook up all the "inputs" (backends) to the event bus

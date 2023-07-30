@@ -6,14 +6,12 @@ mod event_bus;
 mod logger;
 mod transports;
 use anyhow::Result;
+use futures_util::future::join_all;
 use serde::Deserialize;
-use std::{
-    sync::{atomic::AtomicBool, Arc},
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use transports::udp;
+use transports::{tcp, udp};
 
 struct Backends {
     pub startup_time: Instant,
@@ -48,7 +46,7 @@ fn def_web_port() -> u16 {
 #[derive(Debug, Deserialize)]
 struct Config {
     #[serde(default = "def_host")]
-    _tcp_host: String,
+    tcp_host: String,
 
     #[serde(default = "def_host")]
     udp_host: String,
@@ -57,7 +55,7 @@ struct Config {
     _web_host: String,
 
     #[serde(default = "def_tcp_port")]
-    _tcp_port: u16,
+    tcp_port: u16,
 
     #[serde(default = "def_udp_port")]
     udp_port: u16,
@@ -67,13 +65,11 @@ struct Config {
 }
 
 async fn try_main() -> Result<()> {
-    logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
-
     let Config {
-        _tcp_host,
+        tcp_host,
         udp_host,
         _web_host,
-        _tcp_port,
+        tcp_port,
         udp_port,
         _web_port,
     } = match envy::from_env::<Config>() {
@@ -95,6 +91,7 @@ async fn try_main() -> Result<()> {
     info!("Compiled with features: {features:?}");
 
     // let event_bus = event_bus::init();
+    let (tcp_tx, tcp_rx) = broadcast::channel(1024);
     let (udp_tx, udp_rx) = mpsc::unbounded_channel();
 
     #[cfg(feature = "camloc")]
@@ -202,8 +199,8 @@ async fn try_main() -> Result<()> {
         camloc,
     });
 
-    // info!("TCP starting on {tcp_host}:{tcp_port}");
-    // tcp::start((tcp_host, tcp_port), robot.clone(), tcp_rx).await?;
+    info!("TCP starting on {tcp_host}:{tcp_port}");
+    let tcp_handle = tcp::start((tcp_host, tcp_port), robot.clone(), tcp_rx).await?;
 
     info!("UDP starting on {udp_host}:{udp_port}");
     let (udp_handle, udp_event_handle) =
@@ -232,32 +229,84 @@ async fn try_main() -> Result<()> {
     //     udp_tx,
     // )));
 
-    let ebus_handle = tokio::spawn(event_bus::init(robot.clone(), udp_tx));
+    let ebus_handle = tokio::spawn(event_bus::init(robot.clone(), tcp_tx, udp_tx));
+
+    let mut sighandler = SigHandler::new();
 
     tokio::select! {
-        _ = robot.abort_token.cancelled() => (),
-        _ = tokio::signal::ctrl_c() => {
-            log::debug!("SIGINT received");
+        _ = robot.abort_token.cancelled() => {
+            log::error!("Abort requested internally, cleaning up...");
+        },
+        s = sighandler.wait() => {
+            log::error!("{s} received, cleaning up...");
             robot.abort_token.cancel();
         }
     };
 
     log::debug!("abort: main");
 
+    let force_stop = tokio::spawn(async move {
+        sighandler.wait().await;
+        log::warn!("Press ^C again to force exit (THE ROBOT WILL ESCAPE)");
+        sighandler.wait().await;
+        log::error!("Bye! (Force shutdown)");
+        std::process::exit(1);
+    });
+
     udp_handle.abort();
     udp_event_handle.abort();
-    let _ = ebus_handle.await;
 
+    let mut futures = Vec::new();
+    futures.push(ebus_handle);
+    if let Ok(mut tcp_handles) = tcp_handle.await {
+        dbg!();
+        futures.append(&mut tcp_handles);
+    }
+    log::debug!("Waiting on {} tasks", futures.len());
+    join_all(futures).await;
+
+    force_stop.abort();
+    let _ = force_stop.await;
     Ok(())
 }
 
 #[actix_web::main]
 async fn main() {
+    logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
+
     match try_main().await {
-        Ok(_) => eprintln!("Bye!"),
+        Ok(_) => log::info!("Bye!"),
         Err(e) => {
-            eprintln!("ERROR: {e}");
+            log::error!("ERROR: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+struct SigHandler {
+    #[cfg(unix)]
+    sigterm: tokio::signal::unix::Signal,
+}
+impl SigHandler {
+    pub fn new() -> Self {
+        Self {
+            sigterm: tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .unwrap(),
+        }
+    }
+    pub async fn wait(&mut self) -> &str {
+        #[cfg(unix)]
+        tokio::select! {
+            _ = self.sigterm.recv() => "SIGTERM",
+            r = tokio::signal::ctrl_c() => { r.expect("failed to listen to ctrl-c"); "SIGINT" },
+        }
+
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to listen to ctrl-c");
+            "SIGINT"
         }
     }
 }

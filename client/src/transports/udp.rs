@@ -42,7 +42,7 @@ impl Udp {
         std::thread::spawn(move || Self::recieve(i2, sock2));
 
         Ok(Self {
-            id: 0.into(),
+            id: super::ID_START.into(),
             inner,
             sock,
         })
@@ -61,7 +61,7 @@ impl Udp {
             let buf = &buf[..len];
 
             let mut curs = Cursor::new(buf);
-            let id: u32 = bincode::deserialize_from(&mut curs)?;
+            let id: u32 = bincode::Options::deserialize_from(bincode::options(), &mut curs)?;
             if let Some(h) = inner.handlers.lock().unwrap().get_mut(&id) {
                 let pos = curs.position() as usize;
                 let rest = &curs.into_inner()[pos..];
@@ -77,7 +77,10 @@ impl Udp {
         C::Return: Send + 'static,
     {
         let concrete: cmd::Concrete = cmd.into();
-        self.sock.send(&bincode::serialize(&(id, concrete))?)?;
+        self.sock.send(&bincode::Options::serialize(
+            bincode::options(),
+            &(id, concrete),
+        )?)?;
 
         Ok(if has_return::<C>() {
             let (tx, rx) = std::sync::mpsc::sync_channel(1);
@@ -109,9 +112,7 @@ impl Transport for Udp {
         drop(id_handle);
 
         let res = self.cmd_id(cmd, id);
-
         self.inner.handlers.lock().unwrap().remove(&id);
-
         res
     }
 }
@@ -141,7 +142,8 @@ impl Subscribable for Udp {
         let ev = ev.into();
         let cmd: cmd::Concrete = cmd::Unsubscribe(ev).into();
 
-        self.sock.send(&bincode::serialize(&cmd)?)?;
+        self.sock
+            .send(&bincode::Options::serialize(bincode::options(), &cmd)?)?;
 
         let id = self.inner.events.lock().unwrap().remove(&ev).unwrap();
 

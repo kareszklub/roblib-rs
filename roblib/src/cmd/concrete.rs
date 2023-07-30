@@ -1,12 +1,9 @@
-use std::fmt::Display;
-
+use crate::cmd::{self, Command};
 use serde::{
     de::{self, SeqAccess, Visitor},
     ser::SerializeStruct,
     Deserialize, Serialize,
 };
-
-use crate::cmd::{self, Command};
 
 pub enum Concrete {
     #[cfg(feature = "roland")]
@@ -45,6 +42,44 @@ pub enum Concrete {
 
     Nop(cmd::Nop),
     GetUptime(cmd::GetUptime),
+}
+impl std::fmt::Debug for Concrete {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "roland")]
+            Self::MoveRobot(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::MoveRobotByAngle(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::StopRobot(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::Led(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::RolandServo(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::Buzzer(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::TrackSensor(v) => v.fmt(f),
+            #[cfg(feature = "roland")]
+            Self::UltraSensor(v) => v.fmt(f),
+            #[cfg(feature = "gpio")]
+            Self::PinMode(v) => v.fmt(f),
+            #[cfg(feature = "gpio")]
+            Self::ReadPin(v) => v.fmt(f),
+            #[cfg(feature = "gpio")]
+            Self::WritePin(v) => v.fmt(f),
+            #[cfg(feature = "gpio")]
+            Self::Pwm(v) => v.fmt(f),
+            #[cfg(feature = "gpio")]
+            Self::Servo(v) => v.fmt(f),
+            #[cfg(feature = "camloc")]
+            Self::GetPosition(v) => v.fmt(f),
+            Self::Subscribe(v) => v.fmt(f),
+            Self::Unsubscribe(v) => v.fmt(f),
+            Self::Nop(v) => v.fmt(f),
+            Self::GetUptime(v) => v.fmt(f),
+        }
+    }
 }
 
 // TODO: automatize Concrete impls
@@ -390,11 +425,5 @@ impl<'de> Deserialize<'de> for Concrete {
         }
 
         deserializer.deserialize_struct("Concrete", &["prefix", "cmd"], ConcreteVisitor)
-    }
-}
-
-impl Display for Concrete {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
     }
 }
