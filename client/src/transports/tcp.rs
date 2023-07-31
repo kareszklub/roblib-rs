@@ -87,7 +87,6 @@ impl Tcp {
     fn cmd_id<C>(&self, cmd: C, id: u32) -> Result<C::Return>
     where
         C: Command,
-        C::Return: Send + 'static,
     {
         let concrete: cmd::Concrete = cmd.into();
         let buf = bincode::Options::serialize(bincode::options(), &(id, concrete))?;
@@ -116,7 +115,6 @@ impl Transport for Tcp {
     fn cmd<C>(&self, cmd: C) -> anyhow::Result<C::Return>
     where
         C: Command,
-        C::Return: Send + 'static,
     {
         let mut id_handle = self.id.lock().unwrap();
         let id = *id_handle;

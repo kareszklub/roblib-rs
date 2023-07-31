@@ -11,8 +11,7 @@ const ID_START: u32 = 1;
 pub trait Transport {
     fn cmd<C>(&self, cmd: C) -> Result<C::Return>
     where
-        C: Command,
-        C::Return: Send + 'static;
+        C: Command;
 }
 
 pub trait Subscribable: Transport {
@@ -26,26 +25,24 @@ pub trait Subscribable: Transport {
         E: Event;
 }
 
-// #[cfg(feature = "async")]
-// #[cfg_attr(feature = "async", async_trait::async_trait)]
-// pub trait TransportAsync: Send + Sync {
-//     async fn cmd<C>(&self, cmd: C) -> Result<C::Return>
-//     where
-//         C: Command + Send + Sync,
-//         C::Return: Send + Sync;
-// }
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait TransportAsync: Send + Sync {
+    async fn cmd<C>(&self, cmd: C) -> Result<C::Return>
+    where
+        C: Command;
+}
 
-// #[cfg(feature = "async")]
-// #[cfg_attr(feature = "async", async_trait::async_trait)]
-// pub trait SubscribableAsync: TransportAsync {
-//     async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
-//     where
-//         E: Event + Send,
-//         E::Item: Send + Sync,
-//         F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
-//         R: std::future::Future<Output = Result<()>> + Send + Sync;
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait SubscribableAsync: TransportAsync {
+    async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
+    where
+        E: Event,
+        F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
+        R: std::future::Future<Output = Result<()>> + Send + Sync;
 
-//     async fn unsubscribe<E>(&self, ev: E) -> Result<()>
-//     where
-//         E: Event + Send;
-// }
+    async fn unsubscribe<E>(&self, ev: E) -> Result<()>
+    where
+        E: Event;
+}

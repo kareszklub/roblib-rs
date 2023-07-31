@@ -9,8 +9,10 @@ pub use crate::gpio::event::*;
 #[cfg(feature = "camloc")]
 pub use crate::camloc::event::*;
 
-pub trait Event: Serialize + DeserializeOwned + Into<ConcreteType> + From<ConcreteType> {
-    type Item: Serialize + DeserializeOwned;
+pub trait Event:
+    Serialize + DeserializeOwned + Into<ConcreteType> + From<ConcreteType> + Send + Sync + 'static
+{
+    type Item: Serialize + DeserializeOwned + Send + Sync + 'static;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]

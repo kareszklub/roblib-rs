@@ -16,9 +16,11 @@ pub use crate::camloc::cmd::*;
 
 pub use self::concrete::Concrete;
 
-pub trait Command: Serialize + DeserializeOwned + Into<Concrete> + From<Concrete> {
+pub trait Command:
+    Serialize + DeserializeOwned + Into<Concrete> + From<Concrete> + Send + Sync + 'static
+{
     const PREFIX: char;
-    type Return: Serialize + DeserializeOwned;
+    type Return: Serialize + DeserializeOwned + Send + Sync + 'static;
 }
 
 pub const SEPARATOR: char = ' ';

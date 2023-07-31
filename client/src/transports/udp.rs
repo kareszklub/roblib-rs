@@ -74,7 +74,6 @@ impl Udp {
     fn cmd_id<C>(&self, cmd: C, id: u32) -> Result<C::Return>
     where
         C: Command,
-        C::Return: Send + 'static,
     {
         let concrete: cmd::Concrete = cmd.into();
         self.sock.send(&bincode::Options::serialize(
@@ -104,7 +103,6 @@ impl Transport for Udp {
     fn cmd<C>(&self, cmd: C) -> Result<C::Return>
     where
         C: Command,
-        C::Return: Send + 'static,
     {
         let mut id_handle = self.id.lock().unwrap();
         let id = *id_handle;
