@@ -24,6 +24,7 @@ pub trait RoblibBuiltin {
 pub trait RoblibBuiltinAsync {
     async fn nop(&self) -> anyhow::Result<()>;
     async fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
+    async fn abort(&self) -> anyhow::Result<()>;
 }
 
 #[allow(unused)]

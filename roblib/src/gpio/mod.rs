@@ -70,13 +70,25 @@ pub trait OutputPin: Pin {
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
-pub trait GpioAsync<'p> {
+pub trait GpioAsync {
+    async fn read_pin(&self, pin: u8) -> Result<bool>;
+    async fn write_pin(&self, pin: u8, value: bool) -> Result<()>;
+    async fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()>;
+    async fn servo(&self, pin: u8, degree: f64) -> Result<()>;
+
+    async fn pin_mode(&self, pin: u8, mode: Mode) -> Result<()>;
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait TypedGpioAsync<'p> {
     type O: OutputPinAsync + 'p;
     type I: InputPinAsync + 'p;
     type P: PinAsync + 'p;
 
     async fn output_pin(&'p self, pin: u8) -> Result<Self::O>;
     async fn input_pin(&'p self, pin: u8) -> Result<Self::I>;
+    async fn pin(&'p self, pin: u8) -> Result<Self::P>;
 }
 
 #[cfg(feature = "async")]
@@ -99,8 +111,16 @@ pub trait InputPinAsync: PinAsync {
 
     async fn read(&self) -> Result<bool>;
 
-    async fn set_to_output(self) -> Result<<Self as InputPinAsync>::O>;
     async fn set_to_pin(self) -> Result<Self::P>;
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait SubscribablePinAsync: InputPinAsync {
+    async fn subscribe(
+        &mut self,
+        handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
+    ) -> Result<()>;
 }
 
 #[cfg(feature = "async")]
@@ -113,6 +133,5 @@ pub trait OutputPinAsync: PinAsync {
     async fn pwm(&mut self, hz: f64, cycle: f64) -> Result<()>;
     async fn servo(&mut self, degree: f64) -> Result<()>;
 
-    async fn set_to_input(self) -> Result<<Self as OutputPinAsync>::I>;
     async fn set_to_pin(self) -> Result<Self::P>;
 }

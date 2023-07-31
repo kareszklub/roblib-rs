@@ -23,8 +23,7 @@ pub trait Roland: Sized {
     }
 
     fn stop(&self) -> anyhow::Result<()> {
-        self.drive(0., 0.)?;
-        Ok(())
+        self.drive(0., 0.)
     }
 
     fn cleanup(&self) -> anyhow::Result<()> {
@@ -41,12 +40,16 @@ pub trait Roland: Sized {
 #[async_trait::async_trait]
 pub trait RolandAsync {
     async fn drive(&self, left: f64, right: f64) -> anyhow::Result<()>;
-    async fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()>;
     async fn led(&self, r: bool, g: bool, b: bool) -> anyhow::Result<()>;
-    async fn servo(&self, degree: f64) -> anyhow::Result<()>;
+    async fn roland_servo(&self, degree: f64) -> anyhow::Result<()>;
     async fn buzzer(&self, pw: f64) -> anyhow::Result<()>;
     async fn track_sensor(&self) -> anyhow::Result<[bool; 4]>;
     async fn ultra_sensor(&self) -> anyhow::Result<f64>;
+
+    async fn drive_by_angle(&self, angle: f64, speed: f64) -> anyhow::Result<()> {
+        let (left, right) = convert_move(angle, speed);
+        self.drive(left, right).await
+    }
 
     async fn led_color(&self, color: LedColor) -> anyhow::Result<()> {
         let (r, g, b) = color.into();
@@ -60,7 +63,7 @@ pub trait RolandAsync {
     async fn cleanup(&self) -> anyhow::Result<()> {
         self.drive(0., 0.).await?;
         self.led(false, false, false).await?;
-        self.servo(0.).await?;
+        self.roland_servo(0.).await?;
         self.buzzer(1.).await?;
 
         Ok(())
