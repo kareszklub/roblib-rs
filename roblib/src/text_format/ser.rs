@@ -7,15 +7,23 @@ use serde::{
 };
 use std::fmt::{self, Write};
 
+pub fn to_string(s: &impl Serialize) -> Result<String> {
+    let mut r = String::new();
+    s.serialize(&mut Serializer::new(&mut r))?;
+    Ok(r)
+}
+
 pub struct Serializer<W: fmt::Write> {
-    first: bool,
+    formatting: bool,
+    put_separator: bool,
     writer: W,
 }
 
 impl<W: fmt::Write> Serializer<W> {
     pub fn new(writer: W) -> Self {
         Self {
-            first: true,
+            put_separator: false,
+            formatting: false,
             writer,
         }
     }
@@ -23,10 +31,26 @@ impl<W: fmt::Write> Serializer<W> {
 
 impl<W: fmt::Write> fmt::Write for Serializer<W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        if !self.first {
-            self.writer.write_fmt(format_args!("{}", SEPARATOR))?;
+        if self.put_separator {
+            if self.formatting {
+                self.put_separator = false;
+            }
+            self.writer.write_fmt(format_args!("{}{s}", SEPARATOR))
+        } else {
+            if !self.formatting {
+                self.put_separator = true;
+            }
+            self.writer.write_str(s)
         }
-        self.writer.write_str(s)
+    }
+
+    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
+        self.put_separator = true;
+        self.formatting = true;
+        fmt::write(self, args)?;
+        self.formatting = false;
+        self.put_separator = true;
+        Ok(())
     }
 }
 

@@ -32,7 +32,8 @@ where
 
 impl<'de, I: Iterator<Item = &'de str>> Deserializer<I> {
     fn next(&mut self) -> Result<I::Item> {
-        match self.iter.next() {
+        let v = self.iter.next();
+        match v {
             Some("") => Err(Error::Empty),
             Some(s) => Ok(s),
             None => Err(Error::MissingArgument),
@@ -222,11 +223,19 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
         self.deserialize_seq(visitor)
     }
 
-    fn deserialize_tuple_struct<V>(self, _: &'static str, _: usize, visitor: V) -> Result<V::Value>
+    fn deserialize_tuple_struct<V>(
+        self,
+        _: &'static str,
+        fields: usize,
+        visitor: V,
+    ) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        self.deserialize_seq(visitor)
+        visitor.visit_seq(Seq {
+            de: self,
+            left: fields as u32,
+        })
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value>
@@ -297,7 +306,8 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> SeqAccess<'de> for Seq<'de, 'a, I> {
         if self.left > 0 {
             self.left -= 1;
 
-            seed.deserialize(&mut *self.de).map(Some)
+            let r = seed.deserialize(&mut *self.de);
+            r.map(Some)
         } else {
             Ok(None)
         }

@@ -1,4 +1,4 @@
-use roblib::cmd::Concrete;
+use roblib::{cmd::Concrete, text_format};
 use roblib_client::{
     transports::{udp::Udp, Transport},
     Result,
@@ -25,53 +25,60 @@ fn main() -> Result<()> {
             "" => continue,
             "exit" => break,
             inp => {
-                let Ok(cmd) = roblib::text_format::de::from_str(inp) else {
+                let Ok(cmd) = text_format::de::from_str::<Concrete>(inp) else {
                     println!("Couldn't parse command");
                     continue;
                 };
 
+                println!("{}", text_format::ser::to_string(&cmd)?);
+
                 print!("< ");
-                match cmd {
-                    Concrete::MoveRobot(c) => robot.cmd(c)?,
-                    Concrete::MoveRobotByAngle(c) => robot.cmd(c)?,
-                    Concrete::StopRobot(c) => robot.cmd(c)?,
-                    Concrete::Led(c) => robot.cmd(c)?,
-                    Concrete::RolandServo(c) => robot.cmd(c)?,
-                    Concrete::Buzzer(c) => robot.cmd(c)?,
-                    Concrete::TrackSensor(c) => println!("{:?}", robot.cmd(c)?),
-                    Concrete::UltraSensor(c) => println!("{}", robot.cmd(c)?),
-
-                    Concrete::PinMode(c) => robot.cmd(c)?,
-                    Concrete::ReadPin(c) => println!("{}", robot.cmd(c)?),
-                    Concrete::WritePin(c) => robot.cmd(c)?,
-                    Concrete::Pwm(c) => robot.cmd(c)?,
-                    Concrete::Servo(c) => robot.cmd(c)?,
-
-                    Concrete::Subscribe(_) => {
-                        println!("Subscribe no supported");
-                    }
-                    Concrete::Unsubscribe(_) => {
-                        println!("Unsubscribe no supported");
-                    }
-
-                    Concrete::Nop(c) => robot.cmd(c)?,
-                    Concrete::GetUptime(c) => println!("{:?}", robot.cmd(c)?),
-
-                    Concrete::GetPosition(c) => {
-                        if let Some(p) = robot.cmd(c)? {
-                            println!("{}", p)
-                        } else {
-                            println!("<")
-                        }
-                    }
-
-                    Concrete::Abort(_) => {
-                        println!("Abort no supported");
-                    }
-                }
+                execute(cmd, &robot)?;
             }
         }
     }
 
+    Ok(())
+}
+
+fn execute(cmd: Concrete, robot: &impl Transport) -> Result<()> {
+    match cmd {
+        Concrete::MoveRobot(c) => robot.cmd(c)?,
+        Concrete::MoveRobotByAngle(c) => robot.cmd(c)?,
+        Concrete::StopRobot(c) => robot.cmd(c)?,
+        Concrete::Led(c) => robot.cmd(c)?,
+        Concrete::RolandServo(c) => robot.cmd(c)?,
+        Concrete::Buzzer(c) => robot.cmd(c)?,
+        Concrete::TrackSensor(c) => println!("{:?}", robot.cmd(c)?),
+        Concrete::UltraSensor(c) => println!("{}", robot.cmd(c)?),
+
+        Concrete::PinMode(c) => robot.cmd(c)?,
+        Concrete::ReadPin(c) => println!("{}", robot.cmd(c)?),
+        Concrete::WritePin(c) => robot.cmd(c)?,
+        Concrete::Pwm(c) => robot.cmd(c)?,
+        Concrete::Servo(c) => robot.cmd(c)?,
+
+        Concrete::Subscribe(_) => {
+            println!("Subscribe no supported");
+        }
+        Concrete::Unsubscribe(_) => {
+            println!("Unsubscribe no supported");
+        }
+
+        Concrete::Nop(c) => robot.cmd(c)?,
+        Concrete::GetUptime(c) => println!("{:?}", robot.cmd(c)?),
+
+        Concrete::GetPosition(c) => {
+            if let Some(p) = robot.cmd(c)? {
+                println!("{}", p)
+            } else {
+                println!("<")
+            }
+        }
+
+        Concrete::Abort(_) => {
+            println!("Abort no supported");
+        }
+    }
     Ok(())
 }

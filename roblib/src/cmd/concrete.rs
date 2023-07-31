@@ -64,6 +64,7 @@ impl std::fmt::Debug for Concrete {
             Self::TrackSensor(v) => v.fmt(f),
             #[cfg(feature = "roland")]
             Self::UltraSensor(v) => v.fmt(f),
+
             #[cfg(feature = "gpio")]
             Self::PinMode(v) => v.fmt(f),
             #[cfg(feature = "gpio")]
@@ -74,8 +75,10 @@ impl std::fmt::Debug for Concrete {
             Self::Pwm(v) => v.fmt(f),
             #[cfg(feature = "gpio")]
             Self::Servo(v) => v.fmt(f),
+
             #[cfg(feature = "camloc")]
             Self::GetPosition(v) => v.fmt(f),
+
             Self::Subscribe(v) => v.fmt(f),
             Self::Unsubscribe(v) => v.fmt(f),
             Self::Nop(v) => v.fmt(f),
@@ -296,138 +299,56 @@ impl<'de> Deserialize<'de> for Concrete {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
-                Ok(match prefix {
+                match prefix {
                     #[cfg(feature = "roland")]
-                    cmd::MoveRobot::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::MoveRobot(cmd)
-                    }
+                    cmd::MoveRobot::PREFIX => seq.next_element()?.map(Concrete::MoveRobot),
+
                     #[cfg(feature = "roland")]
                     cmd::MoveRobotByAngle::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::MoveRobotByAngle(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::StopRobot::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::StopRobot(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::Led::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Led(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::RolandServo::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::RolandServo(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::Buzzer::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Buzzer(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::TrackSensor::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::TrackSensor(cmd)
-                    }
-                    #[cfg(feature = "roland")]
-                    cmd::UltraSensor::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::UltraSensor(cmd)
+                        seq.next_element()?.map(Concrete::MoveRobotByAngle)
                     }
 
+                    #[cfg(feature = "roland")]
+                    cmd::StopRobot::PREFIX => seq.next_element()?.map(Concrete::StopRobot),
+
+                    #[cfg(feature = "roland")]
+                    cmd::Led::PREFIX => seq.next_element()?.map(Concrete::Led),
+
+                    #[cfg(feature = "roland")]
+                    cmd::RolandServo::PREFIX => seq.next_element()?.map(Concrete::RolandServo),
+
+                    #[cfg(feature = "roland")]
+                    cmd::Buzzer::PREFIX => seq.next_element()?.map(Concrete::Buzzer),
+
+                    #[cfg(feature = "roland")]
+                    cmd::TrackSensor::PREFIX => seq.next_element()?.map(Concrete::TrackSensor),
+
+                    #[cfg(feature = "roland")]
+                    cmd::UltraSensor::PREFIX => seq.next_element()?.map(Concrete::UltraSensor),
+
                     #[cfg(feature = "gpio")]
-                    cmd::PinMode::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::PinMode(cmd)
-                    }
+                    cmd::PinMode::PREFIX => seq.next_element()?.map(Concrete::PinMode),
+
                     #[cfg(feature = "gpio")]
-                    cmd::ReadPin::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::ReadPin(cmd)
-                    }
+                    cmd::ReadPin::PREFIX => seq.next_element()?.map(Concrete::ReadPin),
+
                     #[cfg(feature = "gpio")]
-                    cmd::WritePin::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::WritePin(cmd)
-                    }
+                    cmd::WritePin::PREFIX => seq.next_element()?.map(Concrete::WritePin),
+
                     #[cfg(feature = "gpio")]
-                    cmd::Pwm::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Pwm(cmd)
-                    }
+                    cmd::Pwm::PREFIX => seq.next_element()?.map(Concrete::Pwm),
+
                     #[cfg(feature = "gpio")]
-                    cmd::Servo::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Servo(cmd)
-                    }
+                    cmd::Servo::PREFIX => seq.next_element()?.map(Concrete::Servo),
 
                     #[cfg(feature = "camloc")]
-                    cmd::GetPosition::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::GetPosition(cmd)
-                    }
+                    cmd::GetPosition::PREFIX => seq.next_element()?.map(Concrete::GetPosition),
 
-                    cmd::Subscribe::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Subscribe(cmd)
-                    }
-                    cmd::Unsubscribe::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Unsubscribe(cmd)
-                    }
-                    cmd::Nop::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Nop(cmd)
-                    }
-                    cmd::GetUptime::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::GetUptime(cmd)
-                    }
-                    cmd::Abort::PREFIX => {
-                        let cmd = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                        Concrete::Abort(cmd)
-                    }
+                    cmd::Subscribe::PREFIX => seq.next_element()?.map(Concrete::Subscribe),
+                    cmd::Unsubscribe::PREFIX => seq.next_element()?.map(Concrete::Unsubscribe),
+                    cmd::Nop::PREFIX => seq.next_element()?.map(Concrete::Nop),
+                    cmd::GetUptime::PREFIX => seq.next_element()?.map(Concrete::GetUptime),
+                    cmd::Abort::PREFIX => seq.next_element()?.map(Concrete::Abort),
 
                     _ => {
                         return Err(de::Error::invalid_value(
@@ -435,7 +356,8 @@ impl<'de> Deserialize<'de> for Concrete {
                             &"a command prefix",
                         ))
                     }
-                })
+                }
+                .ok_or_else(|| de::Error::invalid_length(0, &self))
             }
         }
 
