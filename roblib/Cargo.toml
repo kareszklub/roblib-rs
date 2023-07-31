@@ -26,3 +26,6 @@ roland = []
 camloc = ["dep:camloc-server"]
 
 gpio-backend = ["dep:rppal"]
+
+[dev-dependencies]
+rand = "0.8.5"

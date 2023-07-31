@@ -1146,6 +1146,7 @@ dependencies = [
  "camloc-server",
  "futures",
  "log",
+ "rand",
  "roblib-macro",
  "rppal",
  "serde",
