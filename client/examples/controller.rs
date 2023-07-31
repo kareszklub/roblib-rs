@@ -1,6 +1,6 @@
 use roblib::cmd::Concrete;
 use roblib_client::{
-    transports::{tcp::Tcp, udp::Udp, Transport},
+    transports::{udp::Udp, Transport},
     Result,
 };
 use std::io::{stdin, stdout, Write};
@@ -63,6 +63,10 @@ fn main() -> Result<()> {
                         } else {
                             println!("<")
                         }
+                    }
+
+                    Concrete::Abort(_) => {
+                        println!("Abort no supported");
                     }
                 }
             }

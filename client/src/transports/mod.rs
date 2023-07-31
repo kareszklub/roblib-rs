@@ -6,7 +6,7 @@ pub mod tcp;
 pub mod udp;
 // pub mod ws;
 
-pub(self) const ID_START: u32 = 1;
+const ID_START: u32 = 1;
 
 pub trait Transport {
     fn cmd<C>(&self, cmd: C) -> Result<C::Return>

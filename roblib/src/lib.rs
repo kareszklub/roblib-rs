@@ -16,6 +16,7 @@ pub mod roland;
 pub trait RoblibBuiltin {
     fn nop(&self) -> anyhow::Result<()>;
     fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
+    fn abort(&self) -> anyhow::Result<()>;
 }
 
 #[cfg(feature = "async")]

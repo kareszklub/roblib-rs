@@ -50,6 +50,10 @@ impl<T: Transport> RoblibBuiltin for Robot<T> {
     fn get_uptime(&self) -> anyhow::Result<Duration> {
         self.transport.cmd(cmd::GetUptime)
     }
+
+    fn abort(&self) -> anyhow::Result<()> {
+        self.transport.cmd(cmd::Abort)
+    }
 }
 
 #[cfg(feature = "roland")]

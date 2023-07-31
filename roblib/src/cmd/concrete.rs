@@ -42,6 +42,8 @@ pub enum Concrete {
 
     Nop(cmd::Nop),
     GetUptime(cmd::GetUptime),
+
+    Abort(cmd::Abort),
 }
 impl std::fmt::Debug for Concrete {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,6 +80,7 @@ impl std::fmt::Debug for Concrete {
             Self::Unsubscribe(v) => v.fmt(f),
             Self::Nop(v) => v.fmt(f),
             Self::GetUptime(v) => v.fmt(f),
+            Self::Abort(v) => v.fmt(f),
         }
     }
 }
@@ -121,6 +124,7 @@ impl Concrete {
             Self::Unsubscribe(_) => cmd::Unsubscribe::PREFIX,
             Self::Nop(_) => cmd::Nop::PREFIX,
             Self::GetUptime(_) => cmd::GetUptime::PREFIX,
+            Self::Abort(_) => cmd::Abort::PREFIX,
         }
     }
 
@@ -162,6 +166,7 @@ impl Concrete {
             Self::Unsubscribe(_) => has::<cmd::Unsubscribe>(),
             Self::Nop(_) => has::<cmd::Nop>(),
             Self::GetUptime(_) => has::<cmd::GetUptime>(),
+            Self::Abort(_) => has::<cmd::Abort>(),
         }
     }
 }
@@ -260,6 +265,10 @@ impl Serialize for Concrete {
             }
             Self::GetUptime(c) => {
                 s.serialize_field("prefix", &cmd::GetUptime::PREFIX)?;
+                s.serialize_field("cmd", &c)?;
+            }
+            Self::Abort(c) => {
+                s.serialize_field("prefix", &cmd::Abort::PREFIX)?;
                 s.serialize_field("cmd", &c)?;
             }
         }
@@ -412,6 +421,12 @@ impl<'de> Deserialize<'de> for Concrete {
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
                         Concrete::GetUptime(cmd)
+                    }
+                    cmd::Abort::PREFIX => {
+                        let cmd = seq
+                            .next_element()?
+                            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                        Concrete::Abort(cmd)
                     }
 
                     _ => {

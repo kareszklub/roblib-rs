@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use crate::Backends;
 
-use roblib::{
-    cmd::{Command, Concrete, GetUptime, Nop},
-    RoblibBuiltin,
-};
+use roblib::cmd::{Abort, Command, Concrete, GetUptime, Nop};
 use serde::{Serialize, Serializer};
 
 #[cfg(feature = "roland")]
@@ -125,23 +122,18 @@ where
                 .serialize(ser)
                 .map_err(|e| anyhow::Error::msg(e.to_string()))?,
         ),
+        Concrete::Abort(c) => {
+            c.execute(robot).await?;
+            None
+        }
     })
-}
-
-impl RoblibBuiltin for Backends {
-    fn nop(&self) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn get_uptime(&self) -> anyhow::Result<std::time::Duration> {
-        Ok(self.startup_time.elapsed())
-    }
 }
 
 #[async_trait::async_trait]
 impl Execute for Nop {
-    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
+    async fn execute(&self, _: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Nop");
-        robot.nop()
+        Ok(())
     }
 }
 
@@ -149,6 +141,15 @@ impl Execute for Nop {
 impl Execute for GetUptime {
     async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
         debug!("Get uptime");
-        robot.get_uptime()
+        Ok(robot.startup_time.elapsed())
+    }
+}
+
+#[async_trait::async_trait]
+impl Execute for Abort {
+    async fn execute(&self, robot: Arc<Backends>) -> anyhow::Result<Self::Return> {
+        error!("Abort");
+        robot.abort_token.cancel();
+        Ok(())
     }
 }

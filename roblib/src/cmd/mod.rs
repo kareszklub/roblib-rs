@@ -53,3 +53,10 @@ impl Command for GetUptime {
     const PREFIX: char = 'U';
     type Return = std::time::Duration;
 }
+
+#[derive(Command, serde::Serialize, serde::Deserialize, Debug)]
+pub struct Abort;
+impl Command for Abort {
+    const PREFIX: char = 'A';
+    type Return = ();
+}
