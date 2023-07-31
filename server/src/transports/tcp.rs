@@ -1,7 +1,12 @@
-use std::{io::Cursor, net::SocketAddr, sync::Arc, time::Duration};
-
-use crate::{cmd::execute_concrete, Backends};
+//! TCP wire format:
+//! -> u32: message length, (u32: id, roblib::cmd::Concrete)
+//! <- u32: message length, (u32: id, roblib::cmd::Concrete::Return)
+//! <- u32: message length, (u32: id, roblib::event::ConcreteValue)
+use crate::{
+    cmd::execute_concrete, event_bus::sub::SubStatus, transports::SubscriptionId, Backends,
+};
 use roblib::{cmd, event::ConcreteValue};
+use std::{io::Cursor, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, Interest},
     net::{TcpListener, TcpStream, ToSocketAddrs},
@@ -116,18 +121,39 @@ async fn handle_client(
                 let (id, cmd): (u32, cmd::Concrete) =
                     bincode::Options::deserialize(bin, &buf[HEADER..len])?;
 
-                let mut c = Cursor::new(&mut buf[..]);
-                bincode::Options::serialize_into(bin, &mut c, &id)?;
+                match cmd {
+                    cmd::Concrete::Subscribe(c) => {
+                        let sub = SubscriptionId::Tcp(addr, id);
+                        dbg!(&sub);
+                        if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Subscribe)) {
+                            log::error!("event bus sub error: {e}");
+                        };
+                    }
+                    cmd::Concrete::Unsubscribe(c) => {
+                        let unsub = SubscriptionId::Tcp(addr, id);
+                        dbg!(&unsub);
+                        if let Err(e) = robot.sub.send((c.0, unsub, SubStatus::Unsubscribe)) {
+                            log::error!("event bus sub error: {e}");
+                        };
+                    }
 
-                let res = execute_concrete(
-                    cmd,
-                    robot.clone(),
-                    &mut bincode::Serializer::new(&mut c, bin),
-                )
-                .await?;
+                    // execute any other command the usual way
+                    _ => {
+                        let mut c = Cursor::new(&mut buf[..]);
+                        bincode::Options::serialize_into(bin, &mut c, &id)?;
+                        let res = execute_concrete(
+                            cmd,
+                            robot.clone(),
+                            &mut bincode::Serializer::new(&mut c, bin),
+                        )
+                        .await?;
 
-                if res.is_some() {
-                    stream.write_all(&buf).await?;
+                        if res.is_some() {
+                            let len = c.position();
+                            stream.write_all(&(len as u32).to_be_bytes()).await?;
+                            stream.write_all(&buf[..len as usize]).await?;
+                        }
+                    }
                 }
 
                 // reset
@@ -139,27 +165,27 @@ async fn handle_client(
                 if addr != ev_addr {
                     continue;
                 }
-                let data = match ev {
+                let data: Vec<u8> = match ev {
                     #[cfg(feature = "roland")]
-                    ConcreteValue::TrackSensor(v) => bincode::Options::serialize(bin, &(id, v)),
+                    ConcreteValue::TrackSensor(v) => bincode::Options::serialize(bin, &(id, v))?,
                     #[cfg(feature = "roland")]
-                    ConcreteValue::UltraSensor(v) => bincode::Options::serialize(bin, &(id, v)),
+                    ConcreteValue::UltraSensor(v) => bincode::Options::serialize(bin, &(id, v))?,
                     #[cfg(feature = "gpio")]
-                    ConcreteValue::GpioPin(v) => bincode::Options::serialize(bin, &(id, v)),
+                    ConcreteValue::GpioPin(v) => bincode::Options::serialize(bin, &(id, v))?,
                     #[cfg(feature = "camloc")]
-                    ConcreteValue::CamlocConnect(v) => bincode::Options::serialize(bin, &(id, v)),
+                    ConcreteValue::CamlocConnect(v) => bincode::Options::serialize(bin, &(id, v))?,
                     #[cfg(feature = "camloc")]
                     ConcreteValue::CamlocDisconnect(v) => {
-                        bincode::Options::serialize(bin, &(id, v))
+                        bincode::Options::serialize(bin, &(id, v))?
                     }
                     #[cfg(feature = "camloc")]
-                    ConcreteValue::CamlocPosition(v) => bincode::Options::serialize(bin, &(id, v)),
+                    ConcreteValue::CamlocPosition(v) => bincode::Options::serialize(bin, &(id, v))?,
                     #[cfg(feature = "camloc")]
                     ConcreteValue::CamlocInfoUpdate(v) => {
-                        bincode::Options::serialize(bin, &(id, v))
+                        bincode::Options::serialize(bin, &(id, v))?
                     }
                     ConcreteValue::None => continue,
-                }?;
+                };
                 stream.write_all(&(data.len() as u32).to_be_bytes()).await?;
                 stream.write_all(&data).await?;
             }

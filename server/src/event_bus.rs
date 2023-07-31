@@ -31,6 +31,7 @@ pub(crate) struct EventBus {
     pub bus_tcp: transports::tcp::Tx,
     pub bus_udp: transports::udp::Tx,
 }
+#[allow(dead_code)]
 impl EventBus {
     pub fn new(
         robot: Arc<crate::Backends>,
@@ -174,6 +175,7 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
     log::error!("event_bus_sub dropped");
 }
 
+#[allow(unused_variables)]
 fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
     match ty {
         #[cfg(all(feature = "gpio", feature = "backend"))]
@@ -208,6 +210,7 @@ fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
     }
 }
 
+#[allow(unused_variables)]
 fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
     match ty {
         #[cfg(all(feature = "roland", feature = "backend"))]
@@ -294,8 +297,10 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
                         });
                     }
                     Unsubscribe => {
-                        // TODO:
-                        //ultra_subs = track_subs.saturating_sub(1)
+                        ultra
+                            .iter()
+                            .position(|u| u.id == id)
+                            .map(|p| ultra.remove(p));
                     }
                     Disconnect => unreachable!(),
                 },

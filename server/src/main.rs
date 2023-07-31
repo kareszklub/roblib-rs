@@ -290,6 +290,7 @@ struct SigHandler {
 impl SigHandler {
     pub fn new() -> Self {
         Self {
+            #[cfg(unix)]
             sigterm: tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                 .unwrap(),
         }
