@@ -34,32 +34,36 @@ http = ["async", "dep:reqwest"]
 ws = ["async", "dep:tokio-tungstenite", "dep:futures"]
 
 [[example]]
+name = "latency"
+required-features = ["default"]
+
+[[example]]
 name = "simple"
-required-features = ["roland"]
+required-features = ["default", "roland"]
 
 [[example]]
 name = "blink"
-required-features = ["gpio"]
+required-features = ["default", "gpio"]
 
 [[example]]
 name = "gpio_in"
-required-features = ["gpio"]
+required-features = ["default", "gpio"]
 
 [[example]]
 name = "controller"
-required-features = ["roland", "gpio", "camloc"]
+required-features = ["default", "roland", "gpio", "camloc"]
 
 [[example]]
 name = "sensor"
-required-features = ["roland"]
+required-features = ["default", "roland"]
 
 [[example]]
 name = "circle"
-required-features = ["roland"]
+required-features = ["default", "roland"]
 
 [[example]]
 name = "tcp"
-required-features = ["roland"]
+required-features = ["tcp", "roland"]
 
 [[example]]
 name = "async"

@@ -18,7 +18,7 @@ type D<'a> = bincode::Deserializer<
 type Handler = Box<dyn Send + Sync + (for<'a> FnMut(D<'a>) -> Result<()>)>;
 
 struct TcpInner {
-    handlers: std::sync::Mutex<HashMap<u32, Handler>>,
+    handlers: std::sync::Mutex<HashMap<u32, (Handler, bool)>>,
     events: std::sync::Mutex<HashMap<roblib::event::ConcreteType, u32>>,
     running: std::sync::RwLock<bool>,
 }
@@ -75,12 +75,15 @@ impl Tcp {
             let mut c = Cursor::new(&buf[Self::HEADER..end]);
             let id: u32 = bincode::Options::deserialize_from(bin, &mut c)?;
 
-            let mut handlers = inner.handlers.lock().unwrap();
-            let Some(handler) = handlers.get_mut(&id) else {
+            let Some(mut handler) = inner.handlers.lock().unwrap().remove(&id) else {
                 return Err(anyhow::Error::msg("received response for unknown id"));
             };
 
-            handler(bincode::Deserializer::with_reader(&mut c, bin))?;
+            handler.0(bincode::Deserializer::with_reader(&mut c, bin))?;
+
+            if handler.1 {
+                inner.handlers.lock().unwrap().insert(id, handler);
+            }
         }
     }
 
@@ -101,8 +104,7 @@ impl Tcp {
                 tx.send(r).unwrap();
                 Ok::<(), anyhow::Error>(())
             });
-
-            self.inner.handlers.lock().unwrap().insert(id, a);
+            self.inner.handlers.lock().unwrap().insert(id, (a, false));
 
             rx.recv()?
         } else {
@@ -122,7 +124,6 @@ impl Transport for Tcp {
         drop(id_handle);
 
         let res = self.cmd_id(cmd, id);
-        self.inner.handlers.lock().unwrap().remove(&id);
         res
     }
 }
@@ -142,7 +143,10 @@ impl Subscribable for Tcp {
 
         self.inner.handlers.lock().unwrap().insert(
             id,
-            Box::new(move |mut des| handler(E::Item::deserialize(&mut des)?)),
+            (
+                Box::new(move |mut des| handler(E::Item::deserialize(&mut des)?)),
+                true,
+            ),
         );
         self.inner.events.lock().unwrap().insert(ev, id);
 

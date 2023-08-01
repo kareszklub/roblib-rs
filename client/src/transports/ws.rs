@@ -1,15 +1,14 @@
-use std::{collections::HashMap, io::Cursor, sync::Arc};
-
 use super::{SubscribableAsync, TransportAsync};
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::{SinkExt, TryStreamExt};
+use futures::{executor::block_on, SinkExt, TryStreamExt};
 use roblib::{
     cmd::{self, has_return},
     event::{ConcreteType, Event},
     text_format,
 };
 use serde::Deserialize;
+use std::{collections::HashMap, io::Cursor, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{
@@ -183,6 +182,6 @@ impl SubscribableAsync for Ws {
 impl Drop for Ws {
     fn drop(&mut self) {
         let _ = self.sender.send(Message::Close(None));
-        let _ = futures::executor::block_on(self.handle.take().unwrap());
+        let _ = block_on(self.handle.take().unwrap());
     }
 }
