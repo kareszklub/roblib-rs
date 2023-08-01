@@ -5,18 +5,20 @@
 - [x] efficient binary format
 - [x] typesafe event system
 - [x] camloc integration
-- [ ] extensively test gpio impl irl
+- [x] extensively test gpio impl irl
 - [ ] structured errors
 
-- [ ] server: tcp
-- [ ] server: websocket
+- [x] server: tcp
+- [x] server: websocket
 - [x] server: udp
-- [ ] server: http
+- [x] server: http
 
 - [ ] rs client: async tcp
 - [ ] rs client: async udp
-- [ ] rs client: sync tcp
+- [x] rs client: sync tcp
 - [x] rs client: sync udp
+- [x] rs client: async http
+- [x] rs client: async ws
 
 - [ ] node client: async tcp
 - [ ] node client: async udp
