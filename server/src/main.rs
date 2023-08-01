@@ -11,7 +11,7 @@ use serde::Deserialize;
 use std::{sync::Arc, time::Instant};
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use transports::{tcp, udp};
+use transports::{http, tcp, udp};
 
 struct Backends {
     pub startup_time: Instant,
@@ -31,7 +31,7 @@ struct Backends {
 }
 
 fn def_host() -> String {
-    String::from("0.0.0.0")
+    "0.0.0.0".into()
 }
 fn def_tcp_port() -> u16 {
     1110
@@ -52,7 +52,7 @@ struct Config {
     udp_host: String,
 
     #[serde(default = "def_host")]
-    _web_host: String,
+    web_host: String,
 
     #[serde(default = "def_tcp_port")]
     tcp_port: u16,
@@ -61,17 +61,17 @@ struct Config {
     udp_port: u16,
 
     #[serde(default = "def_web_port")]
-    _web_port: u16,
+    web_port: u16,
 }
 
 async fn try_main() -> Result<()> {
     let Config {
         tcp_host,
         udp_host,
-        _web_host,
+        web_host,
         tcp_port,
         udp_port,
-        _web_port,
+        web_port,
     } = match envy::from_env::<Config>() {
         Ok(config) => config,
         Err(error) => panic!("{:#?}", error),
@@ -93,6 +93,7 @@ async fn try_main() -> Result<()> {
     // let event_bus = event_bus::init();
     let (tcp_tx, tcp_rx) = broadcast::channel(1024);
     let (udp_tx, udp_rx) = mpsc::unbounded_channel();
+    let (ws_tx, ws_rx) = broadcast::channel(1024);
 
     #[cfg(feature = "camloc")]
     let camloc = {
@@ -206,33 +207,12 @@ async fn try_main() -> Result<()> {
     let (udp_handle, udp_event_handle) =
         udp::start((udp_host, udp_port), robot.clone(), udp_rx).await?;
 
-    // info!("Webserver starting on port {web_port}");
-    // let data = Data::new(robot);
-    // Ok(HttpServer::new(move || {
-    //     App::new()
-    //         .wrap(
-    //             DefaultHeaders::new()
-    //                 .add(("Server", format!("roblib-rs/{}", env!("CARGO_PKG_VERSION")))),
-    //         )
-    //         .wrap(logger::actix_log())
-    //         .app_data(data.clone())
-    //         .service(http::post_cmd)
-    //         .service(http::index)
-    //         .service(ws::index)
-    // })
-    // .bind((web_host, web_port))?
-    // .run()
-    // .await?)
+    info!("Webserver starting on port {web_port}");
+    let http_handle = http::start((web_host, web_port), robot.clone(), ws_rx).await;
 
-    // let event_bus_handle = tokio::spawn(event_bus::connect(event_bus::EventBus::new(
-    //     robot.clone(),
-    //     udp_tx,
-    // )));
-
-    let ebus_handle = tokio::spawn(event_bus::init(robot.clone(), tcp_tx, udp_tx));
+    let ebus_handle = tokio::spawn(event_bus::init(robot.clone(), tcp_tx, udp_tx, ws_tx));
 
     let mut sighandler = SigHandler::new();
-
     tokio::select! {
         _ = robot.abort_token.cancelled() => {
             log::error!("Abort requested internally, cleaning up...");
@@ -256,10 +236,8 @@ async fn try_main() -> Result<()> {
     udp_handle.abort();
     udp_event_handle.abort();
 
-    let mut futures = Vec::new();
-    futures.push(ebus_handle);
+    let mut futures = vec![http_handle, ebus_handle];
     if let Ok(mut tcp_handles) = tcp_handle.await {
-        dbg!();
         futures.append(&mut tcp_handles);
     }
     log::debug!("Waiting on {} tasks", futures.len());
@@ -270,7 +248,7 @@ async fn try_main() -> Result<()> {
     Ok(())
 }
 
-#[actix_web::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     logger::init_log(Some("actix_web=info,roblib_server=debug,roblib=debug"));
 

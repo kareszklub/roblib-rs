@@ -1,12 +1,13 @@
-// pub mod http;
+pub mod http;
 pub mod tcp;
 pub mod udp;
-// pub mod ws;
+pub mod ws;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SubscriptionId {
     Tcp(tcp::Id, tcp::SubId),
     Udp(udp::Id, udp::SubId),
+    Ws(ws::Id, ws::SubId),
 }
 
 impl SubscriptionId {
@@ -17,19 +18,9 @@ impl SubscriptionId {
 
             (SubscriptionId::Udp(addr1, _), SubscriptionId::Udp(addr2, _)) => *addr1 == *addr2,
             (SubscriptionId::Udp(_, _), _) => false,
+
+            (SubscriptionId::Ws(addr1, _), SubscriptionId::Ws(addr2, _)) => *addr1 == *addr2,
+            (SubscriptionId::Ws(_, _), _) => false,
         }
     }
 }
-
-// #[derive(Debug, PartialEq, Eq, Clone)]
-// pub enum ClientId {
-//     Udp(udp::Id),
-// }
-
-// impl From<SubscriptionId> for ClientId {
-//     fn from(value: SubscriptionId) -> Self {
-//         match value {
-//             SubscriptionId::Udp(id, _) => Self::Udp(id),
-//         }
-//     }
-// }

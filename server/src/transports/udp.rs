@@ -1,11 +1,10 @@
 use super::SubscriptionId;
 use crate::{cmd::execute_concrete, event_bus::sub::SubStatus, Backends};
-use actix_web::rt::net::UdpSocket;
 use anyhow::Result;
 use roblib::{cmd, event::ConcreteValue};
 use std::{io::Cursor, net::SocketAddr, sync::Arc};
 use tokio::{
-    net::ToSocketAddrs,
+    net::{ToSocketAddrs, UdpSocket},
     spawn,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task::JoinHandle,

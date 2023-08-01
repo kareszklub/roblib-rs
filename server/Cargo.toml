@@ -4,19 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-roblib = { path = "../roblib", features = ["async"] }
-actix-web-actors = "4.2"
+anyhow = "1"
+async-trait = "0.1"
+axum = { version = "0.6.19", default_features = false, features = ["http1", "tokio", "ws"] }
+bincode = "1.3.3"
+envy = "0.4.2"
 env_logger = "0.10.0"
 futures-util = "0.3"
-async-trait = "0.1"
-actix-web = "4.3"
-bincode = "1.3.3"
-tokio = { version="1.29", features = ["macros"] }
-actix = "0.13"
-anyhow = "1"
-serde = "1"
 log = "0.4"
-envy = "0.4.2"
+roblib = { path = "../roblib", features = ["async"] }
+serde = "1"
+tokio = { version = "1.29", default_features = false, features = ["rt", "rt-multi-thread", "time", "sync", "signal", "io-util", "macros", "net"] }
 tokio-util = "0.7.8"
 
 [features]

@@ -1,4 +1,3 @@
-use actix_web::middleware;
 use env_logger::fmt::Color;
 use log::Level;
 use std::{env, io::Write};
@@ -33,8 +32,8 @@ pub fn init_log(default_level: Option<&str>) {
         .init();
 }
 
-/// custom `actix-web` logger format
-pub fn actix_log() -> middleware::Logger {
-    middleware::Logger::new("%{METHOD}xi %U %s %Dms %{r}a %{User-Agent}i")
-        .custom_request_replace("METHOD", |req| req.method().to_string())
-}
+// custom `actix-web` logger format
+// pub fn actix_log() -> middleware::Logger {
+//     middleware::Logger::new("%{METHOD}xi %U %s %Dms %{r}a %{User-Agent}i")
+//         .custom_request_replace("METHOD", |req| req.method().to_string())
+// }

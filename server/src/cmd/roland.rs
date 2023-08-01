@@ -7,6 +7,7 @@ use roblib::{
     },
     roland::Roland,
 };
+use tokio::task::spawn_blocking;
 
 use super::{Backends, Execute};
 
@@ -144,10 +145,7 @@ impl Execute for UltraSensor {
         #[cfg(feature = "backend")]
         let res = if robot.roland.is_some() {
             // because it uses std::thread::sleep
-            actix_web::rt::task::spawn_blocking(move || {
-                robot.roland.as_ref().unwrap().ultra_sensor()
-            })
-            .await??
+            spawn_blocking(move || robot.roland.as_ref().unwrap().ultra_sensor()).await??
         } else {
             f64::NAN
         };

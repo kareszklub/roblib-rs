@@ -1,5 +1,5 @@
 use roblib::gpio::{Gpio, Mode};
-use roblib_client::{logger::init_log, transports::udp::Udp, Result, Robot};
+use roblib_client::{logger::init_log, transports::tcp::Tcp, Result, Robot};
 use std::{thread::sleep, time::Duration};
 
 const P: u8 = 3;
@@ -11,7 +11,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1110".into());
 
-    let robot = Robot::new(Udp::connect(ip)?);
+    let robot = Robot::new(Tcp::connect(ip)?);
 
     log::info!("set pin mode");
     robot.pin_mode(P, Mode::Output)?;

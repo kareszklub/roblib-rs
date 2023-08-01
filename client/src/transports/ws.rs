@@ -1,155 +1,188 @@
-use actix_http::ws::Frame;
-use actix_rt::{spawn, Runtime};
-use actix_web::web::Bytes;
+use std::{collections::HashMap, io::Cursor, sync::Arc};
+
+use super::{SubscribableAsync, TransportAsync};
 use anyhow::Result;
-use awc::{ws::Message, Client};
-use futures::{
-    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    SinkExt,
+use async_trait::async_trait;
+use futures::{SinkExt, TryStreamExt};
+use roblib::{
+    cmd::{self, has_return},
+    event::{ConcreteType, Event},
+    text_format,
 };
-use futures_util::{lock::Mutex, stream::StreamExt};
-use roblib::cmd::{Command, Concrete};
+use serde::Deserialize;
+use tokio::{
+    net::TcpStream,
+    sync::{
+        mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
+        Mutex, RwLock,
+    },
+    task::JoinHandle,
+};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
-struct WSBase {
-    tx: Mutex<UnboundedSender<Message>>,
-    rx: Mutex<UnboundedReceiver<WSResponse>>,
+type WsConn = WebSocketStream<MaybeTlsStream<TcpStream>>;
+type D =
+    bincode::Deserializer<bincode::de::read::IoReader<Cursor<Vec<u8>>>, bincode::DefaultOptions>;
+type Handler = mpsc::Sender<D>;
+
+#[derive(Default)]
+struct WsInner {
+    handlers: Mutex<HashMap<u32, Handler>>,
+    events: Mutex<HashMap<roblib::event::ConcreteType, u32>>,
+    running: RwLock<bool>,
+}
+pub struct Ws {
+    inner: Arc<WsInner>,
+    handle: Option<JoinHandle<Result<()>>>,
+    id: Mutex<u32>,
+    sender: UnboundedSender<Message>,
 }
 
-enum WSResponse {
-    Binary(Bytes),
-    Text(String),
+enum Action {
+    Recv(Message),
+    Send(Message),
 }
+impl Ws {
+    pub async fn connect(addr: &str) -> Result<Self> {
+        let url = format!("ws://{addr}/ws");
+        let (ws, _) = connect_async(url).await?;
+        let inner = Arc::new(WsInner::default());
 
-impl WSBase {
-    pub async fn create(addr: &str) -> Result<Self> {
-        let (tx, rx) = Self::create_inner(addr).await?;
-        Ok(Self { tx, rx })
-    }
-
-    async fn create_inner(
-        addr: &str,
-    ) -> Result<(
-        Mutex<UnboundedSender<Message>>,
-        Mutex<UnboundedReceiver<WSResponse>>,
-    )> {
-        let ws = match Client::new().ws(addr).connect().await {
-            Ok((_, ws)) => ws,
-            Err(e) => return Err(anyhow::anyhow!("Websocket failed to connect because: {e}")),
-        };
-
-        // twx: websocket sender, rwx: websocket receiver (tasks)
-        let (mut twx, mut rwx) = ws.split();
-
-        // tx_t: send message to server, rx_t: receive messages to be sent (sender task)
-        let (tx_t, mut rx_t) = mpsc::unbounded::<Message>();
-
-        // tx_r: send messages to be received (receiver task), rx_r: receive messages
-        let (mut tx_r, rx_r) = mpsc::unbounded::<WSResponse>();
-
-        let tx_ref = tx_t.clone();
-
-        // sender task
-        spawn(async move {
-            while let Some(msg) = rx_t.next().await {
-                twx.send(msg).await.unwrap();
-            }
-        });
-
-        // receiver task
-        spawn(async move {
-            let mut tx = tx_ref;
-            while let Some(Ok(msg)) = rwx.next().await {
-                match msg {
-                    Frame::Text(b) => tx_r
-                        .send(WSResponse::Text(String::from_utf8(b.to_vec()).unwrap()))
-                        .await
-                        .unwrap(),
-
-                    Frame::Binary(b) => tx_r.send(WSResponse::Binary(b)).await.unwrap(),
-
-                    Frame::Continuation(_) => error!("received continuation frame"),
-
-                    Frame::Ping(_) => {
-                        tx.send(Message::Pong(Bytes::new())).await.unwrap();
-                        trace!("ping");
-                    }
-
-                    Frame::Pong(_) => trace!("pong"),
-
-                    Frame::Close(reason) => {
-                        tx.close().await.unwrap();
-                        error!("socket closed: {reason:?}");
-                        break;
-                    }
-                }
-            }
-        });
-
-        Ok((tx_t.into(), rx_r.into()))
-    }
-
-    async fn send(&self, cmd: Concrete) -> Result<WSResponse> {
-        let mut buf = [0; 512];
-        let buf = postcard::to_slice(&cmd, &mut buf)?;
-
-        self.tx
-            .lock()
-            .await
-            .send(Message::Binary(Bytes::copy_from_slice(buf)))
-            .await?;
-
-        Ok(if cmd.has_return() {
-            let mut rec = self.rx.lock().await;
-
-            rec.next()
-                .await
-                .ok_or(anyhow::Error::msg("Didn't recieve response"))?
-        } else {
-            unsafe { std::mem::zeroed() }
+        let (tx, rx) = unbounded_channel();
+        let handle = tokio::spawn(Self::worker(ws, rx, inner.clone()));
+        Ok(Self {
+            inner,
+            handle: Some(handle),
+            id: super::ID_START.into(),
+            sender: tx,
         })
     }
-}
 
-pub struct Ws {
-    ws: WSBase,
-    rt: Runtime,
-}
+    async fn worker(
+        mut ws: WsConn,
+        mut rx: UnboundedReceiver<Message>,
+        inner: Arc<WsInner>,
+    ) -> Result<()> {
+        let bin = bincode::options();
+        loop {
+            let action = tokio::select! {
+                Ok(Some(msg)) = ws.try_next() => Action::Recv(msg),
+                Some(msg) = rx.recv() => Action::Send(msg)
+            };
+            match action {
+                Action::Recv(msg) => match msg {
+                    Message::Text(s) => {
+                        let _de = text_format::de::new_deserializer(&s);
+                        todo!()
+                    }
+                    Message::Binary(b) => {
+                        let mut c = Cursor::new(b);
+                        let id: u32 = bincode::Options::deserialize_from(bin, &mut c)?;
 
-impl Ws {
-    pub fn connect(addr: &str) -> Result<Self> {
-        let rt = Runtime::new()?;
-        let ws = rt.block_on(WSBase::create(addr))?;
-        Ok(Self { ws, rt })
+                        let mut handlers = inner.handlers.lock().await;
+                        let Some(handler) = handlers.get_mut(&id) else {
+                            return Err(anyhow::Error::msg("received response for unknown id"));
+                        };
+
+                        handler
+                            .send(bincode::Deserializer::with_reader(c, bin))
+                            .await?;
+                    }
+                    Message::Ping(p) => ws.send(Message::Pong(p)).await?,
+                    Message::Close(close) => {
+                        if let Some(close) = close {
+                            log::debug!("ws close, reason: {}", close.reason);
+                        }
+                        continue;
+                    }
+                    _ => continue,
+                },
+                Action::Send(msg) => {
+                    ws.send(msg).await?;
+                }
+            }
+        }
     }
-}
 
-impl super::Transport for Ws {
-    fn cmd<'a, C: Command<'a>>(&self, cmd: C) -> Result<C::Return> {
-        let res = self.rt.block_on(self.ws.send(cmd.into()))?;
-        match res {
-            WSResponse::Text(t) => Ok(roblib::text_format::de::from_str(&t)?),
-            WSResponse::Binary(b) => Ok(postcard::from_bytes(&b)?),
+    async fn incr_id(&self) -> u32 {
+        let mut id_handle = self.id.lock().await;
+        let id = *id_handle;
+        *id_handle = id + 1;
+        id
+    }
+
+    async fn send<C: cmd::Command>(&self, id: u32, cmd: C) -> Result<C::Return> {
+        let cmd: cmd::Concrete = cmd.into();
+        let data = bincode::Options::serialize(bincode::options(), &(id, cmd))?;
+        self.sender.send(Message::Binary(data))?;
+
+        if has_return::<C>() {
+            let (tx, mut rx) = mpsc::channel(1);
+            self.inner.handlers.lock().await.insert(id, tx);
+            let mut de = rx.recv().await.unwrap();
+            let re = C::Return::deserialize(&mut de)?;
+            Ok(re)
+        } else {
+            unsafe { std::mem::zeroed() }
         }
     }
 }
 
-#[cfg(feature = "async")]
-pub struct WsAsync(std::pin::Pin<Box<WSBase>>);
-
-#[cfg(feature = "async")]
-impl WsAsync {
-    pub async fn connect(addr: &str) -> Result<Self> {
-        Ok(Self(Box::pin(WSBase::create(addr).await?)))
+#[async_trait]
+impl TransportAsync for Ws {
+    async fn cmd<C: cmd::Command>(&self, cmd: C) -> Result<C::Return> {
+        let id = self.incr_id().await;
+        self.send(id, cmd).await
     }
 }
-#[cfg(feature = "async")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-impl super::TransportAsync for WsAsync {
-    async fn cmd_async<'a, C: Command<'a> + Send>(&self, cmd: C) -> Result<C::Return> {
-        let res = self.0.send(cmd.into()).await?;
-        match res {
-            WSResponse::Text(t) => Ok(roblib::text_format::de::from_str(&t)?),
-            WSResponse::Binary(b) => Ok(postcard::from_bytes(&b)?),
-        }
+
+#[async_trait]
+impl SubscribableAsync for Ws {
+    async fn subscribe<E, F, R>(&self, ev: E, mut handler: F) -> Result<()>
+    where
+        E: Event,
+        F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
+        R: std::future::Future<Output = Result<()>> + Send + Sync,
+    {
+        let id = self.incr_id().await;
+        let ev: ConcreteType = ev.into();
+
+        let (tx, mut rx) = mpsc::channel(1);
+        self.inner.handlers.lock().await.insert(id, tx);
+        self.inner.events.lock().await.insert(ev, id);
+        self.send(id, cmd::Subscribe(ev)).await?;
+
+        tokio::spawn(async move {
+            while let Some(mut de) = rx.recv().await {
+                handler(E::Item::deserialize(&mut de).unwrap());
+            }
+        });
+
+        Ok(())
+    }
+
+    async fn unsubscribe<E>(&self, ev: E) -> Result<()>
+    where
+        E: Event,
+    {
+        let ev = ev.into();
+
+        let mut lock = self.inner.events.lock().await;
+        match lock.entry(ev) {
+            std::collections::hash_map::Entry::Occupied(v) => {
+                let id = v.remove();
+                self.send(id, cmd::Unsubscribe(ev)).await?;
+                self.inner.handlers.lock().await.remove(&id);
+            }
+            std::collections::hash_map::Entry::Vacant(_) => anyhow::bail!("Subscription not found"),
+        };
+        Ok(())
+    }
+}
+
+impl Drop for Ws {
+    fn drop(&mut self) {
+        let _ = self.sender.send(Message::Close(None));
+        let _ = futures::executor::block_on(self.handle.take().unwrap());
     }
 }

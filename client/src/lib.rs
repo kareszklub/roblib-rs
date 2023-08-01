@@ -1,14 +1,23 @@
 pub mod logger;
-
 pub mod transports;
 
-use std::time::{Duration, Instant};
-
 pub use anyhow::Result;
-
 pub use roblib;
 
+#[cfg(feature = "async")]
+pub use tokio::main;
+#[cfg(feature = "async")]
+pub mod async_robot;
+
+#[cfg(feature = "camloc")]
+mod camloc;
+#[cfg(feature = "gpio")]
+mod gpio;
+#[cfg(feature = "roland")]
+mod roland;
+
 use roblib::{cmd, event::Event, RoblibBuiltin};
+use std::time::{Duration, Instant};
 use transports::{Subscribable, Transport};
 
 pub struct Robot<T> {
@@ -55,12 +64,3 @@ impl<T: Transport> RoblibBuiltin for Robot<T> {
         self.transport.cmd(cmd::Abort)
     }
 }
-
-#[cfg(feature = "roland")]
-mod roland;
-
-#[cfg(feature = "gpio")]
-mod gpio;
-
-#[cfg(feature = "camloc")]
-mod camloc;

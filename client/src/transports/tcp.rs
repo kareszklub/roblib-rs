@@ -159,7 +159,6 @@ impl Subscribable for Tcp {
         match lock.entry(ev) {
             std::collections::hash_map::Entry::Occupied(v) => {
                 let id = v.remove();
-                dbg!((id, &cmd));
                 self.cmd_id(cmd, id)?;
                 self.inner.handlers.lock().unwrap().remove(&id);
             }

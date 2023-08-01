@@ -59,6 +59,6 @@ impl Command for GetUptime {
 #[derive(Command, serde::Serialize, serde::Deserialize, Debug)]
 pub struct Abort;
 impl Command for Abort {
-    const PREFIX: char = 'A';
+    const PREFIX: char = 'X';
     type Return = ();
 }

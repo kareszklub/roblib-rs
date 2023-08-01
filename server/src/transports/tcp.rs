@@ -45,7 +45,7 @@ async fn run(server: TcpListener, robot: Arc<Backends>, rx: Rx) -> Ret {
     }
 }
 
-enum Thing {
+enum Action {
     ClientMessage(usize),
     Event(ConcreteValue, Item),
     Disconnect,
@@ -65,20 +65,20 @@ async fn handle_client(
     let mut maybe_cmd_len = None;
 
     loop {
-        let thing = tokio::select! {
-            _ = robot.abort_token.cancelled() => Thing::ServerAbort,
-            Ok(n) = stream.read(&mut buf[len..( HEADER + maybe_cmd_len.unwrap_or(0) )]) => Thing::ClientMessage(n),
-            Ok(msg) = rx.recv() => Thing::Event(msg.0, msg.1),
+        let action = tokio::select! {
+            _ = robot.abort_token.cancelled() => Action::ServerAbort,
+            Ok(n) = stream.read(&mut buf[len..( HEADER + maybe_cmd_len.unwrap_or(0) )]) => Action::ClientMessage(n),
+            Ok(msg) = rx.recv() => Action::Event(msg.0, msg.1),
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 let r = stream.ready(Interest::READABLE | Interest::WRITABLE).await;
                 if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
-                    Thing::Disconnect
+                    Action::Disconnect
                 } else { continue; }
             }
         };
 
-        match thing {
-            Thing::ClientMessage(n) => {
+        match action {
+            Action::ClientMessage(n) => {
                 if n == 0 {
                     log::debug!("received 0 sized msg, investigating disconnect");
                     // give the socket some time to fully realize disconnect
@@ -161,7 +161,7 @@ async fn handle_client(
                 maybe_cmd_len = None;
             }
 
-            Thing::Event(ev, (ev_addr, id)) => {
+            Action::Event(ev, (ev_addr, id)) => {
                 if addr != ev_addr {
                     continue;
                 }
@@ -190,11 +190,11 @@ async fn handle_client(
                 stream.write_all(&data).await?;
             }
 
-            Thing::Disconnect => {
+            Action::Disconnect => {
                 log::debug!("tcp client disconnected: {addr}");
                 return Ok(());
             }
-            Thing::ServerAbort => {
+            Action::ServerAbort => {
                 log::debug!("abort: tcp {addr}");
                 return Ok(());
             }

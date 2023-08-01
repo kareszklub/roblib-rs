@@ -1,5 +1,5 @@
 use roblib::gpio::{OutputPin, SubscribablePin, TypedGpio};
-use roblib_client::{logger::init_log, transports::udp::Udp, Result, Robot};
+use roblib_client::{logger::init_log, transports::tcp::Tcp, Result, Robot};
 
 const OUT: u8 = 3;
 const IN: u8 = 2;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1110".into());
 
-    let robot = Box::leak(Box::new(Robot::new(Udp::connect(ip)?)));
+    let robot = Box::leak(Box::new(Robot::new(Tcp::connect(ip)?)));
 
     log::info!("setup pins");
     let mut inp = TypedGpio::input_pin(robot, IN)?;

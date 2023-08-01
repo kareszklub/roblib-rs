@@ -1,10 +1,14 @@
 use anyhow::Result;
 use roblib::{cmd::Command, event::Event};
 
-// pub mod http;
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(feature = "tcp")]
 pub mod tcp;
+#[cfg(feature = "udp")]
 pub mod udp;
-// pub mod ws;
+#[cfg(feature = "ws")]
+pub mod ws;
 
 const ID_START: u32 = 1;
 
