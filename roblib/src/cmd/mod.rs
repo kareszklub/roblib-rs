@@ -17,7 +17,14 @@ pub use crate::camloc::cmd::*;
 pub use self::concrete::Concrete;
 
 pub trait Command:
-    Serialize + DeserializeOwned + Into<Concrete> + From<Concrete> + Send + Sync + 'static
+    Serialize
+    + DeserializeOwned
+    + Into<Concrete>
+    + From<Concrete>
+    + Send
+    + Sync
+    + 'static
+    + std::fmt::Debug
 {
     const PREFIX: char;
     type Return: Serialize + DeserializeOwned + Send + Sync + 'static;

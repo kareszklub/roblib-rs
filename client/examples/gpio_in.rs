@@ -42,8 +42,8 @@ fn main() -> Result<()> {
 
     log::info!("subscribe");
     inp.subscribe(move |b| {
-        dbg!(b);
         out.set(b)?;
+        dbg!(b);
         Ok(())
     })?;
 

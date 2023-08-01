@@ -1,7 +1,7 @@
 //! TCP wire format:
 //! -> u32: message length, (u32: id, roblib::cmd::Concrete)
 //! <- u32: message length, (u32: id, roblib::cmd::Concrete::Return)
-//! <- u32: message length, (u32: id, roblib::event::ConcreteValue)
+//! <- u32: message length, (u32: id, roblib::event::Event::Item)
 use crate::{
     cmd::execute_concrete, event_bus::sub::SubStatus, transports::SubscriptionId, Backends,
 };
@@ -80,7 +80,7 @@ async fn handle_client(
         match action {
             Action::ClientMessage(n) => {
                 if n == 0 {
-                    log::debug!("received 0 sized msg, investigating disconnect");
+                    log::debug!("tcp: received 0 sized msg, investigating disconnect");
                     // give the socket some time to fully realize disconnect
                     tokio::time::sleep(Duration::from_millis(50)).await;
                     let r = stream.ready(Interest::READABLE | Interest::WRITABLE).await;
@@ -91,13 +91,14 @@ async fn handle_client(
                 }
 
                 len += n;
-                log::debug!(
-                    "Thing::ClientMessage - n: {n}, len: {len}, mblen: {maybe_cmd_len:?}, buflen: {}",
-                    buf.len()
-                );
+                // log::debug!(
+                //     "Thing::ClientMessage - n: {n}, len: {len}, mblen: {maybe_cmd_len:?}, buflen: {}",
+                //     buf.len()
+                // );
+
                 // not enough bytes to get command length
                 if len < HEADER {
-                    log::debug!("read more header");
+                    // log::debug!("read more header");
                     continue;
                 }
 
@@ -107,14 +108,14 @@ async fn handle_client(
                         let cmd = u32::from_be_bytes((&buf[..HEADER]).try_into().unwrap()) as usize;
                         // buf.resize(HEADER + cmd, 0);
                         maybe_cmd_len = Some(cmd);
-                        log::debug!("header received, cmdlen: {cmd}");
+                        // log::debug!("header received, cmdlen: {cmd}");
                         cmd
                     }
                 };
 
                 // not enough bytes to parse command, get some more
                 if len < HEADER + cmd_len {
-                    log::debug!("read more command");
+                    // log::debug!("read more command");
                     continue;
                 }
 
@@ -124,14 +125,14 @@ async fn handle_client(
                 match cmd {
                     cmd::Concrete::Subscribe(c) => {
                         let sub = SubscriptionId::Tcp(addr, id);
-                        dbg!(&sub);
+                        dbg!((&c, &sub));
                         if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Subscribe)) {
                             log::error!("event bus sub error: {e}");
                         };
                     }
                     cmd::Concrete::Unsubscribe(c) => {
                         let unsub = SubscriptionId::Tcp(addr, id);
-                        dbg!(&unsub);
+                        dbg!((&c, &unsub));
                         if let Err(e) = robot.sub.send((c.0, unsub, SubStatus::Unsubscribe)) {
                             log::error!("event bus sub error: {e}");
                         };
