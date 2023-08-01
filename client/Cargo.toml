@@ -14,7 +14,7 @@ log = "0.4"
 reqwest = { version = "0.11", default_features = false, features = [], optional = true }
 roblib = { path = "../roblib" }
 serde = "1"
-tokio = { version = "1.29", optional = true, default_features = false, features = ["net", "rt", "macros", "sync"] }
+tokio = { version = "1.29", optional = true, default_features = false, features = ["net", "rt", "macros", "sync", "time", "io-util"] }
 tokio-tungstenite = { version = "0.20", optional = true }
 
 [features]
@@ -67,4 +67,4 @@ required-features = ["tcp", "roland"]
 
 [[example]]
 name = "async"
-required-features = ["roland", "async", "http", "ws"]
+required-features = ["roland", "async", "tcp", "http", "ws"]

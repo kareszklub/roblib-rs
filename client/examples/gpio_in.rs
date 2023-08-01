@@ -1,10 +1,11 @@
-use roblib::gpio::{OutputPin, SubscribablePin, TypedGpio};
-use roblib_client::{logger::init_log, transports::tcp::Tcp, Result, Robot};
+use roblib_client::{logger::init_log, Result, Robot};
 
-const OUT: u8 = 3;
 const IN: u8 = 2;
+const OUT: u8 = 3;
 
 // fn main() -> Result<()> {
+//     use roblib::gpio::{Gpio, Mode};
+//     use roblib_client::transports::udp::Udp;
 //     init_log(Some("debug"));
 //
 //     let ip = std::env::args()
@@ -28,6 +29,8 @@ const IN: u8 = 2;
 // }
 
 fn main() -> Result<()> {
+    use roblib::gpio::{OutputPin, SubscribablePin, TypedGpio};
+    use roblib_client::transports::tcp::Tcp;
     init_log(Some("debug"));
 
     let ip = std::env::args()

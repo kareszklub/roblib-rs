@@ -13,7 +13,7 @@ use tokio::{
     net::TcpStream,
     sync::{
         mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
-        Mutex, RwLock,
+        Mutex,
     },
     task::JoinHandle,
 };
@@ -28,7 +28,6 @@ type Handler = mpsc::Sender<D>;
 struct WsInner {
     handlers: Mutex<HashMap<u32, Handler>>,
     events: Mutex<HashMap<roblib::event::ConcreteType, u32>>,
-    running: RwLock<bool>,
 }
 pub struct Ws {
     inner: Arc<WsInner>,

@@ -181,3 +181,215 @@ impl<'r, T: Transport> roblib::gpio::OutputPin for OutputPin<'r, T> {
         })
     }
 }
+
+#[cfg(feature = "async")]
+pub mod gpio_async {
+    use crate::{
+        async_robot::RobotAsync,
+        transports::{SubscribableAsync, TransportAsync},
+    };
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use roblib::{cmd, gpio::event::GpioPin};
+
+    #[async_trait]
+    impl<T: TransportAsync> roblib::gpio::GpioAsync for RobotAsync<T> {
+        async fn read_pin(&self, pin: u8) -> Result<bool> {
+            self.transport.cmd(cmd::ReadPin(pin)).await
+        }
+
+        async fn write_pin(&self, pin: u8, value: bool) -> Result<()> {
+            self.transport.cmd(cmd::WritePin(pin, value)).await
+        }
+
+        async fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()> {
+            self.transport.cmd(cmd::Pwm(pin, hz, cycle)).await
+        }
+
+        async fn servo(&self, pin: u8, degree: f64) -> Result<()> {
+            self.transport.cmd(cmd::Servo(pin, degree)).await
+        }
+
+        async fn pin_mode(&self, pin: u8, mode: roblib::gpio::Mode) -> Result<()> {
+            self.transport.cmd(cmd::PinMode(pin, mode)).await
+        }
+    }
+
+    pub struct PinAsync<'r, T: TransportAsync> {
+        robot: &'r RobotAsync<T>,
+        pin: u8,
+    }
+    pub struct InputPinAsync<'r, T: TransportAsync> {
+        robot: &'r RobotAsync<T>,
+        pin: u8,
+    }
+    pub struct OutputPinAsync<'r, T: TransportAsync> {
+        robot: &'r RobotAsync<T>,
+        pin: u8,
+    }
+
+    #[async_trait]
+    impl<'r, T: TransportAsync + 'r> roblib::gpio::TypedGpioAsync<'r> for RobotAsync<T> {
+        type O = OutputPinAsync<'r, T>;
+        type I = InputPinAsync<'r, T>;
+        type P = PinAsync<'r, T>;
+
+        async fn pin(&'r self, pin: u8) -> Result<Self::P> {
+            Ok(PinAsync { pin, robot: self })
+        }
+
+        async fn input_pin(&'r self, pin: u8) -> Result<Self::I> {
+            self.transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Input))
+                .await?;
+            Ok(InputPinAsync { pin, robot: self })
+        }
+
+        async fn output_pin(&'r self, pin: u8) -> Result<Self::O> {
+            self.transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Output))
+                .await?;
+            Ok(OutputPinAsync { pin, robot: self })
+        }
+    }
+
+    #[async_trait]
+    impl<'r, T: TransportAsync> roblib::gpio::PinAsync for PinAsync<'r, T> {
+        type I = InputPinAsync<'r, T>;
+        type O = OutputPinAsync<'r, T>;
+
+        async fn get_pin(&self) -> u8 {
+            self.pin
+        }
+
+        async fn set_to_input(self) -> Result<Self::I> {
+            let Self { pin, robot } = self;
+            robot
+                .transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Input))
+                .await?;
+            Ok(InputPinAsync { pin, robot })
+        }
+
+        async fn set_to_output(self) -> Result<Self::O> {
+            let Self { pin, robot } = self;
+            robot
+                .transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Input))
+                .await?;
+            Ok(OutputPinAsync { pin, robot })
+        }
+    }
+
+    #[async_trait]
+    impl<'r, T: TransportAsync> roblib::gpio::PinAsync for InputPinAsync<'r, T> {
+        type I = InputPinAsync<'r, T>;
+        type O = OutputPinAsync<'r, T>;
+
+        async fn get_pin(&self) -> u8 {
+            self.pin
+        }
+
+        async fn set_to_input(self) -> Result<Self::I> {
+            Ok(self)
+        }
+
+        async fn set_to_output(self) -> Result<Self::O> {
+            let Self { pin, robot } = self;
+            robot
+                .transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Output))
+                .await?;
+            Ok(OutputPinAsync { pin, robot })
+        }
+    }
+    #[async_trait]
+    impl<'r, T: TransportAsync> roblib::gpio::InputPinAsync for InputPinAsync<'r, T> {
+        type O = OutputPinAsync<'r, T>;
+        type P = PinAsync<'r, T>;
+
+        async fn read(&self) -> Result<bool> {
+            self.robot.transport.cmd(cmd::ReadPin(self.pin)).await
+        }
+
+        async fn set_to_pin(self) -> Result<Self::P> {
+            Ok(PinAsync {
+                pin: self.pin,
+                robot: self.robot,
+            })
+        }
+    }
+
+    #[async_trait]
+    impl<'r, T: TransportAsync + SubscribableAsync + Send + Sync> roblib::gpio::SubscribablePinAsync
+        for InputPinAsync<'r, T>
+    {
+        async fn subscribe<F, R>(&mut self, handler: F) -> Result<()>
+        where
+            F: (FnMut(bool) -> R) + Send + Sync + 'static,
+            R: std::future::Future<Output = Result<()>> + Send + Sync,
+        {
+            self.robot
+                .transport
+                .subscribe(GpioPin(self.pin), handler)
+                .await
+        }
+    }
+
+    #[async_trait]
+    impl<'r, T: TransportAsync> roblib::gpio::PinAsync for OutputPinAsync<'r, T> {
+        type I = InputPinAsync<'r, T>;
+        type O = OutputPinAsync<'r, T>;
+
+        async fn get_pin(&self) -> u8 {
+            self.pin
+        }
+
+        async fn set_to_input(self) -> Result<Self::I> {
+            let Self { pin, robot } = self;
+            robot
+                .transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Output))
+                .await?;
+            Ok(InputPinAsync { pin, robot })
+        }
+        async fn set_to_output(self) -> Result<Self::O> {
+            let Self { pin, robot } = self;
+            robot
+                .transport
+                .cmd(cmd::PinMode(pin, roblib::gpio::Mode::Output))
+                .await?;
+            Ok(OutputPinAsync { pin, robot })
+        }
+    }
+    #[async_trait]
+    impl<'r, T: TransportAsync> roblib::gpio::OutputPinAsync for OutputPinAsync<'r, T> {
+        type I = InputPinAsync<'r, T>;
+        type P = PinAsync<'r, T>;
+
+        async fn set(&mut self, value: bool) -> Result<()> {
+            self.robot
+                .transport
+                .cmd(cmd::WritePin(self.pin, value))
+                .await
+        }
+
+        async fn pwm(&mut self, hz: f64, cycle: f64) -> Result<()> {
+            self.robot
+                .transport
+                .cmd(cmd::Pwm(self.pin, hz, cycle))
+                .await
+        }
+
+        async fn servo(&mut self, degree: f64) -> Result<()> {
+            self.robot.transport.cmd(cmd::Servo(self.pin, degree)).await
+        }
+
+        async fn set_to_pin(self) -> Result<Self::P> {
+            Ok(PinAsync {
+                pin: self.pin,
+                robot: self.robot,
+            })
+        }
+    }
+}

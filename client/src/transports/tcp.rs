@@ -172,3 +172,241 @@ impl Subscribable for Tcp {
         Ok(())
     }
 }
+
+#[cfg(feature = "async")]
+pub use tcp_async::*;
+#[cfg(feature = "async")]
+pub mod tcp_async {
+    use std::{collections::HashMap, io::Cursor, time::Duration};
+
+    use crate::transports::{SubscribableAsync, TransportAsync};
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use roblib::{
+        cmd::{self, has_return, Command},
+        event::{self, Event},
+    };
+    use serde::{Deserialize, Serialize};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt, Interest},
+        net::{TcpStream, ToSocketAddrs},
+        sync::{mpsc, oneshot},
+        task::JoinHandle,
+    };
+
+    type D = bincode::Deserializer<
+        bincode::de::read::IoReader<Cursor<Vec<u8>>>,
+        bincode::DefaultOptions,
+    >;
+
+    enum Action {
+        ServerMessage(usize),
+        Cmd(cmd::Concrete, Option<oneshot::Sender<D>>),
+        Sub(event::ConcreteType, Option<mpsc::UnboundedSender<D>>),
+        Disconnect,
+    }
+
+    struct Worker {
+        stream: TcpStream,
+        cmd_rx: mpsc::UnboundedReceiver<(cmd::Concrete, Option<oneshot::Sender<D>>)>,
+        sub_rx: mpsc::UnboundedReceiver<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>,
+    }
+    impl Worker {
+        pub fn new(
+            stream: TcpStream,
+        ) -> (
+            Self,
+            mpsc::UnboundedSender<(cmd::Concrete, Option<oneshot::Sender<D>>)>,
+            mpsc::UnboundedSender<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>,
+        ) {
+            let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+            let (sub_tx, sub_rx) = mpsc::unbounded_channel();
+            let s = Self {
+                stream,
+                cmd_rx,
+                sub_rx,
+            };
+            (s, cmd_tx, sub_tx)
+        }
+        pub async fn recv_worker(mut self) -> Result<()> {
+            const HEADER: usize = std::mem::size_of::<u32>();
+
+            let mut next_id = super::super::ID_START;
+            let bin = bincode::options();
+            let mut buf = vec![0; 512];
+            let mut len = 0; // no. of bytes read for the current command we're attempting to parse
+            let mut maybe_cmd_len = None;
+            let mut cmds: HashMap<u32, oneshot::Sender<D>> = HashMap::new();
+            let mut subs: HashMap<u32, mpsc::UnboundedSender<D>> = HashMap::new();
+            let mut sub_ids: HashMap<event::ConcreteType, u32> = HashMap::new();
+            loop {
+                let action = tokio::select! {
+                    Ok(n) = self.stream.read(&mut buf[len..( HEADER + maybe_cmd_len.unwrap_or(0) )]) => Action::ServerMessage(n),
+                    Some(cmd) = self.cmd_rx.recv() => Action::Cmd(cmd.0, cmd.1),
+                    Some(sub) = self.sub_rx.recv() => Action::Sub(sub.0, sub.1),
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        let r = self.stream.ready(Interest::READABLE | Interest::WRITABLE).await;
+                        if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
+                            Action::Disconnect
+                        } else { continue; }
+                    }
+                };
+
+                match action {
+                    // adapted from server/src/transports/tcp.rs
+                    Action::ServerMessage(n) => {
+                        if n == 0 {
+                            log::debug!("tcp: received 0 sized msg, investigating disconnect");
+                            // give the socket some time to fully realize disconnect
+                            tokio::time::sleep(Duration::from_millis(50)).await;
+                            self.check_disconnect().await;
+                        }
+
+                        len += n;
+                        if len < HEADER {
+                            continue;
+                        }
+                        let cmd_len = match maybe_cmd_len {
+                            Some(n) => n,
+                            None => {
+                                let cmd = u32::from_be_bytes((&buf[..HEADER]).try_into().unwrap())
+                                    as usize;
+                                // buf.resize(HEADER + cmd, 0);
+                                maybe_cmd_len = Some(cmd);
+                                // log::debug!("header received, cmdlen: {cmd}");
+                                cmd
+                            }
+                        };
+                        if len < HEADER + cmd_len {
+                            continue;
+                        }
+
+                        let mut c = Cursor::new(buf[HEADER..len].to_vec()); // clone :(
+                        let id: u32 = bincode::Options::deserialize_from(bin, &mut c)?;
+                        if let Some(tx) = subs.get(&id) {
+                            tx.send(bincode::Deserializer::with_reader(c, bin))?;
+                        } else if let Some(tx) = cmds.remove(&id) {
+                            if tx.send(bincode::Deserializer::with_reader(c, bin)).is_err() {
+                                log::error!("cmd receiver dropped");
+                            }
+                        } else {
+                            log::error!("server sent invalid id");
+                        }
+
+                        len = 0;
+                        maybe_cmd_len = None;
+                    }
+                    Action::Cmd(cmd, maybe_tx) => {
+                        let id = next_id.clone();
+                        next_id += 1;
+                        if let Some(tx) = maybe_tx {
+                            cmds.insert(id, tx);
+                        }
+                        self.send((id, cmd)).await?;
+                    }
+                    Action::Sub(ev, Some(tx)) => {
+                        let id = next_id.clone();
+                        next_id += 1;
+                        subs.insert(id, tx);
+                        let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
+                        self.send((id, cmd)).await?;
+                    }
+                    // None: unsubscribe
+                    Action::Sub(ev, None) => {
+                        let Some(id) = sub_ids.remove(&ev) else {
+                            log::error!("unsubscribe failed: {ev:?} subscription not found");
+                            continue;
+                        };
+                        subs.remove(&id);
+                        let cmd: cmd::Concrete = cmd::Unsubscribe(ev).into();
+                        self.send((id, cmd)).await?;
+                    }
+                    Action::Disconnect => panic!("Server disconnected!"),
+                }
+            }
+        }
+        async fn check_disconnect(&mut self) {
+            let r = self
+                .stream
+                .ready(Interest::READABLE | Interest::WRITABLE)
+                .await;
+            if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
+                panic!("Server disconnected!");
+            }
+        }
+        async fn send(&mut self, data: impl Serialize) -> Result<()> {
+            let buf = bincode::Options::serialize(bincode::options(), &data)?;
+            self.stream
+                .write_all(&(buf.len() as u32).to_be_bytes())
+                .await?;
+            self.stream.write_all(&buf).await?;
+            Ok(())
+        }
+    }
+
+    pub struct TcpAsync {
+        _handle: Option<JoinHandle<Result<()>>>,
+        cmd_tx: mpsc::UnboundedSender<(cmd::Concrete, Option<oneshot::Sender<D>>)>,
+        sub_tx: mpsc::UnboundedSender<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>,
+    }
+
+    impl TcpAsync {
+        pub async fn connect(addr: impl ToSocketAddrs) -> Result<Self> {
+            let stream = TcpStream::connect(addr).await?;
+            let (worker, cmd_tx, sub_tx) = Worker::new(stream);
+            let handle = Some(tokio::spawn(worker.recv_worker()));
+
+            Ok(Self {
+                _handle: handle,
+                cmd_tx,
+                sub_tx,
+            })
+        }
+    }
+
+    #[async_trait]
+    impl TransportAsync for TcpAsync {
+        async fn cmd<C>(&self, cmd: C) -> Result<C::Return>
+        where
+            C: Command,
+        {
+            let concr: cmd::Concrete = cmd.into();
+            if has_return::<C>() {
+                let (tx, rx) = oneshot::channel();
+                self.cmd_tx.send((concr, Some(tx)))?;
+                let mut de = rx.await?;
+                Ok(C::Return::deserialize(&mut de)?)
+            } else {
+                self.cmd_tx.send((concr, None))?;
+                unsafe { std::mem::zeroed() }
+            }
+        }
+    }
+
+    #[async_trait]
+    impl SubscribableAsync for TcpAsync {
+        async fn subscribe<E, F, R>(&self, ev: E, mut handler: F) -> Result<()>
+        where
+            E: Event,
+            F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
+            R: std::future::Future<Output = Result<()>> + Send + Sync,
+        {
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            self.sub_tx.send((ev.into(), Some(tx)))?;
+
+            tokio::spawn(async move {
+                while let Some(mut de) = rx.recv().await {
+                    handler(E::Item::deserialize(&mut de).unwrap());
+                }
+            });
+            Ok(())
+        }
+
+        async fn unsubscribe<E>(&self, ev: E) -> Result<()>
+        where
+            E: Event,
+        {
+            Ok(self.sub_tx.send((ev.into(), None))?)
+        }
+    }
+}

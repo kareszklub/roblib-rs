@@ -117,10 +117,10 @@ pub trait InputPinAsync: PinAsync {
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
 pub trait SubscribablePinAsync: InputPinAsync {
-    async fn subscribe(
-        &mut self,
-        handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
-    ) -> Result<()>;
+    async fn subscribe<F, R>(&mut self, handler: F) -> Result<()>
+    where
+        F: (FnMut(bool) -> R) + Send + Sync + 'static,
+        R: std::future::Future<Output = Result<()>> + Send + Sync;
 }
 
 #[cfg(feature = "async")]

@@ -1,19 +1,23 @@
 use roblib::roland::{LedColor, RolandAsync};
 use roblib_client::{
     async_robot::RobotAsync,
-    transports::{http::Http, ws::Ws},
+    transports::{http::Http, tcp::TcpAsync, ws::Ws},
 };
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
+    // let ip = std::env::args()
+    //     .nth(1)
+    //     .unwrap_or_else(|| "localhost:1111".into());
     let ip = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "localhost:1111".into());
+        .unwrap_or_else(|| "localhost:1110".into());
 
     // let robot = RobotAsync::new(Http::connect(&ip)?);
-    let robot = RobotAsync::new(Ws::connect(&ip).await?);
+    // let robot = RobotAsync::new(Ws::connect(&ip).await?);
+    let robot = RobotAsync::new(TcpAsync::connect(&ip).await?);
 
     println!("Leds");
     robot.led_color(LedColor::Magenta).await?;
