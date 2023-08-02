@@ -70,7 +70,7 @@ pub trait OutputPin: Pin {
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
-pub trait GpioAsync {
+pub trait GpioAsync: Send + Sync {
     async fn read_pin(&self, pin: u8) -> Result<bool>;
     async fn write_pin(&self, pin: u8, value: bool) -> Result<()>;
     async fn pwm(&self, pin: u8, hz: f64, cycle: f64) -> Result<()>;
@@ -117,10 +117,7 @@ pub trait InputPinAsync: PinAsync {
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
 pub trait SubscribablePinAsync: InputPinAsync {
-    async fn subscribe<F, R>(&mut self, handler: F) -> Result<()>
-    where
-        F: (FnMut(bool) -> R) + Send + Sync + 'static,
-        R: std::future::Future<Output = Result<()>> + Send + Sync;
+    async fn subscribe(&self) -> Result<tokio::sync::broadcast::Receiver<bool>>;
 }
 
 #[cfg(feature = "async")]

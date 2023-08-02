@@ -13,7 +13,7 @@
 - [x] server: udp
 - [x] server: http
 
-- [ ] rs client: async tcp
+- [x] rs client: async tcp
 - [ ] rs client: async udp
 - [x] rs client: sync tcp
 - [x] rs client: sync udp

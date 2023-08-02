@@ -40,11 +40,8 @@ pub trait TransportAsync: Send + Sync {
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait SubscribableAsync: TransportAsync {
-    async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
-    where
-        E: Event,
-        F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
-        R: std::future::Future<Output = Result<()>> + Send + Sync;
+    async fn subscribe<E: Event>(&self, ev: E)
+        -> Result<tokio::sync::broadcast::Receiver<E::Item>>;
 
     async fn unsubscribe<E>(&self, ev: E) -> Result<()>
     where

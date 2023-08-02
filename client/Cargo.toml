@@ -62,9 +62,5 @@ name = "circle"
 required-features = ["default", "roland"]
 
 [[example]]
-name = "tcp"
-required-features = ["tcp", "roland"]
-
-[[example]]
 name = "async"
 required-features = ["roland", "async", "tcp", "http", "ws"]

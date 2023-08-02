@@ -101,7 +101,6 @@ impl SimpleGpioBackend {
                         // rising/falling edge thing seems to be backwards
                         let value = l as u8 == 0;
                         let res = &handle.last_value.fetch_update(SeqCst, SeqCst, |last| {
-                            log::debug!("({last}) {value}");
                             if value != last {
                                 return Some(value);
                             }

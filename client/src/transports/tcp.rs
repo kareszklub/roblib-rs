@@ -122,9 +122,7 @@ impl Transport for Tcp {
         let id = *id_handle;
         *id_handle = id + 1;
         drop(id_handle);
-
-        let res = self.cmd_id(cmd, id);
-        res
+        self.cmd_id(cmd, id)
     }
 }
 
@@ -190,7 +188,7 @@ pub mod tcp_async {
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt, Interest},
         net::{TcpStream, ToSocketAddrs},
-        sync::{mpsc, oneshot},
+        sync::{broadcast, mpsc, oneshot},
         task::JoinHandle,
     };
 
@@ -203,7 +201,6 @@ pub mod tcp_async {
         ServerMessage(usize),
         Cmd(cmd::Concrete, Option<oneshot::Sender<D>>),
         Sub(event::ConcreteType, Option<mpsc::UnboundedSender<D>>),
-        Disconnect,
     }
 
     struct Worker {
@@ -228,7 +225,7 @@ pub mod tcp_async {
             };
             (s, cmd_tx, sub_tx)
         }
-        pub async fn recv_worker(mut self) -> Result<()> {
+        pub async fn worker(mut self) -> Result<()> {
             const HEADER: usize = std::mem::size_of::<u32>();
 
             let mut next_id = super::super::ID_START;
@@ -245,10 +242,8 @@ pub mod tcp_async {
                     Some(cmd) = self.cmd_rx.recv() => Action::Cmd(cmd.0, cmd.1),
                     Some(sub) = self.sub_rx.recv() => Action::Sub(sub.0, sub.1),
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                        let r = self.stream.ready(Interest::READABLE | Interest::WRITABLE).await;
-                        if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
-                            Action::Disconnect
-                        } else { continue; }
+                        self.check_disconnect().await;
+                        continue;
                     }
                 };
 
@@ -297,7 +292,7 @@ pub mod tcp_async {
                         maybe_cmd_len = None;
                     }
                     Action::Cmd(cmd, maybe_tx) => {
-                        let id = next_id.clone();
+                        let id = next_id;
                         next_id += 1;
                         if let Some(tx) = maybe_tx {
                             cmds.insert(id, tx);
@@ -305,7 +300,8 @@ pub mod tcp_async {
                         self.send((id, cmd)).await?;
                     }
                     Action::Sub(ev, Some(tx)) => {
-                        let id = next_id.clone();
+                        dbg!(&ev);
+                        let id = next_id;
                         next_id += 1;
                         subs.insert(id, tx);
                         let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
@@ -321,7 +317,6 @@ pub mod tcp_async {
                         let cmd: cmd::Concrete = cmd::Unsubscribe(ev).into();
                         self.send((id, cmd)).await?;
                     }
-                    Action::Disconnect => panic!("Server disconnected!"),
                 }
             }
         }
@@ -353,8 +348,11 @@ pub mod tcp_async {
     impl TcpAsync {
         pub async fn connect(addr: impl ToSocketAddrs) -> Result<Self> {
             let stream = TcpStream::connect(addr).await?;
+            dbg!("conn");
             let (worker, cmd_tx, sub_tx) = Worker::new(stream);
-            let handle = Some(tokio::spawn(worker.recv_worker()));
+            dbg!("worker");
+            let handle = Some(tokio::spawn(worker.worker()));
+            dbg!("conn");
 
             Ok(Self {
                 _handle: handle,
@@ -385,21 +383,21 @@ pub mod tcp_async {
 
     #[async_trait]
     impl SubscribableAsync for TcpAsync {
-        async fn subscribe<E, F, R>(&self, ev: E, mut handler: F) -> Result<()>
-        where
-            E: Event,
-            F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
-            R: std::future::Future<Output = Result<()>> + Send + Sync,
-        {
-            let (tx, mut rx) = mpsc::unbounded_channel();
+        async fn subscribe<E: Event>(&self, ev: E) -> Result<broadcast::Receiver<E::Item>> {
+            let (tx, mut worker_rx) = mpsc::unbounded_channel();
             self.sub_tx.send((ev.into(), Some(tx)))?;
 
+            let (client_tx, client_rx) = broadcast::channel(128);
             tokio::spawn(async move {
-                while let Some(mut de) = rx.recv().await {
-                    handler(E::Item::deserialize(&mut de).unwrap());
+                while let Some(mut de) = worker_rx.recv().await {
+                    let item = E::Item::deserialize(&mut de)?;
+                    if client_tx.send(item).is_err() {
+                        log::error!("no receiver for active subscription");
+                    };
                 }
+                anyhow::Ok(())
             });
-            Ok(())
+            Ok(client_rx)
         }
 
         async fn unsubscribe<E>(&self, ev: E) -> Result<()>

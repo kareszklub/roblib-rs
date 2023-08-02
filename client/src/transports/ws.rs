@@ -12,6 +12,7 @@ use std::{collections::HashMap, io::Cursor, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{
+        broadcast,
         mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
         Mutex,
     },
@@ -136,27 +137,27 @@ impl TransportAsync for Ws {
 
 #[async_trait]
 impl SubscribableAsync for Ws {
-    async fn subscribe<E, F, R>(&self, ev: E, mut handler: F) -> Result<()>
-    where
-        E: Event,
-        F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
-        R: std::future::Future<Output = Result<()>> + Send + Sync,
-    {
+    async fn subscribe<E: Event>(&self, ev: E) -> Result<broadcast::Receiver<E::Item>> {
         let id = self.incr_id().await;
         let ev: ConcreteType = ev.into();
 
-        let (tx, mut rx) = mpsc::channel(1);
+        let (tx, mut worker_rx) = mpsc::channel(1);
         self.inner.handlers.lock().await.insert(id, tx);
         self.inner.events.lock().await.insert(ev, id);
         self.send(id, cmd::Subscribe(ev)).await?;
 
+        let (client_tx, client_rx) = broadcast::channel(128);
         tokio::spawn(async move {
-            while let Some(mut de) = rx.recv().await {
-                handler(E::Item::deserialize(&mut de).unwrap());
+            while let Some(mut de) = worker_rx.recv().await {
+                let item = E::Item::deserialize(&mut de)?;
+                if client_tx.send(item).is_err() {
+                    log::error!("no receiver for active subscription");
+                };
             }
+            anyhow::Ok(())
         });
 
-        Ok(())
+        Ok(client_rx)
     }
 
     async fn unsubscribe<E>(&self, ev: E) -> Result<()>

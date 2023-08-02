@@ -856,6 +856,7 @@ dependencies = [
  "roblib-macro",
  "rppal",
  "serde",
+ "tokio",
 ]
 
 [[package]]

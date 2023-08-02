@@ -3,6 +3,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use roblib::{cmd, event::Event, RoblibBuiltinAsync};
 use std::time::{Duration, Instant};
+use tokio::sync::broadcast;
 
 pub struct RobotAsync<T> {
     pub transport: T,
@@ -23,13 +24,8 @@ impl<T: TransportAsync> RobotAsync<T> {
     }
 }
 impl<T: SubscribableAsync> RobotAsync<T> {
-    pub async fn subscribe<E, F, R>(&self, ev: E, handler: F) -> Result<()>
-    where
-        E: Event,
-        F: (FnMut(E::Item) -> R) + Send + Sync + 'static,
-        R: std::future::Future<Output = Result<()>> + Send + Sync,
-    {
-        self.transport.subscribe(ev, handler).await
+    pub async fn subscribe<E: Event>(&self, ev: E) -> Result<broadcast::Receiver<E::Item>> {
+        self.transport.subscribe(ev).await
     }
     pub async fn unsubscribe<E: Event>(&self, ev: E) -> Result<()> {
         self.transport.unsubscribe(ev).await

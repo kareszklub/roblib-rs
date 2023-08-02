@@ -324,15 +324,8 @@ pub mod gpio_async {
     impl<'r, T: TransportAsync + SubscribableAsync + Send + Sync> roblib::gpio::SubscribablePinAsync
         for InputPinAsync<'r, T>
     {
-        async fn subscribe<F, R>(&mut self, handler: F) -> Result<()>
-        where
-            F: (FnMut(bool) -> R) + Send + Sync + 'static,
-            R: std::future::Future<Output = Result<()>> + Send + Sync,
-        {
-            self.robot
-                .transport
-                .subscribe(GpioPin(self.pin), handler)
-                .await
+        async fn subscribe(&self) -> Result<tokio::sync::broadcast::Receiver<bool>> {
+            self.robot.transport.subscribe(GpioPin(self.pin)).await
         }
     }
 

@@ -12,7 +12,7 @@ pub use crate::camloc::event::*;
 pub trait Event:
     Serialize + DeserializeOwned + Into<ConcreteType> + From<ConcreteType> + Send + Sync + 'static
 {
-    type Item: Serialize + DeserializeOwned + Send + Sync + 'static;
+    type Item: Serialize + DeserializeOwned + Clone + Send + Sync + 'static;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]

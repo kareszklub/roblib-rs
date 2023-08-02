@@ -114,14 +114,15 @@ impl<'g> crate::gpio::InputPin for InputPin<'g> {
     }
 }
 
-impl<'g> crate::gpio::SubscribablePin for InputPin<'g> {
-    fn subscribe(
-        &mut self,
-        handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
-    ) -> Result<()> {
-        todo!()
-    }
-}
+// TODO: impl typed gpio backend subscribe
+// impl<'g> crate::gpio::SubscribablePin for InputPin<'g> {
+//     fn subscribe(
+//         &mut self,
+//         _handler: impl FnMut(bool) -> Result<()> + Send + Sync + 'static,
+//     ) -> Result<()> {
+//         todo!()
+//     }
+// }
 
 impl<'g> crate::gpio::Pin for OutputPin<'g> {
     type I = InputPin<'g>;
