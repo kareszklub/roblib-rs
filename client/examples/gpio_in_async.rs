@@ -22,6 +22,7 @@ async fn main() -> Result<()> {
 
     log::info!("subscribe");
     let mut rx = inp.subscribe().await?;
+    robot.subscribe(roblib::event::GpioPin(IN)).await?;
 
     loop {
         let b = rx.recv().await?;

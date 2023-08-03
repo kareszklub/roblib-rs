@@ -241,10 +241,10 @@ pub mod tcp_async {
                     Ok(n) = self.stream.read(&mut buf[len..( HEADER + maybe_cmd_len.unwrap_or(0) )]) => Action::ServerMessage(n),
                     Some(cmd) = self.cmd_rx.recv() => Action::Cmd(cmd.0, cmd.1),
                     Some(sub) = self.sub_rx.recv() => Action::Sub(sub.0, sub.1),
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                        self.check_disconnect().await;
-                        continue;
-                    }
+                    // _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                    //     self.check_disconnect().await;
+                    //     continue;
+                    // }
                 };
 
                 match action {
@@ -253,8 +253,10 @@ pub mod tcp_async {
                         if n == 0 {
                             log::debug!("tcp: received 0 sized msg, investigating disconnect");
                             // give the socket some time to fully realize disconnect
-                            tokio::time::sleep(Duration::from_millis(50)).await;
-                            self.check_disconnect().await;
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                            if self.check_disconnect().await {
+                                anyhow::bail!("Server disconnected!");
+                            }
                         }
 
                         len += n;
@@ -278,9 +280,12 @@ pub mod tcp_async {
 
                         let mut c = Cursor::new(buf[HEADER..len].to_vec()); // clone :(
                         let id: u32 = bincode::Options::deserialize_from(bin, &mut c)?;
+                        dbg!(id);
                         if let Some(tx) = subs.get(&id) {
+                            dbg!("sub");
                             tx.send(bincode::Deserializer::with_reader(c, bin))?;
                         } else if let Some(tx) = cmds.remove(&id) {
+                            dbg!("cmd");
                             if tx.send(bincode::Deserializer::with_reader(c, bin)).is_err() {
                                 log::error!("cmd receiver dropped");
                             }
@@ -305,7 +310,9 @@ pub mod tcp_async {
                         next_id += 1;
                         subs.insert(id, tx);
                         let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
+                        dbg!(&cmd);
                         self.send((id, cmd)).await?;
+                        dbg!();
                     }
                     // None: unsubscribe
                     Action::Sub(ev, None) => {
@@ -320,14 +327,17 @@ pub mod tcp_async {
                 }
             }
         }
-        async fn check_disconnect(&mut self) {
+        async fn check_disconnect(&mut self) -> bool {
             let r = self
                 .stream
                 .ready(Interest::READABLE | Interest::WRITABLE)
                 .await;
             if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
-                panic!("Server disconnected!");
+                log::error!("Server disconnected!");
+                // TODO: handle failure
+                return true;
             }
+            return false;
         }
         async fn send(&mut self, data: impl Serialize) -> Result<()> {
             let buf = bincode::Options::serialize(bincode::options(), &data)?;
@@ -348,11 +358,12 @@ pub mod tcp_async {
     impl TcpAsync {
         pub async fn connect(addr: impl ToSocketAddrs) -> Result<Self> {
             let stream = TcpStream::connect(addr).await?;
-            dbg!("conn");
             let (worker, cmd_tx, sub_tx) = Worker::new(stream);
-            dbg!("worker");
-            let handle = Some(tokio::spawn(worker.worker()));
-            dbg!("conn");
+            let handle = Some(tokio::spawn(async {
+                let r = worker.worker().await;
+                eprintln!("worker dropped??");
+                r
+            }));
 
             Ok(Self {
                 _handle: handle,
@@ -384,8 +395,8 @@ pub mod tcp_async {
     #[async_trait]
     impl SubscribableAsync for TcpAsync {
         async fn subscribe<E: Event>(&self, ev: E) -> Result<broadcast::Receiver<E::Item>> {
-            let (tx, mut worker_rx) = mpsc::unbounded_channel();
-            self.sub_tx.send((ev.into(), Some(tx)))?;
+            let (worker_tx, mut worker_rx) = mpsc::unbounded_channel();
+            self.sub_tx.send((ev.into(), Some(worker_tx)))?;
 
             let (client_tx, client_rx) = broadcast::channel(128);
             tokio::spawn(async move {
@@ -397,6 +408,7 @@ pub mod tcp_async {
                 }
                 anyhow::Ok(())
             });
+            dbg!();
             Ok(client_rx)
         }
 

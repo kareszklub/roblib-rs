@@ -1,11 +1,17 @@
-import { Robot, sleep } from "./index.js"
+import { Robot, sleep, testThreadsafeFunction } from "./index.js"
+
+testThreadsafeFunction((...x) => console.log(x));
 
 console.log(Robot, sleep);
 
-const robot = new Robot("localhost:1110");
-// console.log(robot)
-// console.log(robot.getUptime())
-for (let i = 0; true; i++) {
-    console.log(i, robot.drive(i % 100, -i % 100));
-    sleep(100);
-}
+const robot = await Robot.connect("127.0.0.1:1110");
+// const robot = await Robot.connect("10.0.0.9:1110");
+console.log(robot);
+console.log(await robot.getUptime());
+console.log(await robot.readPin(3));
+// for (let i = 0; true; i++) {
+//     console.log(i, await robot.drive(((i % 25) + 25) / 100, -(i % 25) + 25) / 100);
+//     await sleep(100);
+// }
+// robot.subscribe("GpioPin", 2, (...x) => console.log(x));
+setTimeout(() => { }, 1000000000);

@@ -30,7 +30,7 @@ fi
 
 eval $(./features.py ubuntu "$profile" 2>/dev/null)
 
-cmd="cargo $command --release --target=$target --features=$f"
+cmd="cargo $command -p roblib-server --release --target=$target --features=$f"
 
 echo $cmd
 
