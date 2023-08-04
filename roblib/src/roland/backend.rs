@@ -30,7 +30,10 @@ pub mod constants {
     }
 
     pub mod servo {
+        use std::time::Duration;
+
         pub const SERVO: u8 = 23;
+        pub const PWM_TIMEOUT: Duration = Duration::from_millis(80);
     }
 
     pub mod buzzer {
@@ -98,10 +101,13 @@ impl Buzzer {
     }
 }
 
-struct Servo(OutputPin);
+struct Servo(OutputPin, u32);
 impl Servo {
     pub fn new(gpio: &Gpio) -> Result<Self> {
-        Ok(Self(gpio.get(constants::servo::SERVO)?.into_output_high()))
+        Ok(Self(
+            gpio.get(constants::servo::SERVO)?.into_output_high(),
+            0,
+        ))
     }
 }
 struct Motors {
@@ -281,8 +287,21 @@ impl Roland for RolandBackend {
 
     fn roland_servo(&self, degree: f64) -> Result<()> {
         let (period, pulse_width) = get_servo_pwm_durations(degree);
-        log::debug!("Enabling servo pwm");
-        self.servo.lock().unwrap().0.set_pwm(period, pulse_width)?;
+
+        let mut lock = self.servo.lock().unwrap();
+        lock.1 += 1;
+        let id = lock.1;
+        log::debug!("Enabling servo pwm: id: {id}");
+        lock.0.set_pwm(period, pulse_width)?;
+        drop(lock);
+
+        std::thread::sleep(constants::servo::PWM_TIMEOUT);
+
+        let mut lock = self.servo.lock().unwrap();
+        log::debug!("Disabling servo pwm: id: {id} (latest: {})", lock.1);
+        if lock.1 == id {
+            lock.0.clear_pwm()?;
+        }
         Ok(())
     }
 

@@ -28,11 +28,11 @@ fi
 # ran twice to make sure the script exits on fail
 ./features.py ubuntu "$profile" >/dev/null
 
-eval $(./features.py ubuntu "$profile" 2>/dev/null)
+eval "$(./features.py ubuntu "$profile" 2>/dev/null)"
 
-cmd="cargo $command -p roblib-server --release --target=$target --features=$f"
+cmd="$docker run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl cargo $command -p roblib-server --release --target=$target --features=$f"
 
-echo $cmd
+echo "$cmd"
 
-$docker run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl $cmd
+$cmd
 

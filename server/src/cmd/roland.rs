@@ -94,8 +94,8 @@ impl Execute for RolandServo {
         debug!("Servo absolute: {deg}");
 
         #[cfg(feature = "backend")]
-        if let Some(r) = &robot.roland {
-            r.roland_servo(deg)?;
+        if robot.roland.is_some() {
+            tokio::task::spawn_blocking(move || robot.roland.as_ref().unwrap().roland_servo(deg));
         }
 
         Ok(())

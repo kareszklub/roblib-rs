@@ -51,6 +51,7 @@ impl EventBus {
     pub async fn resolve_send(&self, event: (ConcreteType, ConcreteValue)) -> anyhow::Result<()> {
         let clients = self.clients.read().await;
         let Some(v) = clients.get(&event.0) else {
+            log::error!("NO CLIENT FOR {:?}", &event.0);
             return Ok(());
         };
         self.send_all(event, v)
@@ -129,9 +130,8 @@ pub(crate) async fn init(
 
 /// hook up all the "inputs" (backends) to the event bus
 pub(super) async fn connect(event_bus: Arc<EventBus>) {
-    // handle client subscription state changes
-    // TODO: on client disconnect, unsubscribe them from all events
-    while let Ok((ty, id, sub)) = event_bus.robot.sub.subscribe().recv().await {
+    let mut subscribe = event_bus.robot.sub.subscribe();
+    while let Ok((ty, id, sub)) = subscribe.recv().await {
         let mut clients = event_bus.clients.write().await;
 
         if let SubStatus::Disconnect = sub {
@@ -323,7 +323,8 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
         let next_ultra = ultra.iter_mut().min_by_key(|d| d.next);
 
         let poll_dur = if let Some(next_ultra) = &next_ultra {
-            next_ultra.next - now - roblib::roland::backend::constants::ultra_sensor::BLAST_DURATION
+            (next_ultra.next - now)
+                .saturating_sub(roblib::roland::backend::constants::ultra_sensor::BLAST_DURATION)
         } else {
             MAX_WAIT
         };
@@ -350,6 +351,8 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
                         ConcreteValue::TrackSensor(track_sensor_state),
                     ))
                     .await?;
+
+                tokio::time::sleep_until((now + poll_dur).into()).await;
             }
         } else {
             tokio::time::sleep(poll_dur).await;
