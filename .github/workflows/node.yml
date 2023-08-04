@@ -101,6 +101,7 @@ jobs:
         shell: bash
       - name: Install dependencies
         run: pnpm install
+        working-directory: node-ffi
       - name: Setup node x86
         uses: actions/setup-node@v3
         if: matrix.settings.target == 'i686-pc-windows-msvc'
