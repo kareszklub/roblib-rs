@@ -71,6 +71,7 @@ jobs:
           node-version: 18
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install
         uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
@@ -109,6 +110,7 @@ jobs:
           node-version: 18
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
           architecture: x86
       - name: Build in docker
         uses: addnab/docker-run-action@v3
@@ -154,6 +156,7 @@ jobs:
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
       - name: Download artifacts
@@ -188,6 +191,7 @@ jobs:
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
       - name: Download artifacts
@@ -222,6 +226,7 @@ jobs:
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: |
           pnpm config set supportedArchitectures.libc "musl"
@@ -340,6 +345,7 @@ jobs:
           node-version: 18
           check-latest: true
           cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
       - name: Download all artifacts
