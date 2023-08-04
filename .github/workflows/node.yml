@@ -123,6 +123,7 @@ jobs:
         run: ${{ matrix.settings.build }}
         if: ${{ !matrix.settings.docker }}
         shell: bash
+        working-directory: node-ffi
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
@@ -159,16 +160,19 @@ jobs:
           cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
+        working-directory: node-ffi
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: .
+          path: node-ffi/
       - name: List packages
         run: ls -R .
         shell: bash
+        working-directory: node-ffi
       - name: Test bindings
         run: pnpm test
+        working-directory: node-ffi
   test-linux-x64-gnu-binding:
     name: Test bindings on Linux-x64-gnu - node@${{ matrix.node }}
     needs:
@@ -194,14 +198,16 @@ jobs:
           cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
+        working-directory: node-ffi
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           name: bindings-x86_64-unknown-linux-gnu
-          path: .
+          path: node-ffi/
       - name: List packages
         run: ls -R .
         shell: bash
+        working-directory: node-ffi
       - name: Test bindings
         run: docker run --rm -v $(pwd)/node-ffi:/build -w /build node:${{ matrix.node }}-slim pnpm test
   test-linux-x64-musl-binding:
@@ -231,14 +237,16 @@ jobs:
         run: |
           pnpm config set supportedArchitectures.libc "musl"
           pnpm install
+        working-directory: node-ffi
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           name: bindings-x86_64-unknown-linux-musl
-          path: .
+          path: node-ffi/
       - name: List packages
         run: ls -R .
         shell: bash
+        working-directory: node-ffi
       - name: Test bindings
         run: docker run --rm -v $(pwd)/node-ffi:/build -w /build node:${{ matrix.node }}-alpine pnpm test
   test-linux-aarch64-gnu-binding:
@@ -261,15 +269,17 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-aarch64-unknown-linux-gnu
-          path: .
+          path: node-ffi/
       - name: List packages
         run: ls -R .
         shell: bash
+        working-directory: node-ffi
       - name: Install dependencies
         run: |
           pnpm config set supportedArchitectures.cpu "arm64"
           pnpm config set supportedArchitectures.libc "glibc"
           pnpm install
+        working-directory: node-ffi
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
@@ -282,6 +292,7 @@ jobs:
           options: '--platform linux/arm64 -v ${{ github.workspace }}/node-ffi:/build -w /build'
           run: |
             set -e
+            cd node-ffi/
             pnpm test
             ls -la
   test-linux-arm-gnueabihf-binding:
@@ -304,14 +315,16 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-armv7-unknown-linux-gnueabihf
-          path: .
+          path: node-ffi/
       - name: List packages
         run: ls -R .
         shell: bash
+        working-directory: node-ffi
       - name: Install dependencies
         run: |
           pnpm config set supportedArchitectures.cpu "arm"
           pnpm install
+        working-directory: node-ffi
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
@@ -324,6 +337,7 @@ jobs:
           options: '--platform linux/arm/v7 -v ${{ github.workspace }}/node-ffi:/build -w /build'
           run: |
             set -e
+            cd node-ffi/
             pnpm test
             ls -la
   publish:
@@ -348,15 +362,18 @@ jobs:
           cache-dependency-path: node-ffi/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install
+        working-directory: node-ffi
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
-          path: artifacts
+          path: node-ffi/artifacts
       - name: Move artifacts
         run: pnpm artifacts
+        working-directory: node-ffi
       - name: List packages
         run: ls -R ./npm
         shell: bash
+        working-directory: node-ffi
       - name: Publish
         run: |
           npm config set provenance true
@@ -371,6 +388,7 @@ jobs:
           else
             echo "Not a release, skipping publish"
           fi
+        working-directory: node-ffi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
