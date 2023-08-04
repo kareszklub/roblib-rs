@@ -52,8 +52,7 @@ impl EventBus {
     pub async fn resolve_send(&self, event: (ConcreteType, ConcreteValue)) -> anyhow::Result<()> {
         let clients = self.clients.read().await;
         let Some(v) = clients.get(&event.0) else {
-
-            log::debug!("NO CLIENT FOR {:?}", &event);
+            log::error!("NO CLIENT FOR {:?}", &event.0);
             return Ok(());
         };
         self.send_all(event, v)
@@ -92,7 +91,6 @@ impl EventBus {
         event: (ConcreteType, ConcreteValue),
         clients: &Vec<SubscriptionId>,
     ) -> anyhow::Result<()> {
-        dbg!((&event, clients));
         for client in clients {
             self.send(event.clone(), client)?;
         }
@@ -346,8 +344,6 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
 
             if let Some((track_index, val)) = res {
                 track_sensor_state[track_index] = val;
-
-                dbg!(&track_sensor_state);
 
                 event_bus
                     .resolve_send((
