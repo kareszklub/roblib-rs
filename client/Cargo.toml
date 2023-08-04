@@ -68,3 +68,7 @@ required-features = ["roland", "async", "tcp", "http", "ws"]
 [[example]]
 name = "gpio_in_async"
 required-features = ["default", "gpio", "async"]
+
+[[example]]
+name = "servo"
+required-features = ["default", "roland", "async"]
