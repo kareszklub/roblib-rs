@@ -122,7 +122,7 @@ impl<'de> Deserialize<'de> for ConcreteType {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
-                match &name[..] {
+                let v: Option<ConcreteType> = match &name[..] {
                     #[cfg(feature = "roland")]
                     super::TrackSensor::NAME => seq.next_element()?.map(ConcreteType::TrackSensor),
                     #[cfg(feature = "roland")]
@@ -154,8 +154,9 @@ impl<'de> Deserialize<'de> for ConcreteType {
                             &"an event name",
                         ))
                     }
-                }
-                .ok_or_else(|| de::Error::invalid_length(0, &self))
+                };
+
+                v.ok_or_else(|| de::Error::invalid_length(0, &self))
             }
         }
 
