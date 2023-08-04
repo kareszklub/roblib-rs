@@ -3,15 +3,13 @@ extern crate napi_derive;
 
 use napi::{
     bindgen_prelude::*,
-    threadsafe_function::{
-        ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction, ThreadsafeFunctionCallMode,
-    },
+    threadsafe_function::{ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction},
     tokio::{self, sync::broadcast::error::RecvError},
 };
 use roblib_client::{
     roblib::{
         camloc::{CamlocAsync, Position},
-        event,
+        event::{self, ConcreteValue},
         gpio::{GpioAsync, Mode},
         roland::RolandAsync,
         RoblibBuiltinAsync,
@@ -20,6 +18,42 @@ use roblib_client::{
     RobotAsync,
 };
 use std::{sync::Arc, time::Duration};
+
+macro_rules! sub_recv {
+    ($robot:ident, $tsfn:ident, $ev:expr) => {
+        let mut rx = $robot.subscribe($ev).await?;
+        sub_loop!(rx, $tsfn);
+    };
+    ($robot:ident, $tsfn:ident, $ev:expr, $ev_args:ident) => {
+        let e = anyhow::anyhow!("Invalid event args: {:?}", &$ev_args);
+        let Ok(v) = serde_json::from_value($ev_args) else {
+                                                                                    return Err(e);
+                                                                                };
+        let mut rx = $robot.subscribe($ev(v)).await?;
+        sub_loop!(rx, $tsfn);
+    };
+}
+macro_rules! sub_loop {
+    ($rx:ident, $tsfn:ident) => {
+        loop {
+            dbg!();
+            let msg = match $rx.recv().await {
+                Ok(msg) => msg,
+                Err(RecvError::Lagged(n)) => {
+                    eprintln!("event handler skipped {n} messages");
+                    continue;
+                }
+                Err(RecvError::Closed) => {
+                    panic!("channel closed");
+                }
+            };
+            dbg!();
+            $tsfn
+                .call_async(Ok(vec![serde_json::to_value(msg)?]))
+                .await?;
+        }
+    };
+}
 
 #[napi]
 pub fn sum(a: i32, b: i32) -> i32 {
@@ -54,7 +88,7 @@ pub struct JsRobot {
 impl ObjectFinalize for JsRobot {
     fn finalize(self, _: Env) -> napi::Result<()> {
         if self.active {
-            eprintln!("WARN: Robot was dropped with an active connection, refusing to leave...");
+            log::warn!("Robot was dropped with an active connection");
         }
         // if the connection has been disconnected, then we're good
         return Ok(());
@@ -70,26 +104,31 @@ impl JsRobot {
 
     #[napi]
     pub async fn connect(addr: String) -> Result<JsRobot> {
-        roblib_client::logger::init_log(None);
+        roblib_client::logger::init_log(Some("info"));
         let rt = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .thread_name("roblib-rt")
                 .build()?,
         );
-        let _ = rt.spawn(async {
-            dbg!();
-            for i in 0.. {
-                dbg!(i);
-                sleep(250).await
-            }
-        });
+
+        let tcp = rt.spawn(TcpAsync::connect(addr)).await.unwrap().unwrap();
 
         Ok(Self {
-            robot: Arc::new(RobotAsync::new(TcpAsync::connect(addr).await?)),
+            robot: Arc::new(RobotAsync::new(tcp)),
             active: true,
             rt,
         })
+    }
+
+    #[napi]
+    // get real
+    pub unsafe fn disconnect(&mut self) -> Result<()> {
+        self.active = false;
+        let x: *const tokio::runtime::Runtime = &*self.rt;
+        let rt = std::ptr::read(x);
+        rt.shutdown_timeout(Duration::from_millis(100));
+        Ok(())
     }
 
     // roblib::RoblibBuiltin
@@ -171,7 +210,7 @@ impl JsRobot {
     pub fn subscribe(
         &self,
         ev: JsEventType,
-        value: serde_json::Value,
+        ev_args: serde_json::Value,
         handler: JsFunction,
     ) -> Result<()> {
         let tsfn: ThreadsafeFunction<Vec<serde_json::Value>, ErrorStrategy::CalleeHandled> =
@@ -184,58 +223,29 @@ impl JsRobot {
         self.rt.spawn(async move {
             match ev {
                 JsEventType::TrackSensor => {
-                    let mut rx = robot.subscribe(event::TrackSensor).await?;
-                    loop {
-                        let msg = match rx.recv().await {
-                            Ok(msg) => msg,
-                            Err(RecvError::Lagged(n)) => {
-                                eprintln!("event handler skipped {n} messages");
-                                continue;
-                            }
-                            Err(RecvError::Closed) => {
-                                panic!("channel closed");
-                            }
-                        };
-                        tsfn.call_async(Ok(vec![serde_json::to_value(msg)?]))
-                            .await?;
-                    }
+                    sub_recv!(robot, tsfn, event::TrackSensor);
                 }
                 JsEventType::UltraSensor => {
-                    let v = serde_json::from_value(value).expect("invalid event value");
-                    let rx = robot.subscribe(event::UltraSensor(v)).await?;
+                    sub_recv!(robot, tsfn, event::UltraSensor, ev_args);
                 }
                 JsEventType::GpioPin => {
-                    let mut rx = robot.subscribe(event::GpioPin(2)).await?;
-                    loop {
-                        dbg!();
-                        let msg = match rx.recv().await {
-                            Ok(msg) => msg,
-                            Err(RecvError::Lagged(n)) => {
-                                eprintln!("event handler skipped {n} messages");
-                                continue;
-                            }
-                            Err(RecvError::Closed) => {
-                                panic!("channel closed");
-                            }
-                        };
-                        dbg!();
-                        tsfn.call_async(Ok(vec![serde_json::to_value(msg)?]))
-                            .await?;
-                    }
+                    sub_recv!(robot, tsfn, event::GpioPin, ev_args);
                 }
                 JsEventType::CamlocConnect => {
-                    let rx = robot.subscribe(event::CamlocConnect).await?;
+                    sub_recv!(robot, tsfn, event::CamlocConnect);
                 }
                 JsEventType::CamlocDisconnect => {
-                    let rx = robot.subscribe(event::CamlocDisconnect).await?;
+                    sub_recv!(robot, tsfn, event::CamlocDisconnect);
                 }
                 JsEventType::CamlocPosition => {
-                    let rx = robot.subscribe(event::CamlocPosition).await?;
+                    sub_recv!(robot, tsfn, event::CamlocPosition);
                 }
                 JsEventType::CamlocInfoUpdate => {
-                    let rx = robot.subscribe(event::CamlocInfoUpdate).await?;
+                    sub_recv!(robot, tsfn, event::CamlocInfoUpdate);
                 }
             }
+            // force return type
+            #[allow(unreachable_code)]
             anyhow::Ok(())
         });
         Ok(())
@@ -259,49 +269,27 @@ pub enum JsEventType {
 impl JsEventType {
     pub fn to_concrete(self, value: serde_json::Value) {
         match self {
-            JsEventType::TrackSensor => {
-                event::ConcreteValue::TrackSensor(serde_json::from_value(value).expect("invalid event value"))
-            }
-            JsEventType::UltraSensor => {
-                event::ConcreteValue::UltraSensor(serde_json::from_value(value).expect("invalid event value"))
-            }
+            JsEventType::TrackSensor => ConcreteValue::TrackSensor(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
+            JsEventType::UltraSensor => ConcreteValue::UltraSensor(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
             JsEventType::GpioPin => {
-                event::ConcreteValue::GpioPin(serde_json::from_value(value).expect("invalid event value"))
+                ConcreteValue::GpioPin(serde_json::from_value(value).expect("invalid event value"))
             }
-            JsEventType::CamlocConnect => {
-                event::ConcreteValue::CamlocConnect(serde_json::from_value(value).expect("invalid event value"))
-            }
-            JsEventType::CamlocDisconnect => {
-                event::ConcreteValue::CamlocDisconnect(serde_json::from_value(value).expect("invalid event value"))
-            }
-            JsEventType::CamlocPosition => {
-                event::ConcreteValue::CamlocPosition(serde_json::from_value(value).expect("invalid event value"))
-            }
-            JsEventType::CamlocInfoUpdate => {
-                event::ConcreteValue::CamlocInfoUpdate(serde_json::from_value(value).expect("invalid event value"))
-            }
-            // JsEventType::TrackSensor => event::ConcreteType::TrackSensor(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::UltraSensor => event::ConcreteType::UltraSensor(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::GpioPin => event::ConcreteType::GpioPin(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::CamlocConnect => event::ConcreteType::CamlocConnect(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::CamlocDisconnect => event::ConcreteType::CamlocDisconnect(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::CamlocPosition => event::ConcreteType::CamlocPosition(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::CamlocInfoUpdate => event::ConcreteType::CamlocInfoUpdate(
-            //     serde_json::from_value(value).expect("invalid event value"),
-            // ),
-            // JsEventType::None => event::ConcreteType::None,
+            JsEventType::CamlocConnect => ConcreteValue::CamlocConnect(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
+            JsEventType::CamlocDisconnect => ConcreteValue::CamlocDisconnect(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
+            JsEventType::CamlocPosition => ConcreteValue::CamlocPosition(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
+            JsEventType::CamlocInfoUpdate => ConcreteValue::CamlocInfoUpdate(
+                serde_json::from_value(value).expect("invalid event value"),
+            ),
         };
     }
 }
@@ -335,30 +323,4 @@ impl From<Position> for JsPosition {
             rotation: v.rotation,
         }
     }
-}
-
-#[napi]
-pub fn test_threadsafe_function(func: JsFunction) -> Result<()> {
-    // let func = ctx.get::<JsFunction>(0)?;
-
-    let tsfn: ThreadsafeFunction<Vec<serde_json::Value>, ErrorStrategy::CalleeHandled> = func
-        .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<Vec<serde_json::Value>>| {
-            Ok(ctx.value)
-        })?;
-
-    // let tsfn_cloned = tsfn.clone();
-
-    std::thread::spawn(move || {
-        let output: Vec<serde_json::Value> = vec![0, 1, 2, 3].into_iter().map(Into::into).collect();
-        // It's okay to call a threadsafe function multiple times.
-        tsfn.call(Ok(output.clone()), ThreadsafeFunctionCallMode::Blocking);
-    });
-
-    // std::thread::spawn(move || {
-    //     let output: Vec<u32> = vec![3, 2, 1, 0];
-    //     // It's okay to call a threadsafe function multiple times.
-    //     tsfn_cloned.call(Ok(output.clone()), ThreadsafeFunctionCallMode::NonBlocking);
-    // });
-
-    Ok(())
 }

@@ -1,4 +1,4 @@
-use roblib::gpio::{GpioAsync, OutputPinAsync, SubscribablePinAsync, TypedGpioAsync};
+use roblib::gpio::{OutputPinAsync, SubscribablePinAsync, TypedGpioAsync};
 use roblib_client::{async_robot::RobotAsync, logger::init_log, transports::tcp::TcpAsync, Result};
 
 const IN: u8 = 2;
@@ -18,15 +18,12 @@ async fn main() -> Result<()> {
     let inp = robot.input_pin(IN).await?;
     let mut out = robot.output_pin(OUT).await?;
 
-    out.set(true).await?;
-
     log::info!("subscribe");
     let mut rx = inp.subscribe().await?;
-    robot.subscribe(roblib::event::GpioPin(IN)).await?;
 
     loop {
         let b = rx.recv().await?;
         dbg!(&b);
-        robot.write_pin(OUT, b).await?;
+        out.set(b).await?;
     }
 }

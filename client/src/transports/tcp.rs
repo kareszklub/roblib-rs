@@ -305,14 +305,12 @@ pub mod tcp_async {
                         self.send((id, cmd)).await?;
                     }
                     Action::Sub(ev, Some(tx)) => {
-                        dbg!(&ev);
                         let id = next_id;
                         next_id += 1;
                         subs.insert(id, tx);
                         let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
                         dbg!(&cmd);
                         self.send((id, cmd)).await?;
-                        dbg!();
                     }
                     // None: unsubscribe
                     Action::Sub(ev, None) => {
@@ -332,15 +330,18 @@ pub mod tcp_async {
                 .stream
                 .ready(Interest::READABLE | Interest::WRITABLE)
                 .await;
-            if r.map_or(true, |r| r.is_read_closed() || r.is_write_closed()) {
+            if r.as_ref()
+                .map_or(true, |r| r.is_read_closed() || r.is_write_closed())
+            {
                 log::error!("Server disconnected!");
-                // TODO: handle failure
+                log::debug!("{r:#?}");
                 return true;
             }
             return false;
         }
         async fn send(&mut self, data: impl Serialize) -> Result<()> {
             let buf = bincode::Options::serialize(bincode::options(), &data)?;
+            log::debug!("{buf:?}");
             self.stream
                 .write_all(&(buf.len() as u32).to_be_bytes())
                 .await?;
@@ -361,7 +362,7 @@ pub mod tcp_async {
             let (worker, cmd_tx, sub_tx) = Worker::new(stream);
             let handle = Some(tokio::spawn(async {
                 let r = worker.worker().await;
-                eprintln!("worker dropped??");
+                log::debug!("worker dropped??");
                 r
             }));
 
