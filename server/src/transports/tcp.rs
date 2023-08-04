@@ -125,14 +125,12 @@ async fn handle_client(
                 match cmd {
                     cmd::Concrete::Subscribe(c) => {
                         let sub = SubscriptionId::Tcp(addr, id);
-                        dbg!((&c, &sub));
                         if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Subscribe)) {
                             log::error!("event bus sub error: {e}");
                         };
                     }
                     cmd::Concrete::Unsubscribe(c) => {
                         let unsub = SubscriptionId::Tcp(addr, id);
-                        dbg!((&c, &unsub));
                         if let Err(e) = robot.sub.send((c.0, unsub, SubStatus::Unsubscribe)) {
                             log::error!("event bus sub error: {e}");
                         };

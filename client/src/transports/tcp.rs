@@ -280,12 +280,9 @@ pub mod tcp_async {
 
                         let mut c = Cursor::new(buf[HEADER..len].to_vec()); // clone :(
                         let id: u32 = bincode::Options::deserialize_from(bin, &mut c)?;
-                        dbg!(id);
                         if let Some(tx) = subs.get(&id) {
-                            dbg!("sub");
                             tx.send(bincode::Deserializer::with_reader(c, bin))?;
                         } else if let Some(tx) = cmds.remove(&id) {
-                            dbg!("cmd");
                             if tx.send(bincode::Deserializer::with_reader(c, bin)).is_err() {
                                 log::error!("cmd receiver dropped");
                             }
@@ -309,7 +306,6 @@ pub mod tcp_async {
                         next_id += 1;
                         subs.insert(id, tx);
                         let cmd: cmd::Concrete = cmd::Subscribe(ev).into();
-                        dbg!(&cmd);
                         self.send((id, cmd)).await?;
                     }
                     // None: unsubscribe
@@ -409,7 +405,6 @@ pub mod tcp_async {
                 }
                 anyhow::Ok(())
             });
-            dbg!();
             Ok(client_rx)
         }
 

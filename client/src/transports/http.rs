@@ -25,8 +25,6 @@ impl super::TransportAsync for Http {
         let cmd: Concrete = cmd.into();
         let s = text_format::ser::to_string(&cmd)?;
 
-        dbg!(&s);
-
         let res = self
             .client
             .post(&self.base_url)
@@ -35,8 +33,6 @@ impl super::TransportAsync for Http {
             .await?
             .text()
             .await?;
-
-        dbg!(&res);
 
         if has_return::<C>() {
             Ok(text_format::de::from_str(&res)?)

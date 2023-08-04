@@ -36,7 +36,6 @@ macro_rules! sub_recv {
 macro_rules! sub_loop {
     ($rx:ident, $tsfn:ident) => {
         loop {
-            dbg!();
             let msg = match $rx.recv().await {
                 Ok(msg) => msg,
                 Err(RecvError::Lagged(n)) => {
@@ -47,7 +46,6 @@ macro_rules! sub_loop {
                     panic!("channel closed");
                 }
             };
-            dbg!();
             $tsfn
                 .call_async(Ok(vec![serde_json::to_value(msg)?]))
                 .await?;
