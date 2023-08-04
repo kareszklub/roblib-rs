@@ -48,12 +48,8 @@ jobs:
         args: --all-features
 
     - name: Check all possible feature combos
-      if: matrix.toolchain == 'stable'
+      if: matrix.toolchain == 'nightly'
       run: ./test.sh 2>&1
-
-    - name: Run clippy
-      if: matrix.toolchain != 'stable'
-      run: cargo clippy --all-features
 
   build:
     strategy:

@@ -9,4 +9,17 @@ set -e
 [ -n "$GITHUB_ACTIONS" ] && echo "##[group]roblib-macro"
 cargo clippy -p roblib-macro 2>&1
 [ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]test: roblib"
+cargo test --all-features -p roblib 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]test: roblib-server"
+cargo test --all-features -p roblib-server 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]test: roblib-client"
+cargo test --all-features -p roblib-client 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
 exit 0

@@ -1,5 +1,5 @@
 use roblib::gpio::{GpioAsync, OutputPinAsync, SubscribablePinAsync, TypedGpioAsync};
-use roblib_client::{async_robot::RobotAsync, logger::init_log, transports::ws::Ws, Result};
+use roblib_client::{async_robot::RobotAsync, logger::init_log, transports::tcp::TcpAsync, Result};
 
 const IN: u8 = 2;
 const OUT: u8 = 3;
@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "localhost:1111".into());
 
-    let robot = RobotAsync::new(Ws::connect(&ip).await?);
+    let robot = RobotAsync::new(TcpAsync::connect(&ip).await?);
 
     log::info!("setup pins");
     let inp = robot.input_pin(IN).await?;
