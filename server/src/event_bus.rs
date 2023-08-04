@@ -139,13 +139,13 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
             for (ty, v) in clients.iter_mut() {
                 v.retain(|s| !s.same_client(&id));
                 if v.is_empty() {
-                    cleanup_resource(&event_bus, *ty);
+                    cleanup_resource(&event_bus, ty.clone());
                 }
             }
             continue;
         }
 
-        let ids = clients.entry(ty).or_default();
+        let ids = clients.entry(ty.clone()).or_default();
 
         match sub {
             SubStatus::Disconnect => unreachable!(),

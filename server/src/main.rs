@@ -27,7 +27,7 @@ struct Backends {
     pub roland: Option<roblib::roland::backend::RolandBackend>,
 
     #[cfg(all(feature = "camloc", feature = "backend"))]
-    pub camloc: Option<roblib::camloc::server::service::LocationServiceHandle>,
+    pub camloc: Option<Box<dyn roblib::camloc::service::LocationServiceTrait>>,
 }
 
 fn def_host() -> String {
@@ -97,53 +97,13 @@ async fn try_main() -> Result<()> {
 
     #[cfg(feature = "camloc")]
     let camloc = {
-        use roblib::camloc::server::{extrapolations::LinearExtrapolation, service};
-
         // TODO: config
-        let serv = service::start(
-            Some(Box::new(LinearExtrapolation::new())),
-            roblib::camloc::MAIN_PORT,
-            vec![],
-            15.,
-            std::time::Duration::from_millis(500),
-        )
-        .await;
+        let serv = roblib::camloc::service::Builder::new().start().await;
 
         match serv {
             Ok(s) => {
-                // TODO:
-                // struct MySub(event_bus::Tx);
-                // impl event::Subscriber for MySub {
-                //     fn handle_event(&mut self, event: service::Event) {
-                //         let ev: (ConcreteType, ConcreteValue) = match event {
-                //             service::Event::Connect(a, c) => (
-                //                 ConcreteType::CamlocConnect(event::CamlocConnect),
-                //                 ConcreteValue::CamlocConnect((a, c)),
-                //             ),
-                //
-                //             service::Event::Disconnect(a) => (
-                //                 ConcreteType::CamlocDisconnect(event::CamlocDisconnect),
-                //                 ConcreteValue::CamlocDisconnect(a),
-                //             ),
-                //             service::Event::PositionUpdate(p) => (
-                //                 ConcreteType::CamlocPosition(event::CamlocPosition),
-                //                 ConcreteValue::CamlocPosition(p),
-                //             ),
-                //             service::Event::InfoUpdate(a, i) => (
-                //                 ConcreteType::CamlocInfoUpdate(event::CamlocInfoUpdate),
-                //                 ConcreteValue::CamlocInfoUpdate((a, i)),
-                //             ),
-                //         };
-                //
-                //         if let Err(e) = self.0.send(ev) {
-                //             log::error!("Camloc: event bus error: {e}");
-                //         }
-                //     }
-                // }
-                // s.subscribe(MySub(event_bus.bus_udp.clone())).await;
-
                 info!("Camloc operational");
-                Some(s)
+                Some(Box::new(s) as Box<dyn roblib::camloc::service::LocationServiceTrait>)
             }
 
             Err(err) => {

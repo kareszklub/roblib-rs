@@ -9,5 +9,6 @@ pub enum Event {
 #[derive(Event, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct GpioPin(pub u8);
 impl crate::event::Event for GpioPin {
+    const NAME: &'static str = "pin";
     type Item = bool;
 }

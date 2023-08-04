@@ -146,7 +146,7 @@ impl Subscribable for Tcp {
                 true,
             ),
         );
-        self.inner.events.lock().unwrap().insert(ev, id);
+        self.inner.events.lock().unwrap().insert(ev.clone(), id);
 
         self.cmd_id(cmd::Subscribe(ev), id)?;
 
@@ -155,7 +155,7 @@ impl Subscribable for Tcp {
 
     fn unsubscribe<E: roblib::event::Event>(&self, ev: E) -> Result<()> {
         let ev = ev.into();
-        let cmd = cmd::Unsubscribe(ev);
+        let cmd = cmd::Unsubscribe(ev.clone());
 
         let mut lock = self.inner.events.lock().unwrap();
         match lock.entry(ev) {

@@ -138,7 +138,7 @@ impl Subscribable for Udp {
 
     fn unsubscribe<E: roblib::event::Event>(&self, ev: E) -> Result<()> {
         let ev = ev.into();
-        let cmd: cmd::Concrete = cmd::Unsubscribe(ev).into();
+        let cmd: cmd::Concrete = cmd::Unsubscribe(ev.clone()).into();
 
         self.sock
             .send(&bincode::Options::serialize(bincode::options(), &cmd)?)?;

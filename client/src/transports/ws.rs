@@ -143,7 +143,7 @@ impl SubscribableAsync for Ws {
 
         let (tx, mut worker_rx) = mpsc::channel(1);
         self.inner.handlers.lock().await.insert(id, tx);
-        self.inner.events.lock().await.insert(ev, id);
+        self.inner.events.lock().await.insert(ev.clone(), id);
         self.send(id, cmd::Subscribe(ev)).await?;
 
         let (client_tx, client_rx) = broadcast::channel(128);
@@ -167,7 +167,7 @@ impl SubscribableAsync for Ws {
         let ev = ev.into();
 
         let mut lock = self.inner.events.lock().await;
-        match lock.entry(ev) {
+        match lock.entry(ev.clone()) {
             std::collections::hash_map::Entry::Occupied(v) => {
                 let id = v.remove();
                 self.send(id, cmd::Unsubscribe(ev)).await?;
