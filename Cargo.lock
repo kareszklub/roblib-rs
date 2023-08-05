@@ -169,8 +169,8 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "camloc-common"
-version = "0.4.1"
-source = "git+https://github.com/Kris030/camloc#e6986d2d1cf26fc66e48d40e29bfd369ae89d784"
+version = "0.1.0"
+source = "git+https://github.com/Kris030/camloc#c076a338f8e991520f5d15057a1f734381677b0f"
 dependencies = [
  "anyhow",
  "serde",
@@ -178,8 +178,8 @@ dependencies = [
 
 [[package]]
 name = "camloc-server"
-version = "0.6.0"
-source = "git+https://github.com/Kris030/camloc#e6986d2d1cf26fc66e48d40e29bfd369ae89d784"
+version = "0.1.0"
+source = "git+https://github.com/Kris030/camloc#c076a338f8e991520f5d15057a1f734381677b0f"
 dependencies = [
  "anyhow",
  "async-trait",

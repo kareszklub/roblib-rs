@@ -2,11 +2,17 @@
 name = "roblib-macro"
 version = "0.1.0"
 edition = "2021"
+authors = ["Beni69 (https://github.com/beni69)", "Kris030 (https://github.com/Kris030)"]
+license = "LGPL-2.1-or-later"
+description = "Macros used in roblib"
+homepage = "https://github.com/kareszklub/roblib-rs"
+repository = "https://github.com/kareszklub/roblib-rs"
+readme = "../README.md"
 
 [lib]
 proc-macro = true
 
 [dependencies]
 syn = { version = "2", features = ["full", "extra-traits"] }
-proc-macro2 = "1" 
+proc-macro2 = "1"
 quote = "1"

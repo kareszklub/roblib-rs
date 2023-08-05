@@ -1,27 +1,3 @@
-## v2 TODO
-
-- [x] efficient binary format
-- [x] typesafe event system
-- [x] camloc integration
-- [x] extensively test gpio impl irl
-- [ ] structured errors
-
-- [x] server: tcp
-- [x] server: websocket
-- [x] server: udp
-- [x] server: http
-
-- [x] rs client: async tcp
-- [x] rs client: sync tcp
-- [x] rs client: sync udp
-- [x] rs client: async http
-- [x] rs client: async ws
-
-- [x] node client: async tcp
-
-- [ ] web client: async websocket
-- [ ] web client: async http
-
 # roblib
 
 #### _a remote library for a dank engine._
