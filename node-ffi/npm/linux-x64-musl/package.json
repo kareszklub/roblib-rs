@@ -1,0 +1,21 @@
+{
+  "name": "@kareszklub/roblib-client-node-linux-x64-musl",
+  "version": "0.0.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "roblib-client-node.linux-x64-musl.node",
+  "files": [
+    "roblib-client-node.linux-x64-musl.node"
+  ],
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">= 10"
+  },
+  "libc": [
+    "musl"
+  ]
+}

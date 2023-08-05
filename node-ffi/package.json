@@ -1,0 +1,37 @@
+{
+  "name": "@kareszklub/roblib-client-node",
+  "version": "0.0.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "roblib-client-node",
+    "triples": {
+      "additional": [
+        "aarch64-unknown-linux-gnu",
+        "armv7-unknown-linux-gnueabihf",
+        "x86_64-unknown-linux-musl"
+      ]
+    }
+  },
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.16.2",
+    "ava": "^5.1.1"
+  },
+  "ava": {
+    "timeout": "3m"
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release --strip",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "ava",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "packageManager": "yarn@3.6.1"
+}

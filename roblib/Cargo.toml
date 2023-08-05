@@ -2,15 +2,21 @@
 name = "roblib"
 version = "0.1.0"
 edition = "2021"
+authors = ["Beni69 (https://github.com/beni69)", "Kris030 (https://github.com/Kris030)"]
+license = "LGPL-2.1-or-later"
+description = "A shared library for a dank engine"
+homepage = "https://github.com/kareszklub/roblib-rs"
+repository = "https://github.com/kareszklub/roblib-rs"
+readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-camloc-server = { git = "https://github.com/Kris030/camloc", features = ["serde"], optional = true }
+roblib-macro = { version = "0.1.0", path = "../roblib-macro" }
+camloc-server = { version = "0.1.0", git = "https://github.com/Kris030/camloc", features = ["serde"], optional = true }
 serde = { version = "1", features = ["derive"] }
 async-trait = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }
 rppal = { version = "0.14", optional = true }
-roblib-macro = { path = "../roblib-macro" }
 anyhow = "1"
 log = "0.4"
 tokio = { version = "1.29.1", optional = true, features = ["sync"] }

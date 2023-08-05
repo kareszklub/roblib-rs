@@ -1,9 +1,8 @@
+use crate::transports::{self, SubscriptionId};
 use roblib::event::{ConcreteType, ConcreteValue};
 use std::{collections::HashMap, sync::Arc};
 use sub::SubStatus;
 use tokio::sync::RwLock;
-
-use crate::transports::{self, SubscriptionId};
 
 /// another channel to handle changes to subscriptions
 /// sent by the transport layer, received by the event bus sender workers
@@ -151,6 +150,7 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
             SubStatus::Disconnect => unreachable!(),
 
             SubStatus::Subscribe => {
+                dbg!(&ty);
                 if ids.is_empty() {
                     create_resource(&event_bus, ty);
                 } else if ids.contains(&id) {
@@ -213,7 +213,7 @@ fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
         #[cfg(all(feature = "roland", feature = "backend"))]
         ConcreteType::TrackSensor(_) | ConcreteType::UltraSensor(_) => (),
 
-        _ => todo!(),
+        _ => (),
     }
 }
 
@@ -232,7 +232,7 @@ fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
             }
         }
 
-        _ => todo!(),
+        _ => (),
     }
 }
 

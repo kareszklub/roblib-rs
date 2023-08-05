@@ -1,0 +1,175 @@
+name: Node-FFI CI
+env:
+  DEBUG: napi:*
+  APP_NAME: roblib-client-node
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+permissions:
+  contents: write
+  id-token: write
+'on':
+  push:
+    branches:
+      - main
+      # - node-ffi
+    tags-ignore:
+      - '**'
+    paths-ignore:
+      - '**/*.md'
+      - LICENSE
+      - '**/*.gitignore'
+  pull_request: null
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: |
+              pnpm build
+              strip -x *.node
+          - host: windows-latest
+            build: pnpm build
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |-
+              set -e &&
+              pnpm build --target x86_64-unknown-linux-gnu &&
+              strip *.node
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: set -e && pnpm build && strip *.node
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            build: |-
+              set -e &&
+              pnpm build --target aarch64-unknown-linux-gnu &&
+              aarch64-unknown-linux-gnu-strip *.node
+          - host: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            setup: |
+              sudo apt-get update
+              sudo apt-get install gcc-arm-linux-gnueabihf -y
+            build: |
+              pnpm build --target armv7-unknown-linux-gnueabihf
+              arm-linux-gnueabihf-strip *.node
+    name: stable - ${{ matrix.settings.target }} - node@18
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Setup node
+        uses: actions/setup-node@v3
+        if: ${{ !matrix.settings.docker }}
+        with:
+          node-version: 18
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        if: ${{ !matrix.settings.docker }}
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+      - uses: goto-bus-stop/setup-zig@v2
+        if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
+        with:
+          version: 0.10.1
+      - name: Setup toolchain
+        run: ${{ matrix.settings.setup }}
+        if: ${{ matrix.settings.setup }}
+        shell: bash
+      - name: Setup node x86
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        run: pnpm config set supportedArchitectures.cpu "ia32"
+        shell: bash
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: node-ffi
+      - name: Setup node x86
+        uses: actions/setup-node@v3
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: 18
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
+          architecture: x86
+      - name: Build in docker
+        uses: addnab/docker-run-action@v3
+        if: ${{ matrix.settings.docker }}
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: '--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build'
+          run: cd node-ffi/ && ${{ matrix.settings.build }}
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        working-directory: node-ffi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: node-ffi/${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: node-ffi/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: node-ffi
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: node-ffi/artifacts
+      - name: Move artifacts
+        run: pnpm artifacts
+        working-directory: node-ffi
+      - name: List packages
+        run: ls -R ./npm
+        shell: bash
+        working-directory: node-ffi
+      - name: Publish
+        run: |
+          npm config set provenance true
+          if git log -1 --pretty=%B | grep "^release: v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
+          then
+            echo "//registry.npmjs.org/:_authToken=$NPM_AUTH_TOKEN" >> ~/.npmrc
+            npm publish --access public
+          else
+            echo "Not a release, skipping publish"
+          fi
+        working-directory: node-ffi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}

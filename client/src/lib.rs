@@ -8,6 +8,8 @@ pub use roblib;
 pub use tokio::main;
 #[cfg(feature = "async")]
 pub mod async_robot;
+#[cfg(feature = "async")]
+pub use async_robot::RobotAsync;
 
 #[cfg(feature = "camloc")]
 mod camloc;

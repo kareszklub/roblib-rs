@@ -30,7 +30,7 @@ fi
 
 eval "$(./features.py ubuntu "$profile" 2>/dev/null)"
 
-cmd="$docker run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl cargo $command --release --target=$target --features=$f"
+cmd="$docker run --rm -it --init -v $(pwd):/src docker.io/vbeni/rust-arm-musl cargo $command -p roblib-server --release --target=$target --features=$f"
 
 echo "$cmd"
 

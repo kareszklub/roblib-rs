@@ -83,14 +83,12 @@ async fn ws_handler(
                 match cmd {
                     cmd::Concrete::Subscribe(c) => {
                         let sub = SubscriptionId::Ws(addr, id);
-                        dbg!(&sub);
                         if let Err(e) = robot.sub.send((c.0, sub, SubStatus::Subscribe)) {
                             log::error!("event bus sub error: {e}");
                         };
                     }
                     cmd::Concrete::Unsubscribe(c) => {
                         let unsub = SubscriptionId::Ws(addr, id);
-                        dbg!(&unsub);
                         if let Err(e) = robot.sub.send((c.0, unsub, SubStatus::Unsubscribe)) {
                             log::error!("event bus sub error: {e}");
                         };
@@ -103,7 +101,6 @@ async fn ws_handler(
                             write!(ser, "{id}")?;
                             let res = execute_concrete(cmd, robot.clone(), &mut ser).await?;
                             if res.is_some() {
-                                dbg!(&buf);
                                 socket.send(Message::Text(buf)).await?;
                             }
                         }
@@ -117,9 +114,7 @@ async fn ws_handler(
                                 &mut bincode::Serializer::new(&mut c, bin),
                             )
                             .await?;
-                            dbg!(&res);
                             if res.is_some() {
-                                dbg!();
                                 socket.send(Message::Binary(v)).await?;
                             }
                         }

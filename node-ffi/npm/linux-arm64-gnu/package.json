@@ -1,0 +1,21 @@
+{
+  "name": "@kareszklub/roblib-client-node-linux-arm64-gnu",
+  "version": "0.0.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "roblib-client-node.linux-arm64-gnu.node",
+  "files": [
+    "roblib-client-node.linux-arm64-gnu.node"
+  ],
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">= 10"
+  },
+  "libc": [
+    "glibc"
+  ]
+}
