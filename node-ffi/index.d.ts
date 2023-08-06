@@ -33,6 +33,7 @@ export class Robot {
   nop(): Promise<void>
   getUptime(): Promise<number>
   drive(left: number, right: number): Promise<void>
+  stop(): Promise<void>
   led(r: boolean, g: boolean, b: boolean): Promise<void>
   rolandServo(degree: number): Promise<void>
   buzzer(pw: number): Promise<void>

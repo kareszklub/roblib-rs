@@ -1,6 +1,6 @@
 {
   "name": "@kareszklub/roblib-client-node-win32-x64-msvc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "repository": {
     "url": "https://github.com/kareszklub/roblib-rs"
   },

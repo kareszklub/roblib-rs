@@ -147,6 +147,11 @@ impl JsRobot {
     }
 
     #[napi]
+    pub async fn stop(&self) -> Result<()> {
+        Ok(self.robot.stop().await?)
+    }
+
+    #[napi]
     pub async fn led(&self, r: bool, g: bool, b: bool) -> Result<()> {
         Ok(self.robot.led(r, g, b).await?)
     }
