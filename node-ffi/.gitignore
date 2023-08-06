@@ -189,5 +189,3 @@ $RECYCLE.BIN/
 .yarn
 
 *.node
-/index.js
-/index.d.ts

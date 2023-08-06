@@ -1,6 +1,9 @@
 {
   "name": "@kareszklub/roblib-client-node-linux-x64-musl",
-  "version": "0.0.0",
+  "version": "0.0.1",
+  "repository": {
+    "url": "https://github.com/kareszklub/roblib-rs"
+  },
   "os": [
     "linux"
   ],
@@ -11,7 +14,7 @@
   "files": [
     "roblib-client-node.linux-x64-musl.node"
   ],
-  "license": "GPL-3.0",
+  "license": "LGPL-2.1-or-later",
   "engines": {
     "node": ">= 10"
   },
