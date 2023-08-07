@@ -1,5 +1,4 @@
 use super::Roland;
-use crate::get_servo_pwm_durations;
 use anyhow::Result;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::{
@@ -30,10 +29,7 @@ pub mod constants {
     }
 
     pub mod servo {
-        use std::time::Duration;
-
         pub const SERVO: u8 = 23;
-        pub const PWM_TIMEOUT: Duration = Duration::from_millis(80);
     }
 
     pub mod buzzer {
@@ -286,22 +282,31 @@ impl Roland for RolandBackend {
     }
 
     fn roland_servo(&self, degree: f64) -> Result<()> {
-        let (period, pulse_width) = get_servo_pwm_durations(degree);
+        let degree = degree.clamp(-90., 90.);
 
         let mut lock = self.servo.lock().unwrap();
         lock.1 += 1;
         let id = lock.1;
         log::debug!("Enabling servo pwm: id: {id}");
-        lock.0.set_pwm(period, pulse_width)?;
+
+        let now = Instant::now();
+        lock.0.set_high();
         drop(lock);
 
-        std::thread::sleep(constants::servo::PWM_TIMEOUT);
+        let dur = Duration::from_secs_f64(map_num_range(degree, -90., 90., 0.000750, 0.002250));
+
+        std::thread::sleep(dur - Duration::from_micros(100));
+        let until = now + dur;
+        while Instant::now() > until {
+            std::hint::spin_loop();
+        }
 
         let mut lock = self.servo.lock().unwrap();
         log::debug!("Disabling servo pwm: id: {id} (latest: {})", lock.1);
         if lock.1 == id {
-            lock.0.clear_pwm()?;
+            lock.0.set_low();
         }
+
         Ok(())
     }
 
@@ -353,4 +358,9 @@ impl Roland for RolandBackend {
 
         Ok((t2 - t1).as_secs_f64() * CONVERSION_FACTOR)
     }
+}
+
+fn map_num_range(v: f64, os: f64, oe: f64, ns: f64, ne: f64) -> f64 {
+    let a = (v - os) / (oe - os);
+    a * (ne - ns) + ns
 }

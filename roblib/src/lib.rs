@@ -26,12 +26,3 @@ pub trait RoblibBuiltinAsync {
     async fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
     async fn abort(&self) -> anyhow::Result<()>;
 }
-
-#[allow(unused)]
-pub(crate) fn get_servo_pwm_durations(degree: f64) -> (std::time::Duration, std::time::Duration) {
-    let degree = ((degree.clamp(-90., 90.) as i64 + 90) as u64 * 11) + 500;
-    (
-        std::time::Duration::from_millis(20),
-        std::time::Duration::from_micros(degree),
-    ) // 50Hz
-}
