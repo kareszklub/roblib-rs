@@ -168,7 +168,7 @@ impl super::super::Gpio for SimpleGpioBackend {
                     // TODO: revisit
                     drop(v.remove());
                     let p = match mode {
-                        Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input()),
+                        Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input_pullup()),
                         Mode::Output => Pin::Output(self.gpio.get(pin)?.into_output()),
                     };
                     pins.insert(pin, p);
@@ -176,7 +176,7 @@ impl super::super::Gpio for SimpleGpioBackend {
             }
             Entry::Vacant(v) => {
                 let p = match mode {
-                    Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input()),
+                    Mode::Input => Pin::Input(self.gpio.get(pin)?.into_input_pullup()),
                     Mode::Output => Pin::Output(self.gpio.get(pin)?.into_output()),
                 };
                 v.insert(p);
