@@ -1,5 +1,5 @@
 use crate::transports::{self, SubscriptionId};
-use roblib::event::{ConcreteType, ConcreteValue};
+use roblib::event::{self, ConcreteType, ConcreteValue};
 use std::{collections::HashMap, sync::Arc};
 use sub::SubStatus;
 use tokio::sync::RwLock;
@@ -48,52 +48,41 @@ impl EventBus {
         }
     }
 
-    pub async fn resolve_send(&self, event: (ConcreteType, ConcreteValue)) -> anyhow::Result<()> {
+    pub async fn resolve_send(&self, event: (ConcreteType, ConcreteValue)) {
         let clients = self.clients.read().await;
         let Some(v) = clients.get(&event.0) else {
             log::error!("NO CLIENT FOR {:?}", &event.0);
-            return Ok(());
+            return;
         };
         self.send_all(event, v)
     }
 
-    pub fn resolve_send_blocking(
-        &self,
-        event: (ConcreteType, ConcreteValue),
-    ) -> anyhow::Result<()> {
+    pub fn resolve_send_blocking(&self, event: (ConcreteType, ConcreteValue)) {
         let clients = self.clients.blocking_read();
         let Some(v) = clients.get(&event.0) else {
-            return Ok(());
+            return;
         };
         self.send_all(event, v)
     }
 
-    fn send(
-        &self,
-        event: (ConcreteType, ConcreteValue),
-        client: &SubscriptionId,
-    ) -> anyhow::Result<()> {
+    fn send(&self, event: (ConcreteType, ConcreteValue), client: &SubscriptionId) {
         match client {
             SubscriptionId::Tcp(addr, id) => {
-                self.bus_tcp.send((event.1.clone(), (*addr, *id)))?;
+                self.bus_tcp.send((event.1.clone(), (*addr, *id))).unwrap();
             }
-            SubscriptionId::Udp(addr, id) => self.bus_udp.send((event.1.clone(), (*addr, *id)))?,
+            SubscriptionId::Udp(addr, id) => {
+                self.bus_udp.send((event.1.clone(), (*addr, *id))).unwrap()
+            }
             SubscriptionId::Ws(addr, id) => {
-                self.bus_ws.send((event.1.clone(), (*addr, *id)))?;
+                self.bus_ws.send((event.1.clone(), (*addr, *id))).unwrap();
             }
         }
-        Ok(())
     }
 
-    fn send_all(
-        &self,
-        event: (ConcreteType, ConcreteValue),
-        clients: &Vec<SubscriptionId>,
-    ) -> anyhow::Result<()> {
+    fn send_all(&self, event: (ConcreteType, ConcreteValue), clients: &Vec<SubscriptionId>) {
         for client in clients {
-            self.send(event.clone(), client)?;
+            self.send(event.clone(), client);
         }
-        Ok(())
     }
 }
 
@@ -138,7 +127,7 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
             for (ty, v) in clients.iter_mut() {
                 v.retain(|s| !s.same_client(&id));
                 if v.is_empty() {
-                    cleanup_resource(&event_bus, ty.clone());
+                    cleanup_resource(&event_bus, ty.clone()).await;
                 }
             }
             continue;
@@ -152,7 +141,7 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
             SubStatus::Subscribe => {
                 dbg!(&ty);
                 if ids.is_empty() {
-                    create_resource(&event_bus, ty);
+                    create_resource(&event_bus, ty).await;
                 } else if ids.contains(&id) {
                     log::error!("Attempted double subscription on event {ty:?}");
                     continue;
@@ -173,7 +162,7 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
                 ids.remove(i);
 
                 if ids.is_empty() {
-                    cleanup_resource(&event_bus, ty);
+                    cleanup_resource(&event_bus, ty).await;
                 }
             }
         }
@@ -183,48 +172,113 @@ pub(super) async fn connect(event_bus: Arc<EventBus>) {
 }
 
 #[allow(unused_variables)]
-fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
+async fn create_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
     match ty {
-        #[cfg(all(feature = "gpio", feature = "backend"))]
+        #[cfg(feature = "gpio")]
         ConcreteType::GpioPin(p) => {
-            struct Sub(Arc<EventBus>);
-            impl roblib::gpio::backend::simple::Subscriber for Sub {
-                fn handle(&self, event: roblib::gpio::event::Event) {
-                    let msg = match event {
-                        roblib::gpio::event::Event::PinChanged(pin, value) => (
-                            ConcreteType::GpioPin(roblib::gpio::event::GpioPin(pin)),
-                            ConcreteValue::GpioPin(value),
-                        ),
-                    };
+            #[cfg(feature = "backend")]
+            {
+                struct Sub(Arc<EventBus>);
+                impl roblib::gpio::backend::simple::Subscriber for Sub {
+                    fn handle(&self, event: roblib::gpio::event::Event) {
+                        let msg = match event {
+                            roblib::gpio::event::Event::PinChanged(pin, value) => (
+                                ConcreteType::GpioPin(roblib::gpio::event::GpioPin(pin)),
+                                ConcreteValue::GpioPin(value),
+                            ),
+                        };
 
-                    if let Err(e) = self.0.resolve_send_blocking(msg) {
-                        log::error!("event_bus dropped: {e}");
+                        self.0.resolve_send_blocking(msg)
                     }
                 }
-            }
 
-            if let Some(r) = &event_bus.robot.raw_gpio {
-                if let Err(e) = r.subscribe(p.0, Box::new(Sub(event_bus.clone()))) {
-                    log::error!("Failed to subscribe to gpio pin: {e}");
+                if let Some(r) = &event_bus.robot.raw_gpio {
+                    if let Err(e) = r.subscribe(p.0, Box::new(Sub(event_bus.clone()))) {
+                        log::error!("Failed to subscribe to gpio pin: {e}");
+                    }
                 }
             }
         }
 
-        #[cfg(all(feature = "roland", feature = "backend"))]
+        #[cfg(feature = "roland")]
         ConcreteType::TrackSensor(_) | ConcreteType::UltraSensor(_) => (),
 
-        _ => (),
+        #[cfg(feature = "camloc")]
+        a @ (ConcreteType::CamlocConnect(_)
+        | ConcreteType::CamlocDisconnect(_)
+        | ConcreteType::CamlocPosition(_)
+        | ConcreteType::CamlocInfoUpdate(_)) => {
+            #[cfg(feature = "backend")]
+            {
+                let Some(c) = &event_bus.robot.camloc else {
+                    return;
+                };
+
+                let eb = event_bus.clone();
+                let camloc_events = tokio::spawn(async move {
+                    let c = eb.robot.camloc.as_ref().unwrap();
+                    let mut chan = c.get_event_channel();
+
+                    loop {
+                        let rec = tokio::select! {
+                            _ = eb.robot.abort_token.cancelled() => break,
+                            rec = chan.recv() => rec,
+                        };
+
+                        let ev = match rec {
+                            Ok(v) => v,
+                            Err(e) => match e {
+                                tokio::sync::broadcast::error::RecvError::Lagged(by) => {
+                                    log::error!("Camloc events lagging by {by}");
+                                    continue;
+                                }
+                                tokio::sync::broadcast::error::RecvError::Closed => {
+                                    log::error!("Camloc events shutting down (channel was closed)");
+                                    break;
+                                }
+                            },
+                        };
+
+                        use roblib::camloc::service::Event;
+                        let ev = match ev {
+                            Event::Connect(to, cam) => (
+                                ConcreteType::CamlocConnect(event::CamlocConnect),
+                                ConcreteValue::CamlocConnect((to, cam)),
+                            ),
+                            Event::Disconnect(from) => (
+                                ConcreteType::CamlocDisconnect(event::CamlocDisconnect),
+                                ConcreteValue::CamlocDisconnect(from),
+                            ),
+                            Event::PositionUpdate(pos) => (
+                                ConcreteType::CamlocPosition(event::CamlocPosition),
+                                ConcreteValue::CamlocPosition(pos),
+                            ),
+                            Event::InfoUpdate(who, info) => (
+                                ConcreteType::CamlocInfoUpdate(event::CamlocInfoUpdate),
+                                ConcreteValue::CamlocInfoUpdate((who, info)),
+                            ),
+                        };
+
+                        eb.resolve_send(ev).await;
+                    }
+                });
+            }
+        }
+
+        ConcreteType::None => unreachable!(),
     }
 }
 
 #[allow(unused_variables)]
-fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
+async fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
     match ty {
-        #[cfg(all(feature = "roland", feature = "backend"))]
+        #[cfg(feature = "roland")]
         ConcreteType::TrackSensor(_) | ConcreteType::UltraSensor(_) => (),
 
-        #[cfg(all(feature = "gpio", feature = "backend"))]
-        ConcreteType::GpioPin(p) => {
+        #[cfg(feature = "gpio")]
+        ConcreteType::GpioPin(p) =>
+        {
+            #[cfg(feature = "backend")]
             if let Some(r) = &event_bus.robot.raw_gpio {
                 if let Err(e) = r.unsubscribe(p.0) {
                     log::error!("Failed to unsubscribe from gpio pin: {e}");
@@ -232,7 +286,13 @@ fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
             }
         }
 
-        _ => (),
+        #[cfg(feature = "camloc")]
+        ConcreteType::CamlocConnect(_)
+        | ConcreteType::CamlocDisconnect(_)
+        | ConcreteType::CamlocPosition(_)
+        | ConcreteType::CamlocInfoUpdate(_) => (),
+
+        ConcreteType::None => unreachable!(),
     }
 }
 
@@ -240,7 +300,7 @@ fn cleanup_resource(event_bus: &Arc<EventBus>, ty: ConcreteType) {
 async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
     use std::time::{Duration, Instant};
 
-    use roblib::{event, roland::Roland};
+    use roblib::roland::Roland;
     use tokio::sync::broadcast::error::RecvError;
     use SubStatus::*;
 
@@ -350,7 +410,7 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
                         ConcreteType::TrackSensor(event::TrackSensor),
                         ConcreteValue::TrackSensor(track_sensor_state),
                     ))
-                    .await?;
+                    .await;
 
                 tokio::time::sleep_until((now + poll_dur).into()).await;
             }
@@ -372,7 +432,7 @@ async fn connect_roland(event_bus: Arc<EventBus>) -> anyhow::Result<()> {
                     ConcreteValue::UltraSensor(res),
                 ),
                 &next_ultra.id,
-            )?;
+            );
 
             next_ultra.next += next_ultra.interval;
         }
