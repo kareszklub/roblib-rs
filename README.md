@@ -9,7 +9,7 @@ and **roland**, a specialized version for the dank engine.
 
 ## client libraries in other languages:
 
--   ~~[javascript/typescript](https://github.com/kareszklub/roblib-client)~~ (currently outdated, new version planned)
+-   [javascript/typescript browser](https://github.com/kareszklub/roblib-client) *(wip: commands and returns work, events don't)*
 
 ## server downloads
 
