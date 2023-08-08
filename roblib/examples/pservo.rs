@@ -33,6 +33,7 @@ fn main() -> rppal::gpio::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn deg(deg: f64, range: f64) -> Duration {
     let millis = ((deg + 90.) / 180.) + 1. + range;
     Duration::from_secs_f64(millis / 1000.)

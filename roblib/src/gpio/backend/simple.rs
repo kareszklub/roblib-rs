@@ -1,6 +1,6 @@
 use crate::{
-    get_servo_pwm_durations,
     gpio::{event::Event, Mode},
+    map_num_range,
 };
 use rppal::gpio::{InputPin, OutputPin, Trigger};
 use std::{
@@ -9,6 +9,7 @@ use std::{
         atomic::{AtomicBool, Ordering::SeqCst},
         Arc, RwLock,
     },
+    time::{Duration, Instant},
 };
 
 pub trait Subscriber: Send + Sync {
@@ -153,8 +154,24 @@ impl super::super::Gpio for SimpleGpioBackend {
     }
 
     fn servo(&self, pin: u8, degree: f64) -> anyhow::Result<()> {
-        let (period, pulse_width) = get_servo_pwm_durations(degree);
-        self.output_pin(pin, |p| Ok(p.set_pwm(period, pulse_width)?))?
+        self.output_pin(pin, |p| {
+            let degree = degree.clamp(-90., 90.);
+            log::debug!("Enabling servo pwm");
+
+            let now = Instant::now();
+            p.set_high();
+
+            let dur = Duration::from_secs_f64(map_num_range(degree, -90., 90., 0.000750, 0.002250));
+
+            std::thread::sleep(dur - Duration::from_micros(100));
+            let until = now + dur;
+            while Instant::now() > until {
+                std::hint::spin_loop();
+            }
+
+            log::debug!("Disabling servo pwm");
+            p.set_low();
+        })
     }
 
     fn pin_mode(&self, pin: u8, mode: Mode) -> anyhow::Result<()> {

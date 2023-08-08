@@ -1,3 +1,5 @@
+use crate::map_num_range;
+
 use super::Roland;
 use anyhow::Result;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
@@ -358,9 +360,4 @@ impl Roland for RolandBackend {
 
         Ok((t2 - t1).as_secs_f64() * CONVERSION_FACTOR)
     }
-}
-
-fn map_num_range(v: f64, os: f64, oe: f64, ns: f64, ne: f64) -> f64 {
-    let a = (v - os) / (oe - os);
-    a * (ne - ns) + ns
 }

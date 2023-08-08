@@ -1,7 +1,9 @@
+use std::time::{Duration, Instant};
+
 pub use anyhow::Result;
 use rppal::gpio;
 
-use crate::get_servo_pwm_durations;
+use crate::map_num_range;
 
 pub struct TypedGpioBackend {
     gpio: gpio::Gpio,
@@ -166,10 +168,53 @@ impl<'g> crate::gpio::OutputPin for OutputPin<'g> {
     }
 
     fn servo(&mut self, degree: f64) -> Result<()> {
-        let (period, pulse_width) = get_servo_pwm_durations(degree);
-        self.pin.set_pwm(period, pulse_width)?;
+        let degree = degree.clamp(-90., 90.);
+        log::debug!("Enabling servo pwm");
+
+        let now = Instant::now();
+        self.pin.set_high();
+
+        let dur = Duration::from_secs_f64(map_num_range(degree, -90., 90., 0.000750, 0.002250));
+
+        std::thread::sleep(dur - Duration::from_micros(100));
+        let until = now + dur;
+        while Instant::now() > until {
+            std::hint::spin_loop();
+        }
+
+        log::debug!("Disabling servo pwm");
+        self.pin.set_low();
+
         Ok(())
     }
+    // fn roland_servo(&self, degree: f64) -> Result<()> {
+    //     let degree = degree.clamp(-90., 90.);
+    //
+    //     let mut lock = self.servo.lock().unwrap();
+    //     lock.1 += 1;
+    //     let id = lock.1;
+    //     log::debug!("Enabling servo pwm: id: {id}");
+    //
+    //     let now = Instant::now();
+    //     lock.0.set_high();
+    //     drop(lock);
+    //
+    //     let dur = Duration::from_secs_f64(map_num_range(degree, -90., 90., 0.000750, 0.002250));
+    //
+    //     std::thread::sleep(dur - Duration::from_micros(100));
+    //     let until = now + dur;
+    //     while Instant::now() > until {
+    //         std::hint::spin_loop();
+    //     }
+    //
+    //     let mut lock = self.servo.lock().unwrap();
+    //     log::debug!("Disabling servo pwm: id: {id} (latest: {})", lock.1);
+    //     if lock.1 == id {
+    //         lock.0.set_low();
+    //     }
+    //
+    //     Ok(())
+    // }
 
     fn set_to_pin(self) -> Result<Self::P> {
         let pin = self.pin.pin();

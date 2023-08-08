@@ -26,3 +26,8 @@ pub trait RoblibBuiltinAsync {
     async fn get_uptime(&self) -> anyhow::Result<std::time::Duration>;
     async fn abort(&self) -> anyhow::Result<()>;
 }
+
+fn map_num_range(v: f64, os: f64, oe: f64, ns: f64, ne: f64) -> f64 {
+    let a = (v - os) / (oe - os);
+    a * (ne - ns) + ns
+}
