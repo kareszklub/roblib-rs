@@ -149,14 +149,37 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_str(self.next()?)
+        self.deserialize_string(visitor)
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_string(self.next()?.to_string())
+        let spaces: usize = self.next()?.parse().map_err(|_| Error::Parse("usize"))?;
+
+        let mut next_str = || match self.next() {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                if let Error::Empty | Error::MissingArgument = e {
+                    Ok("")
+                } else {
+                    Err(e)
+                }
+            }
+        };
+
+        if spaces == 0 {
+            return visitor.visit_str(next_str()?);
+        }
+
+        let mut s = String::from(next_str()?);
+        for _ in 0..spaces {
+            s.push(SEPARATOR);
+            s.push_str(next_str()?);
+        }
+
+        visitor.visit_string(s)
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
@@ -209,18 +232,20 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     where
         V: de::Visitor<'de>,
     {
-        let len: u32 = self.next()?.parse().map_err(|_| Error::Parse("u32"))?;
+        visitor.visit_seq(Seq {
+            left: self.next()?.parse().map_err(|_| Error::Parse("usize"))?,
+            de: self,
+        })
+    }
+
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
         visitor.visit_seq(Seq {
             de: self,
             left: len,
         })
-    }
-
-    fn deserialize_tuple<V>(self, _: usize, visitor: V) -> Result<V::Value>
-    where
-        V: de::Visitor<'de>,
-    {
-        self.deserialize_seq(visitor)
     }
 
     fn deserialize_tuple_struct<V>(
@@ -234,7 +259,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     {
         visitor.visit_seq(Seq {
             de: self,
-            left: fields as u32,
+            left: fields,
         })
     }
 
@@ -242,10 +267,9 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     where
         V: de::Visitor<'de>,
     {
-        let len: u32 = self.next()?.parse().map_err(|_| Error::Parse("u32"))?;
         visitor.visit_map(Seq {
+            left: self.next()?.parse().map_err(|_| Error::Parse("usize"))?,
             de: self,
-            left: len,
         })
     }
 
@@ -260,7 +284,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
     {
         visitor.visit_seq(Seq {
             de: self,
-            left: fields.len() as u32,
+            left: fields.len(),
         })
     }
 
@@ -293,7 +317,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> de::Deserializer<'de> for &'a mut De
 
 struct Seq<'de: 'a, 'a, I: Iterator<Item = &'de str>> {
     de: &'a mut Deserializer<I>,
-    left: u32,
+    left: usize,
 }
 
 impl<'de, 'a, I: Iterator<Item = &'de str>> SeqAccess<'de> for Seq<'de, 'a, I> {
@@ -314,7 +338,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> SeqAccess<'de> for Seq<'de, 'a, I> {
     }
 
     fn size_hint(&self) -> Option<usize> {
-        Some(self.left as usize)
+        Some(self.left)
     }
 }
 
@@ -341,7 +365,7 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> MapAccess<'de> for Seq<'de, 'a, I> {
     }
 
     fn size_hint(&self) -> Option<usize> {
-        Some(self.left as usize)
+        Some(self.left)
     }
 }
 
@@ -358,8 +382,8 @@ impl<'de, 'a, I: Iterator<Item = &'de str>> EnumAccess<'de> for Enum<'de, 'a, I>
     where
         V: DeserializeSeed<'de>,
     {
-        let var: u32 = self.de.next()?.parse().map_err(|_| Error::Parse("u32"))?;
-        let des: de::value::U32Deserializer<Error> = de::value::U32Deserializer::new(var);
+        let var = self.de.next()?.parse().map_err(|_| Error::Parse("usize"))?;
+        let des = de::value::UsizeDeserializer::<Error>::new(var);
         let v = seed.deserialize(des)?;
         Ok((v, self))
     }

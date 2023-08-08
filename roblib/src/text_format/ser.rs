@@ -45,7 +45,6 @@ impl<W: fmt::Write> fmt::Write for Serializer<W> {
     }
 
     fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-        self.put_separator = true;
         self.formatting = true;
         fmt::write(self, args)?;
         self.formatting = false;
@@ -117,7 +116,14 @@ impl<W: fmt::Write> ser::Serializer for &mut Serializer<W> {
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
-        Ok(self.write_str(v)?)
+        let spaces = v.chars().filter(|c| *c == SEPARATOR).count();
+        write!(self, "{spaces}")?;
+
+        if !v.is_empty() {
+            self.write_str(v)?;
+        }
+
+        Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
@@ -180,7 +186,7 @@ impl<W: fmt::Write> ser::Serializer for &mut Serializer<W> {
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         if let Some(len) = len {
-            write!(self, "{}", len as u32)?;
+            write!(self, "{}", len)?;
             Ok(self)
         } else {
             Err(Error::UnsizedSeq)

@@ -13,6 +13,52 @@ mod tests {
     use rand::random;
 
     #[test]
+    fn ser_matches_de_random_types() -> anyhow::Result<()> {
+        fn m<T: serde::Serialize + serde::de::DeserializeOwned>(v: &T) -> anyhow::Result<()> {
+            let txt1 = super::ser::to_string(v)?;
+            let res: T = match super::de::from_str(&txt1) {
+                Ok(v) => v,
+                Err(e) => {
+                    println!("couldn't parse '{txt1}'");
+                    Err(e)?
+                }
+            };
+            let txt2 = super::ser::to_string(&res)?;
+            if txt1 != txt2 {
+                println!("❌ {txt1} | {txt2}");
+            }
+
+            Ok(())
+        }
+
+        m(&String::from(""))?;
+        m(&String::from("    "))?;
+        m(&String::from(" asd  asd "))?;
+        m(&String::from("asd asd  asd asd 132"))?;
+
+        m(&(123u32, 42u8, 'a', true))?;
+        m(&[random::<isize>(), random(), random(), random()])?;
+        m(&vec![
+            Duration::from_secs_f64(random()),
+            Duration::from_secs_f64(random()),
+            Duration::from_secs_f64(random()),
+            Duration::from_secs_f64(random()),
+        ])?;
+
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Ads(char, f64);
+        m::<Vec<Result<String, Option<Ads>>>>(&vec![
+            Ok(" 0hello text format ".to_string()),
+            Ok("bye!".to_string()),
+            Err(None),
+            Err(None),
+            Err(Some(Ads(random(), random()))),
+        ])?;
+
+        Ok(())
+    }
+
+    #[test]
     fn ser_matches_de_event() -> anyhow::Result<()> {
         for _ in 0..100 {
             let cs = [
