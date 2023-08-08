@@ -10,6 +10,15 @@ set -e
 cargo clippy -p roblib-macro 2>&1
 [ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
 
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]node-ffi"
+cargo clippy -p kareszklub_roblib-client-node 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
+[ -n "$GITHUB_ACTIONS" ] && echo "##[group]encoder-wasm"
+cargo clippy -p roblib-encoder-wasm 2>&1
+[ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
+
+# test runs
 [ -n "$GITHUB_ACTIONS" ] && echo "##[group]test: roblib"
 cargo test --all-features -p roblib 2>&1
 [ -n "$GITHUB_ACTIONS" ] && echo "##[endgroup]"
