@@ -1,5 +1,8 @@
 use roblib::roland::{LedColor, Roland};
-use roblib_client::{transports::tcp::Tcp, Result, Robot};
+use roblib_client::{
+    transports::{tcp::Tcp, Transport},
+    Result, Robot,
+};
 use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<()> {

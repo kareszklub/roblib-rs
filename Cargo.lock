@@ -987,6 +987,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "roblib-encoder-wasm"
+version = "0.1.3"
+dependencies = [
+ "bincode",
+ "roblib",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "roblib-macro"
 version = "0.1.0"
 dependencies = [
