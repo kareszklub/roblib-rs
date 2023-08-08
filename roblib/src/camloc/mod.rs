@@ -1,7 +1,7 @@
 pub mod cmd;
 pub mod event;
 
-pub use camloc_server::{service, MotionHint, Position};
+pub use camloc_server::{service, MotionHint, PlacedCamera, Position};
 
 pub trait Camloc {
     fn get_position(&self) -> anyhow::Result<Option<Position>>;

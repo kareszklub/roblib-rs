@@ -78,3 +78,11 @@ required-features = ["default", "gpio", "async"]
 [[example]]
 name = "servo"
 required-features = ["default", "roland", "async"]
+
+[[example]]
+name = "ultra_multi"
+required-features = ["default", "roland"]
+
+[[example]]
+name = "camloc_java_display"
+required-features = ["default", "camloc"]

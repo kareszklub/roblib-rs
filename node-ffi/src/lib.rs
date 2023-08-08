@@ -27,8 +27,8 @@ macro_rules! sub_recv {
     ($robot:ident, $tsfn:ident, $ev:expr, $ev_args:ident) => {
         let e = anyhow::anyhow!("Invalid event args: {:?}", &$ev_args);
         let Ok(v) = serde_json::from_value($ev_args) else {
-                                                                                    return Err(e);
-                                                                                };
+            return Err(e);
+        };
         let mut rx = $robot.subscribe($ev(v)).await?;
         sub_loop!(rx, $tsfn);
     };
@@ -89,12 +89,13 @@ impl ObjectFinalize for JsRobot {
             log::warn!("Robot was dropped with an active connection");
         }
         // if the connection has been disconnected, then we're good
-        return Ok(());
+        Ok(())
     }
 }
 
 #[napi]
 impl JsRobot {
+    #[allow(clippy::new_without_default)]
     #[napi(constructor)]
     pub fn new() -> Self {
         panic!("Use Robot.connect instead of new Robot")
@@ -122,10 +123,12 @@ impl JsRobot {
     #[napi]
     // get real
     pub unsafe fn disconnect(&mut self) -> Result<()> {
-        self.active = false;
-        let x: *const tokio::runtime::Runtime = &*self.rt;
-        let rt = std::ptr::read(x);
-        rt.shutdown_timeout(Duration::from_millis(100));
+        if self.active {
+            self.active = false;
+            let x: *const tokio::runtime::Runtime = &*self.rt;
+            let rt = std::ptr::read(x);
+            rt.shutdown_timeout(Duration::from_millis(100));
+        }
         Ok(())
     }
 

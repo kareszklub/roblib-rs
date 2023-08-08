@@ -208,14 +208,11 @@ pub mod tcp_async {
         cmd_rx: mpsc::UnboundedReceiver<(cmd::Concrete, Option<oneshot::Sender<D>>)>,
         sub_rx: mpsc::UnboundedReceiver<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>,
     }
+
+    type SendCmd = mpsc::UnboundedSender<(cmd::Concrete, Option<oneshot::Sender<D>>)>;
+    type SendEv = mpsc::UnboundedSender<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>;
     impl Worker {
-        pub fn new(
-            stream: TcpStream,
-        ) -> (
-            Self,
-            mpsc::UnboundedSender<(cmd::Concrete, Option<oneshot::Sender<D>>)>,
-            mpsc::UnboundedSender<(event::ConcreteType, Option<mpsc::UnboundedSender<D>>)>,
-        ) {
+        pub fn new(stream: TcpStream) -> (Self, SendCmd, SendEv) {
             let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
             let (sub_tx, sub_rx) = mpsc::unbounded_channel();
             let s = Self {
@@ -333,7 +330,7 @@ pub mod tcp_async {
                 log::debug!("{r:#?}");
                 return true;
             }
-            return false;
+            false
         }
         async fn send(&mut self, data: impl Serialize) -> Result<()> {
             let buf = bincode::Options::serialize(bincode::options(), &data)?;
