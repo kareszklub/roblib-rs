@@ -74,16 +74,16 @@ pub async fn throws(n: u32) -> Result<()> {
     Err(anyhow::anyhow!("ERROR: {n}"))?
 }
 
-#[napi(custom_finalize, js_name = "Robot")]
+#[napi(custom_finalize)]
 #[derive(Clone)]
-pub struct JsRobot {
+pub struct Robot {
     robot: Arc<RobotAsync<TcpAsync>>,
     active: bool,
     rt: Arc<tokio::runtime::Runtime>,
 }
 
 #[napi]
-impl ObjectFinalize for JsRobot {
+impl ObjectFinalize for Robot {
     fn finalize(self, _: Env) -> napi::Result<()> {
         if self.active {
             log::warn!("Robot was dropped with an active connection");
@@ -94,7 +94,7 @@ impl ObjectFinalize for JsRobot {
 }
 
 #[napi]
-impl JsRobot {
+impl Robot {
     #[allow(clippy::new_without_default)]
     #[napi(constructor)]
     pub fn new() -> Self {
@@ -102,7 +102,7 @@ impl JsRobot {
     }
 
     #[napi]
-    pub async fn connect(addr: String) -> Result<JsRobot> {
+    pub async fn connect(addr: String) -> Result<Robot> {
         roblib_client::logger::init_log(Some("info"));
         let rt = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
@@ -215,7 +215,7 @@ impl JsRobot {
     #[napi]
     pub fn subscribe(
         &self,
-        ev: JsEventType,
+        ev: EventType,
         ev_args: serde_json::Value,
         handler: JsFunction,
     ) -> Result<()> {
@@ -228,25 +228,31 @@ impl JsRobot {
         let robot = self.robot.clone();
         self.rt.spawn(async move {
             match ev {
-                JsEventType::TrackSensor => {
+                EventType::TrackSensor => {
                     sub_recv!(robot, tsfn, event::TrackSensor);
                 }
-                JsEventType::UltraSensor => {
-                    sub_recv!(robot, tsfn, event::UltraSensor, ev_args);
+                EventType::UltraSensor => {
+                    let e = anyhow::anyhow!("Invalid event args: {:?}", &ev_args);
+                    let Ok(v) = serde_json::from_value(ev_args) else {
+                        return Err(e);
+                    };
+                    let d = Duration::from_millis(v);
+                    let mut rx = robot.subscribe(event::UltraSensor(d)).await?;
+                    sub_loop!(rx, tsfn);
                 }
-                JsEventType::GpioPin => {
+                EventType::GpioPin => {
                     sub_recv!(robot, tsfn, event::GpioPin, ev_args);
                 }
-                JsEventType::CamlocConnect => {
+                EventType::CamlocConnect => {
                     sub_recv!(robot, tsfn, event::CamlocConnect);
                 }
-                JsEventType::CamlocDisconnect => {
+                EventType::CamlocDisconnect => {
                     sub_recv!(robot, tsfn, event::CamlocDisconnect);
                 }
-                JsEventType::CamlocPosition => {
+                EventType::CamlocPosition => {
                     sub_recv!(robot, tsfn, event::CamlocPosition);
                 }
-                JsEventType::CamlocInfoUpdate => {
+                EventType::CamlocInfoUpdate => {
                     sub_recv!(robot, tsfn, event::CamlocInfoUpdate);
                 }
             }
@@ -260,8 +266,8 @@ impl JsRobot {
     // async fn unsubscribe(&self, ev: E) -> Result<()> { }
 }
 
-#[napi(string_enum, js_name = "EventType")]
-pub enum JsEventType {
+#[napi(string_enum)]
+pub enum EventType {
     TrackSensor,
     UltraSensor,
 
@@ -272,28 +278,28 @@ pub enum JsEventType {
     CamlocPosition,
     CamlocInfoUpdate,
 }
-impl JsEventType {
+impl EventType {
     pub fn to_concrete(self, value: serde_json::Value) {
         match self {
-            JsEventType::TrackSensor => ConcreteValue::TrackSensor(
+            EventType::TrackSensor => ConcreteValue::TrackSensor(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
-            JsEventType::UltraSensor => ConcreteValue::UltraSensor(
+            EventType::UltraSensor => ConcreteValue::UltraSensor(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
-            JsEventType::GpioPin => {
+            EventType::GpioPin => {
                 ConcreteValue::GpioPin(serde_json::from_value(value).expect("invalid event value"))
             }
-            JsEventType::CamlocConnect => ConcreteValue::CamlocConnect(
+            EventType::CamlocConnect => ConcreteValue::CamlocConnect(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
-            JsEventType::CamlocDisconnect => ConcreteValue::CamlocDisconnect(
+            EventType::CamlocDisconnect => ConcreteValue::CamlocDisconnect(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
-            JsEventType::CamlocPosition => ConcreteValue::CamlocPosition(
+            EventType::CamlocPosition => ConcreteValue::CamlocPosition(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
-            JsEventType::CamlocInfoUpdate => ConcreteValue::CamlocInfoUpdate(
+            EventType::CamlocInfoUpdate => ConcreteValue::CamlocInfoUpdate(
                 serde_json::from_value(value).expect("invalid event value"),
             ),
         };

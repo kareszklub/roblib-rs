@@ -25,7 +25,6 @@ export interface Position {
   y: number
   rotation: number
 }
-export type JsRobot = Robot
 export class Robot {
   constructor()
   static connect(addr: string): Promise<Robot>
@@ -45,5 +44,5 @@ export class Robot {
   servo(pin: number, degree: number): Promise<void>
   pinMode(pin: number, mode: JsPinMode): Promise<void>
   getPosition(): Promise<JsPosition | null>
-  subscribe(ev: JsEventType, evArgs: any, handler: (...args: any[]) => any): void
+  subscribe(ev: EventType, evArgs: any, handler: (...args: any[]) => any): void
 }

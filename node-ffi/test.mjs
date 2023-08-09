@@ -4,8 +4,8 @@ console.log(Robot, sleep);
 
 const IN = 2, OUT = 3;
 
-// const robot = await Robot.connect("localhost:1110");
-const robot = await Robot.connect("roland:1110");
+const robot = await Robot.connect("localhost:1110");
+// const robot = await Robot.connect("roland:1110");
 console.log(robot);
 // await robot.pinMode(IN, "input");
 // await robot.pinMode(OUT, "output");
@@ -39,7 +39,8 @@ async function uptime_loop() {
 }
 
 async function roland_sensor() {
-    robot.subscribe(EventType.TrackSensor, null, (_err, v) => console.log(v));
+    // robot.subscribe(EventType.TrackSensor, null, (_err, v) => console.log(v));
+    robot.subscribe(EventType.UltraSensor, 250, console.log);
 }
 
-// setTimeout(() => { }, 1000000000);
+setTimeout(() => { }, 1000000000);
