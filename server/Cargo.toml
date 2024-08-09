@@ -2,7 +2,10 @@
 name = "roblib-server"
 version = "0.1.0"
 edition = "2021"
-authors = ["Beni69 (https://github.com/beni69)", "Kris030 (https://github.com/Kris030)"]
+authors = [
+    "Beni69 (https://github.com/beni69)",
+    "Kris030 (https://github.com/Kris030)",
+]
 license = "LGPL-2.1-or-later"
 description = "A remote control server for a dank engine"
 homepage = "https://github.com/kareszklub/roblib-rs"
@@ -13,14 +16,27 @@ readme = "../README.md"
 roblib = { version = "0.1.0", path = "../roblib", features = ["async"] }
 anyhow = "1"
 async-trait = "0.1"
-axum = { version = "0.6.19", default_features = false, features = ["http1", "tokio", "ws"] }
+axum = { version = "0.6.19", default-features = false, features = [
+    "http1",
+    "tokio",
+    "ws",
+] }
 bincode = "1.3.3"
 envy = "0.4.2"
 env_logger = "0.10.0"
 futures-util = "0.3"
 log = "0.4"
 serde = "1"
-tokio = { version = "1.29", default_features = false, features = ["rt", "rt-multi-thread", "time", "sync", "signal", "io-util", "macros", "net"] }
+tokio = { version = "1.29", default-features = false, features = [
+    "rt",
+    "rt-multi-thread",
+    "time",
+    "sync",
+    "signal",
+    "io-util",
+    "macros",
+    "net",
+] }
 tokio-util = "0.7.8"
 
 [features]

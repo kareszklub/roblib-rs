@@ -98,7 +98,9 @@ async fn try_main() -> Result<()> {
     #[cfg(feature = "camloc")]
     let camloc = {
         // TODO: config
-        let serv = roblib::camloc::service::Builder::new().start().await;
+        info!("initing camloc");
+        let serv = roblib::camloc::service::Builder::new();
+        let serv = serv.start().await;
 
         match serv {
             Ok(s) => {

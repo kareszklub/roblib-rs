@@ -1,7 +1,10 @@
 use super::Roland;
 use crate::get_servo_pwm_durations;
 use anyhow::Result;
-use rppal::gpio::{Gpio, InputPin, OutputPin};
+use rppal::{
+    gpio::{Gpio, InputPin, OutputPin},
+    pwm::{self, Polarity, Pwm},
+};
 use std::{
     sync::Mutex,
     time::{Duration, Instant},
@@ -113,11 +116,11 @@ impl Servo {
 struct Motors {
     fwd_l: OutputPin,
     bwd_l: OutputPin,
-    pwm_l: OutputPin,
+    pwm_l: Pwm,
 
     fwd_r: OutputPin,
     bwd_r: OutputPin,
-    pwm_r: OutputPin,
+    pwm_r: Pwm,
 }
 impl Motors {
     fn new(gpio: &Gpio) -> Result<Self> {
@@ -125,11 +128,11 @@ impl Motors {
         Ok(Self {
             fwd_l: gpio.get(FWD_L)?.into_output_low(),
             bwd_l: gpio.get(BWD_L)?.into_output_low(),
-            pwm_l: gpio.get(PWM_L)?.into_output_high(),
+            pwm_l: Pwm::with_frequency(pwm::Channel::Pwm0, 2000., 0., Polarity::Normal, false)?,
 
             fwd_r: gpio.get(FWD_R)?.into_output_low(),
             bwd_r: gpio.get(BWD_R)?.into_output_low(),
-            pwm_r: gpio.get(PWM_R)?.into_output_high(),
+            pwm_r: Pwm::with_frequency(pwm::Channel::Pwm1, 2000., 0., Polarity::Normal, false)?,
         })
     }
 }
@@ -236,8 +239,8 @@ impl Roland for RolandBackend {
 
         if left.abs() == 0. && right.abs() == 0. {
             log::debug!("Disabling motor pwms");
-            m.pwm_l.clear_pwm()?;
-            m.pwm_r.clear_pwm()?;
+            m.pwm_l.disable()?;
+            m.pwm_r.disable()?;
             return Ok(());
         }
 
@@ -245,8 +248,8 @@ impl Roland for RolandBackend {
         let sig_r = right.signum() as isize;
 
         log::debug!("Enabling motor pwms {left} {right} {sig_l} {sig_r}");
-        m.pwm_l.set_pwm_frequency(2000.0, left.abs())?;
-        m.pwm_r.set_pwm_frequency(2000.0, right.abs())?;
+        m.pwm_l.set_duty_cycle(left.abs())?;
+        m.pwm_r.set_duty_cycle(right.abs())?;
 
         match sig_l {
             1 => {
