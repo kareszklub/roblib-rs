@@ -12,18 +12,11 @@ use std::{
 
 pub mod constants {
     pub mod motors {
-        /// left forward
-        pub const FWD_L: u8 = 20;
-        /// left backward
-        pub const BWD_L: u8 = 21;
-        /// right forward
-        pub const FWD_R: u8 = 19;
-        /// right backward
-        pub const BWD_R: u8 = 26;
-        /// left speed (pwm)
-        pub const PWM_L: u8 = 16;
-        /// right speed (pwm)
-        pub const PWM_R: u8 = 13;
+        pub const FWD_L: u8 = 14;
+        pub const BWD_L: u8 = 15;
+
+        pub const FWD_R: u8 = 13;
+        pub const BWD_R: u8 = 6;
     }
 
     pub mod led {

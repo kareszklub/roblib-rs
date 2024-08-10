@@ -170,8 +170,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 [[package]]
 name = "camloc-common"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c597de027503c2b37739eb6e3c391b3d2c3a4cebf29d4c438712bf4b8d4b9833"
+source = "git+https://github.com/Kris030/camloc#257a3809ce7253337deb6f3e197cee55cdb965c2"
 dependencies = [
  "serde",
  "thiserror",
@@ -179,9 +178,8 @@ dependencies = [
 
 [[package]]
 name = "camloc-server"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5328887d186b04944160a014dec201b59f5493c012d23254e33748a0085b60d"
+version = "0.2.1"
+source = "git+https://github.com/Kris030/camloc#257a3809ce7253337deb6f3e197cee55cdb965c2"
 dependencies = [
  "anyhow",
  "async-trait",
