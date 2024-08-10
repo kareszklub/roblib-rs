@@ -250,6 +250,8 @@ impl Roland for RolandBackend {
         log::debug!("Enabling motor pwms {left} {right} {sig_l} {sig_r}");
         m.pwm_l.set_duty_cycle(left.abs())?;
         m.pwm_r.set_duty_cycle(right.abs())?;
+        m.pwm_l.enable()?;
+        m.pwm_r.enable()?;
 
         match sig_l {
             1 => {
